@@ -57,6 +57,8 @@ model User {
   orderedCareOrders              CareOrder[]            @relation("OrderedCareOrders")
   performedCareOrders            CareOrder[]            @relation("PerformedCareOrders")
   dispensedCareOrders            CareOrder[]            @relation("DispensedCareOrders")
+  PackageType                    PackageType[]
+  FollowUpCall                   FollowUpCall[]
 }
 
 model Patient {
@@ -85,6 +87,7 @@ model Patient {
   documents        PatientDocument[]
   queueEntries     PatientQueue[]
   careOrders       CareOrder[]
+  FollowUpCall     FollowUpCall[]
 
   @@unique([clinicId, uhid])
   @@index([phone])
@@ -104,50 +107,61 @@ model TreatmentMaster {
   templateItems PrescriptionTemplateItem[]
   clinicId      String
   clinic        Clinic                     @relation(fields: [clinicId], references: [id])
+  PackageType   PackageType[]
 
   @@unique([clinicId, name])
 }
 
 model PackageType {
-  id            String            @id @default(uuid())
-  name          String
-  description   String?
-  price         Decimal
-  totalSittings Int
-  isGstTaxable  Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  purchases     PackagePurchase[]
-  clinicId      String
-  clinic        Clinic            @relation(fields: [clinicId], references: [id])
+  id             String            @id @default(uuid())
+  name           String
+  description    String?
+  price          Decimal
+  totalSittings  Int
+  sittingGapDays Int?
+  isActive       Boolean           @default(true)
+  isGstTaxable   Boolean           @default(true)
+  treatmentId    String?
+  treatment      TreatmentMaster?  @relation(fields: [treatmentId], references: [id])
+  doctorId       String?
+  doctor         User?             @relation(fields: [doctorId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  purchases      PackagePurchase[]
+  clinicId       String
+  clinic         Clinic            @relation(fields: [clinicId], references: [id])
+  
+  recommendedInQueues PatientQueue[]
 
   @@unique([clinicId, name])
 }
 
 model PackagePurchase {
-  id                String      @id @default(uuid())
-  patientId         String
-  patient           Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  packageTypeId     String
-  packageType       PackageType @relation(fields: [packageTypeId], references: [id])
-  packageName       String
-  packageCode       String? // Short code used on the package register, e.g. "GLT 5gm"
-  purchaseDate      String // YYYY-MM-DD
-  amountPaid        Decimal
-  cashAmount        Decimal     @default(0.0)
-  bankAmount        Decimal     @default(0.0)
-  paymentRefId      String?
-  isGstTaxable      Boolean     @default(false)
-  status            String      @default("Follow Up")
-  totalSittings     Int         @default(0)
-  sittingsUsed      Int         @default(0)
-  sittingsRemaining Int
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  visits            Visit[]
-  invoices          Invoice[]
-  clinicId          String?
-  clinic            Clinic?     @relation(fields: [clinicId], references: [id])
+  id                  String      @id @default(uuid())
+  patientId           String
+  patient             Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  packageTypeId       String
+  packageType         PackageType @relation(fields: [packageTypeId], references: [id])
+  packageName         String
+  packageCode         String? // Short code used on the package register, e.g. "GLT 5gm"
+  purchaseDate        String // YYYY-MM-DD
+  amountPaid          Decimal
+  cashAmount          Decimal     @default(0.0)
+  bankAmount          Decimal     @default(0.0)
+  paymentRefId        String?
+  isGstTaxable        Boolean     @default(false)
+  sittingGapDays      Int?
+  openingSittingsUsed Int         @default(0)
+  status              String      @default("Follow Up")
+  totalSittings       Int         @default(0)
+  sittingsUsed        Int         @default(0)
+  sittingsRemaining   Int
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  visits              Visit[]
+  invoices            Invoice[]
+  clinicId            String?
+  clinic              Clinic?     @relation(fields: [clinicId], references: [id])
 
   @@index([patientId])
 }
@@ -213,6 +227,7 @@ model Visit {
   bankAmount          Decimal            @default(0.0)
   paymentRefId        String? // Transaction ID / UTR captured on the visit row
   status              String // "New" | "Follow Up" | "Dressing" (Rule 3 pays only on "New")
+  conditionTrend      String? // IMPROVING | SAME | WORSENING — null means not recorded
   nextAppointmentDate String? // YYYY-MM-DD
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -455,6 +470,7 @@ model Clinic {
   departments               Department[]
   doctorSchedules           DoctorSchedule[]
   RetailSale                RetailSale[]
+  FollowUpCall              FollowUpCall[]
 }
 
 model DoctorSchedule {
@@ -487,6 +503,7 @@ model Appointment {
   reasonForVisit String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  slotKey        String?  @unique
 
   @@index([clinicId, startTime])
   @@index([patientId])
@@ -689,6 +706,9 @@ model PatientQueue {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  recommendedPackageTypeId String?
+  recommendedPackageType   PackageType? @relation(fields: [recommendedPackageTypeId], references: [id], onDelete: SetNull)
+
   careOrders CareOrder[]
 
   clinicId String
@@ -747,8 +767,9 @@ model CareOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clinicId String
-  clinic   Clinic @relation(fields: [clinicId], references: [id])
+  clinicId        String
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  sourceTemplates String?
 
   @@index([queueId])
   @@index([patientId])
@@ -938,4 +959,24 @@ model RetailSaleItem {
   unitPrice            Decimal
   totalPrice           Decimal
   batchDispenseRecords BatchDispenseRecord[]
+}
+
+model FollowUpCall {
+  id         String   @id @default(uuid())
+  clinicId   String
+  clinic     Clinic   @relation(fields: [clinicId], references: [id])
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  kind       String // "DOCTOR_FOLLOW_UP" | "PACKAGE_SITTING"
+  refId      String // visitId or packagePurchaseId
+  dueDate    String // YYYY-MM-DD
+  outcome    String // "BOOKED" | "NO_ANSWER" | "DECLINED" | "CALL_BACK"
+  note       String?
+  callBackOn String? // YYYY-MM-DD
+  calledById String
+  calledBy   User     @relation(fields: [calledById], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([clinicId, dueDate])
+  @@index([patientId])
 }

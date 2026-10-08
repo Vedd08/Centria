@@ -237,6 +237,7 @@ async function main() {
       status: p.status || 'Follow Up',
       totalSittings: p.totalSittings || 0,
       sittingsUsed: p.availed || 0,
+      openingSittingsUsed: p.availed || 0,
       sittingsRemaining: p.available || 0,
       clinicId,
     };
