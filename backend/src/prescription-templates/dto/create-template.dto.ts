@@ -15,6 +15,9 @@ export class TemplateItemDto {
   medicineId?: string;
 
   @IsOptional()
+  notStocked?: boolean;
+
+  @IsOptional()
   @IsString()
   treatmentId?: string;
 

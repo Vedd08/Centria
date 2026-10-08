@@ -37,11 +37,14 @@ export class PrescriptionTemplatesService {
 
       if (STOCK_BACKED.includes(item.orderType)) {
         if (!item.medicineId) {
-          throw new BadRequestException(`A ${item.orderType.toLowerCase()} line must reference a pharmacy item`);
+          if (!item.notStocked) {
+            throw new BadRequestException(`A ${item.orderType.toLowerCase()} line must reference a pharmacy item`);
+          }
+        } else {
+          const medicine = await this.prisma.medicine.findFirst({ where: { id: item.medicineId, clinicId } });
+          if (!medicine) throw new NotFoundException(`Medicine ${item.medicineId} not found`);
+          label = label || medicine.name;
         }
-        const medicine = await this.prisma.medicine.findFirst({ where: { id: item.medicineId, clinicId } });
-        if (!medicine) throw new NotFoundException(`Medicine ${item.medicineId} not found`);
-        label = label || medicine.name;
       }
 
       if (item.treatmentId) {
@@ -142,14 +145,49 @@ export class PrescriptionTemplatesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Fetch existing active care orders to prevent duplicates when applying multiple templates
+      const existingOrders = await tx.careOrder.findMany({
+        where: { queueId: queue.id, status: { not: 'CANCELLED' } },
+      });
+
+      const notStocked: string[] = [];
+
       for (const item of template.items) {
+        let duplicateOrder = null;
+        if (item.medicineId) {
+          duplicateOrder = existingOrders.find((o) => o.medicineId === item.medicineId);
+        } else if (item.treatmentId) {
+          duplicateOrder = existingOrders.find((o) => o.treatmentId === item.treatmentId);
+        } else if (!item.medicineId && !item.treatmentId && item.description) {
+          duplicateOrder = existingOrders.find((o) => o.description?.trim().toLowerCase() === item.description?.trim().toLowerCase());
+        }
+
+        if (duplicateOrder) {
+          const tags = duplicateOrder.sourceTemplates ? String(duplicateOrder.sourceTemplates).split(' | ') : [];
+          if (!tags.includes(template.name)) {
+            tags.push(template.name);
+            const newTags = tags.join(' | ');
+            await tx.careOrder.update({
+              where: { id: duplicateOrder.id },
+              data: { sourceTemplates: newTags },
+            });
+            (duplicateOrder as any).sourceTemplates = newTags;
+          }
+          continue;
+        }
+
+        let orderType = item.orderType;
+        if (STOCK_BACKED.includes(orderType) && !item.medicineId) {
+          notStocked.push(item.description);
+        }
+
         const unitPrice = Number(item.medicine?.unitPrice ?? item.treatment?.price ?? 0);
-        await tx.careOrder.create({
+        const created = await tx.careOrder.create({
           data: {
             clinicId,
             queueId: queue.id,
             patientId: queue.patientId,
-            orderType: item.orderType,
+            orderType,
             medicineId: item.medicineId,
             treatmentId: item.treatmentId,
             description: item.description,
@@ -158,27 +196,78 @@ export class PrescriptionTemplatesService {
             frequency: item.frequency,
             instructions: item.instructions,
             quantity: item.quantity,
-            unitPrice,
-            totalPrice: unitPrice * item.quantity,
+            unitPrice: item.medicineId ? unitPrice : 0,
+            totalPrice: item.medicineId ? unitPrice * item.quantity : 0,
             status: 'ORDERED',
+            sourceTemplates: template.name,
             orderedById: user.id,
           },
         });
+        existingOrders.push(created);
       }
 
-      // Only fill blanks — never overwrite something the doctor already typed.
-      return tx.patientQueue.update({
+      const mergeText = (existing: string | null | undefined, addition: string | null | undefined) => {
+        if (!addition) return existing || null;
+        if (!existing) return addition;
+        
+        const existingLines = new Set(existing.split('\n').map(l => l.trim()));
+        const newLines = addition.split('\n').map(l => l.trim()).filter(l => l && !existingLines.has(l));
+        
+        if (newLines.length === 0) return existing;
+        return `${existing}\n${newLines.join('\n')}`;
+      };
+
+      const updatedQueue = await tx.patientQueue.update({
         where: { id: queue.id },
         data: {
-          diagnosis: queue.diagnosis || template.diagnosis,
-          patientNotes: queue.patientNotes || template.patientNotes,
-          staffNotes: queue.staffNotes || template.staffNotes,
+          diagnosis: mergeText(queue.diagnosis, template.diagnosis),
+          patientNotes: mergeText(queue.patientNotes, template.patientNotes),
+          staffNotes: mergeText(queue.staffNotes, template.staffNotes),
         },
         include: {
           patient: true,
           careOrders: { include: { medicine: true } },
         },
       });
+
+      return { queue: updatedQueue, notStocked };
+    }, TRANSACTION_OPTIONS);
+  }
+
+  async removeAppliedTemplate(clinicId: string, templateId: string, queueId: string, user: any) {
+    const template = await this.ownedOrThrow(clinicId, templateId, user);
+    
+    const queue = await this.prisma.patientQueue.findFirst({ where: { id: queueId, clinicId } });
+    if (!queue) throw new NotFoundException(`Queue entry ${queueId} not found`);
+
+    return this.prisma.$transaction(async (tx) => {
+      const orders = await tx.careOrder.findMany({
+        where: { queueId, status: { not: 'CANCELLED' } },
+      });
+
+      let skippedCount = 0;
+      for (const order of orders) {
+        if (!order.sourceTemplates) continue;
+        const tags = order.sourceTemplates.split(' | ');
+        if (!tags.includes(template.name)) continue;
+
+        if (order.dispensedAt || order.performedAt) {
+          skippedCount++;
+          continue;
+        }
+
+        if (tags.length === 1) {
+          await tx.careOrder.delete({ where: { id: order.id } });
+        } else {
+          const newTags = tags.filter(t => t !== template.name).join(' | ');
+          await tx.careOrder.update({
+            where: { id: order.id },
+            data: { sourceTemplates: newTags }
+          });
+        }
+      }
+
+      return { deleted: true, skippedCount };
     }, TRANSACTION_OPTIONS);
   }
 }

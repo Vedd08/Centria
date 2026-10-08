@@ -44,14 +44,17 @@ export class CareOrdersService {
     let medicine: { id: string; name: string; unitPrice: any; isActive: boolean } | null = null;
     if (STOCK_BACKED.includes(dto.orderType)) {
       if (!dto.medicineId) {
-        throw new BadRequestException(`A ${dto.orderType.toLowerCase()} order must reference a pharmacy item`);
-      }
-      medicine = await this.prisma.medicine.findFirst({ where: { id: dto.medicineId, clinicId } });
-      if (!medicine) {
-        throw new NotFoundException(`Medicine ID ${dto.medicineId} not found`);
-      }
-      if (!medicine.isActive) {
-        throw new BadRequestException(`'${medicine.name}' is discontinued and cannot be ordered`);
+        if (!dto.notStocked) {
+          throw new BadRequestException(`A ${dto.orderType.toLowerCase()} order must reference a pharmacy item`);
+        }
+      } else {
+        medicine = await this.prisma.medicine.findFirst({ where: { id: dto.medicineId, clinicId } });
+        if (!medicine) {
+          throw new NotFoundException(`Medicine ID ${dto.medicineId} not found`);
+        }
+        if (!medicine.isActive) {
+          throw new BadRequestException(`'${medicine.name}' is discontinued and cannot be ordered`);
+        }
       }
     }
 
@@ -114,6 +117,7 @@ export class CareOrdersService {
     if (filters.pendingDispense) {
       // The pharmacy worklist: stock-backed items not yet handed over.
       where.orderType = { in: STOCK_BACKED };
+      where.medicineId = { not: null };
       where.dispensedAt = null;
       where.status = { not: 'CANCELLED' };
     }
@@ -165,12 +169,42 @@ export class CareOrdersService {
     }, TRANSACTION_OPTIONS);
   }
 
+  async untag(clinicId: string, id: string, templateName: string) {
+    if (!templateName) throw new BadRequestException('templateName is required');
+    const order = await this.findOneOrThrow(clinicId, id);
+    if (!order.sourceTemplates) return order;
+
+    const names = order.sourceTemplates.split(' | ').filter(n => n !== templateName);
+    const newTemplates = names.length > 0 ? names.join(' | ') : null;
+
+    return this.prisma.careOrder.update({
+      where: { id },
+      data: { sourceTemplates: newTemplates },
+      include: ORDER_INCLUDE,
+    });
+  }
+
   async cancel(clinicId: string, id: string) {
     const order = await this.findOneOrThrow(clinicId, id);
-    if (order.dispensedAt) {
-      throw new ConflictException('This order was already dispensed and cannot be cancelled');
+    if (order.status !== 'ORDERED') {
+      throw new BadRequestException('Only new orders can be cancelled');
     }
-    return this.prisma.careOrder.update({ where: { id }, data: { status: 'CANCELLED' }, include: ORDER_INCLUDE });
+    return this.prisma.careOrder.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: ORDER_INCLUDE,
+    });
+  }
+
+  async delete(clinicId: string, id: string) {
+    const order = await this.findOneOrThrow(clinicId, id);
+    if (order.status !== 'ORDERED' || order.dispensedAt || order.performedAt) {
+      throw new BadRequestException('Cannot delete an order that has already been performed or dispensed. Use cancellation instead.');
+    }
+    await this.prisma.careOrder.delete({
+      where: { id },
+    });
+    return { id, deleted: true };
   }
 
   /**
@@ -181,7 +215,7 @@ export class CareOrdersService {
     const order = await this.findOneOrThrow(clinicId, id);
 
     if (!STOCK_BACKED.includes(order.orderType) || !order.medicineId) {
-      throw new BadRequestException('Only medicine and injection orders are dispensed by the pharmacy');
+      throw new BadRequestException('Only medicine and injection orders from the pharmacy catalogue can be dispensed');
     }
     if (order.status === 'CANCELLED') {
       throw new ConflictException('This order was cancelled');
@@ -240,8 +274,8 @@ export class CareOrdersService {
       include: ORDER_INCLUDE,
     });
 
-    const pharmacyItems = orders.filter((o) => STOCK_BACKED.includes(o.orderType));
-    const otherItems = orders.filter((o) => !STOCK_BACKED.includes(o.orderType));
+    const pharmacyItems = orders.filter((o) => STOCK_BACKED.includes(o.orderType) && o.medicineId);
+    const otherItems = orders.filter((o) => !STOCK_BACKED.includes(o.orderType) || !o.medicineId);
     const sum = (rows: typeof orders) => rows.reduce((acc, o) => acc + Number(o.totalPrice), 0);
 
     return {

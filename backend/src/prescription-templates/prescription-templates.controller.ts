@@ -42,4 +42,9 @@ export class PrescriptionTemplatesController {
   apply(@CurrentUser() user: any, @Param('id') id: string, @Param('queueId') queueId: string) {
     return this.templatesService.applyToQueue(user.clinicId, id, queueId, user);
   }
+
+  @Delete(':id/applied/:queueId')
+  removeAppliedTemplate(@CurrentUser() user: any, @Param('id') id: string, @Param('queueId') queueId: string) {
+    return this.templatesService.removeAppliedTemplate(user.clinicId, id, queueId, user);
+  }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CareOrdersService } from './care-orders.service';
 import { CreateCareOrderDto } from './dto/create-care-order.dto';
 import { PerformCareOrderDto } from './dto/perform-care-order.dto';
@@ -57,9 +57,21 @@ export class CareOrdersController {
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Patch(':id/untag')
+  untag(@CurrentUser() user: any, @Param('id') id: string, @Body('templateName') templateName: string) {
+    return this.careOrdersService.untag(user.clinicId, id, templateName);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Patch(':id/cancel')
   cancel(@CurrentUser() user: any, @Param('id') id: string) {
     return this.careOrdersService.cancel(user.clinicId, id);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Delete(':id')
+  delete(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.careOrdersService.delete(user.clinicId, id);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY')

@@ -17,6 +17,7 @@ export interface PrescriptionData {
   medicines: {
     description: string;
     orderType: string;
+    medicineId?: string;
     dosage?: string;
     route?: string;
     frequency?: string;
@@ -139,6 +140,9 @@ export const PrintablePrescription: React.FC<Props> = ({ prescription, onClose }
                         {m.orderType === 'INJECTION' && (
                           <span className="ml-2 text-[10px] font-medium text-ink-secondary">(Injection)</span>
                         )}
+                        {!m.medicineId && (
+                          <span className="ml-2 text-[10px] font-medium text-status-danger">(buy outside)</span>
+                        )}
                       </p>
                       <p className="text-ink-secondary mt-0.5">
                         {[m.dosage, m.frequency, m.route && `via ${m.route}`, `Qty ${m.quantity}`]
@@ -173,7 +177,14 @@ export const PrintablePrescription: React.FC<Props> = ({ prescription, onClose }
           {p.patientNotes && (
             <div className="mb-5 text-xs p-3 border border-border rounded">
               <p className="font-semibold mb-1">Advice</p>
-              <p className="whitespace-pre-wrap leading-relaxed">{p.patientNotes}</p>
+              <ul className="space-y-1">
+                {p.patientNotes.split('\n').map(line => line.trim()).filter(Boolean).map((line, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-ink-secondary">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

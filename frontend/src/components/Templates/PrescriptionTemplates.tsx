@@ -4,12 +4,14 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { FileStack, Plus, X, Trash2, Edit3, Pill } from 'lucide-react';
+import { BulletListEditor } from '../common/BulletListEditor';
 
 interface TemplateItem {
   orderType: string;
   medicineId?: string;
   treatmentId?: string;
   description: string;
+  notStocked?: boolean;
   dosage?: string;
   route?: string;
   frequency?: string;
@@ -60,6 +62,7 @@ export const PrescriptionTemplates: React.FC = () => {
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [medicines, setMedicines] = useState<MedicineOption[]>([]);
+  const [treatments, setTreatments] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Template | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -68,6 +71,7 @@ export const PrescriptionTemplates: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [condition, setCondition] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [patientNotes, setPatientNotes] = useState('');
@@ -77,13 +81,15 @@ export const PrescriptionTemplates: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const [tRes, mRes] = await Promise.all([apiFetch('/api/prescription-templates'), apiFetch('/api/medicines')]);
+      const [tRes, mRes, trRes] = await Promise.all([apiFetch('/api/prescription-templates'), apiFetch('/api/medicines'), apiFetch('/api/treatments')]);
       if (!tRes.ok) throw new Error('Failed to load templates');
       const tData = await tRes.json();
       const mData = await mRes.json();
+      const trData = await trRes.json();
       setTemplates(Array.isArray(tData) ? tData : tData.data || []);
       const meds: MedicineOption[] = Array.isArray(mData) ? mData : mData.data || [];
       setMedicines(meds.filter((m) => m.isActive));
+      setTreatments(Array.isArray(trData) ? trData : trData.data || []);
     } catch (err: any) {
       addToast('error', err.message || 'Failed to load templates');
     } finally {
@@ -119,6 +125,8 @@ export const PrescriptionTemplates: React.FC = () => {
         ? t.items.map((i) => ({
             orderType: i.orderType,
             medicineId: i.medicineId || undefined,
+            notStocked: ['MEDICINE', 'INJECTION'].includes(i.orderType) && !i.medicineId ? true : undefined,
+            treatmentId: i.treatmentId || undefined,
             description: i.description,
             dosage: i.dosage || '',
             route: i.route || 'Oral',
@@ -137,9 +145,17 @@ export const PrescriptionTemplates: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check for unlinked stock items that have a description (not just a blank row)
+    const unlinked = items.some(i => ['MEDICINE', 'INJECTION'].includes(i.orderType) && !i.medicineId && !i.notStocked && i.description.trim());
+    if (unlinked) {
+      addToast('error', 'Please resolve all unlinked medicines before saving');
+      return;
+    }
+
     // Drop blank rows so an untouched extra line doesn't fail validation.
     const payloadItems = items.filter(
-      (i) => (['MEDICINE', 'INJECTION'].includes(i.orderType) && i.medicineId) || i.description.trim(),
+      (i) => (['MEDICINE', 'INJECTION'].includes(i.orderType) && i.medicineId) || (i.orderType === 'TREATMENT' && i.treatmentId) || i.description.trim(),
     );
 
     setSubmitting(true);
@@ -153,6 +169,8 @@ export const PrescriptionTemplates: React.FC = () => {
         items: payloadItems.map((i) => ({
           orderType: i.orderType,
           medicineId: ['MEDICINE', 'INJECTION'].includes(i.orderType) ? i.medicineId : undefined,
+          notStocked: i.notStocked || undefined,
+          treatmentId: i.orderType === 'TREATMENT' ? i.treatmentId : undefined,
           description: i.description.trim() || undefined,
           dosage: i.dosage?.trim() || undefined,
           route: i.route || undefined,
@@ -212,13 +230,24 @@ export const PrescriptionTemplates: React.FC = () => {
             see and edit your templates.
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Template</span>
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          {templates.length > 5 && (
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search templates..."
+              className="px-3 py-1.5 rounded-md border border-border text-xs bg-surface-page text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+            />
+          )}
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Template</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -266,24 +295,21 @@ export const PrescriptionTemplates: React.FC = () => {
               <label className="block text-xs font-semibold text-ink-secondary mb-1">
                 Advice for Patient <span className="text-[10px] font-normal text-ink-secondary/70">(printed)</span>
               </label>
-              <textarea
-                rows={3}
+              <BulletListEditor
                 value={patientNotes}
-                onChange={(e) => setPatientNotes(e.target.value)}
-                placeholder="e.g. Avoid direct sun for 48 hours. Apply sunscreen every 3 hours."
-                className={inputClass}
+                onChange={setPatientNotes}
+                placeholder="e.g. Avoid direct sun for 48 hours..."
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-ink-secondary mb-1">
                 Notes for Staff <span className="text-[10px] font-normal text-status-warning">(internal — never printed)</span>
               </label>
-              <textarea
-                rows={3}
+              <BulletListEditor
                 value={staffNotes}
-                onChange={(e) => setStaffNotes(e.target.value)}
-                placeholder="e.g. Patch test before first sitting. Watch for erythema."
-                className={inputClass}
+                onChange={setStaffNotes}
+                placeholder="e.g. Patch test before first sitting..."
+                containerClass="w-full p-2.5 rounded-md border border-border bg-surface-page text-ink-primary flex flex-col gap-1 border-l-2 border-l-status-warning"
               />
             </div>
           </div>
@@ -302,26 +328,63 @@ export const PrescriptionTemplates: React.FC = () => {
 
             {items.map((item, idx) => {
               const isStock = ['MEDICINE', 'INJECTION'].includes(item.orderType);
+              const isUnlinked = isStock && !item.medicineId && !item.notStocked && item.description.trim().length > 0;
+              const isIntentionallyNotStocked = isStock && !item.medicineId && item.notStocked && item.description.trim().length > 0;
               return (
-                <div key={idx} className="bg-surface-page p-3 rounded-lg border border-border space-y-2">
+                <div key={idx} className={`bg-surface-page p-3 rounded-lg border space-y-2 ${isUnlinked ? 'border-status-danger bg-status-danger/5' : 'border-border'}`}>
+                  {isIntentionallyNotStocked && (
+                    <div className="flex items-center gap-1.5 p-2 bg-surface-card border border-border rounded-md text-xs text-ink-secondary font-medium">
+                      <span>ℹ️</span> Not dispensed here — buy outside
+                    </div>
+                  )}
+                  {isUnlinked && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-status-danger/10 border border-status-danger/20 rounded-md text-xs">
+                      <div className="flex items-center gap-1.5 text-status-danger font-medium">
+                        <span>⚠️</span> "{item.description}" is not in the pharmacy catalogue.
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          type="button" 
+                          onClick={() => updateItem(idx, { notStocked: true })}
+                          className="px-2 py-1 bg-surface-card border border-border rounded hover:bg-surface-page font-medium text-ink-primary whitespace-nowrap cursor-pointer"
+                        >
+                          Keep as prescription only (Not dispensed)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <select value={item.orderType} onChange={(e) => updateItem(idx, { orderType: e.target.value })} className={inputClass}>
                       <option value="MEDICINE">Medicine</option>
                       <option value="INJECTION">Injection</option>
                       <option value="TREATMENT">Treatment</option>
-                      <option value="OTHER">Other</option>
+                      <option value="OTHER">Other (Prescription only)</option>
                     </select>
 
                     {isStock ? (
                       <select
                         value={item.medicineId || ''}
-                        onChange={(e) => updateItem(idx, { medicineId: e.target.value })}
-                        className={`${inputClass} col-span-2`}
+                        onChange={(e) => updateItem(idx, { medicineId: e.target.value, description: medicines.find(m => m.id === e.target.value)?.name || item.description })}
+                        className={`${inputClass} col-span-2 ${isUnlinked ? 'ring-1 ring-status-danger border-status-danger' : ''}`}
                       >
-                        <option value="">Select from pharmacy</option>
+                        <option value="">Select from pharmacy to link</option>
                         {medicines.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.name} ({m.unit})
+                          </option>
+                        ))}
+                      </select>
+                    ) : item.orderType === 'TREATMENT' ? (
+                      <select
+                        value={item.treatmentId || ''}
+                        onChange={(e) => updateItem(idx, { treatmentId: e.target.value, description: treatments.find(t => t.id === e.target.value)?.name || item.description })}
+                        className={`${inputClass} col-span-2`}
+                      >
+                        <option value="">Select from treatments</option>
+                        {treatments.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
                           </option>
                         ))}
                       </select>
@@ -330,7 +393,7 @@ export const PrescriptionTemplates: React.FC = () => {
                         type="text"
                         value={item.description}
                         onChange={(e) => updateItem(idx, { description: e.target.value })}
-                        placeholder="Describe the procedure"
+                        placeholder="Describe the procedure/medicine"
                         className={`${inputClass} col-span-2`}
                       />
                     )}
@@ -348,6 +411,7 @@ export const PrescriptionTemplates: React.FC = () => {
                         type="button"
                         onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}
                         className="p-2 rounded-md text-status-danger bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 cursor-pointer shrink-0"
+                        title="Remove line"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -393,7 +457,9 @@ export const PrescriptionTemplates: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {templates.map((t) => (
+          {templates
+            .filter(t => !searchTerm || t.name.toLowerCase().includes(searchTerm.toLowerCase()) || (t.condition && t.condition.toLowerCase().includes(searchTerm.toLowerCase())))
+            .map((t) => (
             <div key={t.id} className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
