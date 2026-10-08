@@ -11,7 +11,7 @@
 | Frontend | React 18 + TypeScript, Vite 5, Tailwind CSS 3 |
 | Backend | NestJS 10 (Express), TypeScript |
 | ORM | Prisma 5 |
-| Database | SQLite (local dev) → PostgreSQL (production), switched via `DATABASE_URL` |
+| Database | SQLite (local dev) → PostgreSQL (production), switched via `provider = "postgresql"` in schema.prisma |
 | Auth | JWT (`@nestjs/jwt`, `passport-jwt`), bcrypt password hashing |
 | Icons | lucide-react |
 | Calendar | react-big-calendar + date-fns |

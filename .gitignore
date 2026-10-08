@@ -6,11 +6,20 @@ backend/uploads/
 # it must never reach a remote, and production runs on Postgres regardless.
 backend/prisma/*.db
 backend/prisma/*.db-journal
+backend/prisma/*.db-wal
 backend/prisma/*.backup-*
+backend/prisma/*.bak
 
 # Local scratch script: resets every user's password to a hardcoded string and
 # seeds test patients. Useful on a dev machine, never in the repo.
 backend/update_passwords.ts
+
+# Throwaway verification scripts and point-in-time audit notes kept on the dev
+# machine only. The maintenance scripts in backend/scripts/ are committed.
+backend/scripts/audit/
+backend/scripts/test-*.ts
+backend/scripts/test-*.js
+docs/AUDIT-*.md
 
 dist/
 build/
