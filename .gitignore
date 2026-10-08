@@ -1,0 +1,21 @@
+node_modules/
+.env
+backend/uploads/
+
+# Local SQLite database and its backups. This file holds real patient records —
+# it must never reach a remote, and production runs on Postgres regardless.
+backend/prisma/*.db
+backend/prisma/*.db-journal
+backend/prisma/*.backup-*
+
+# Local scratch script: resets every user's password to a hardcoded string and
+# seeds test patients. Useful on a dev machine, never in the repo.
+backend/update_passwords.ts
+
+dist/
+build/
+.agents/
+.claude/
+scratch*.js
+skills-lock.json
+.DS_Store

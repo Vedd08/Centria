@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --shell: theme('colors.shell.DEFAULT');
+  --page: theme('colors.surface.page');
+  --ink: theme('colors.ink.primary');
+  --brand: theme('colors.brand.DEFAULT');
+  --line: theme('colors.border.DEFAULT');
+}
+
+body {
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--page);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings and figures carry the institutional voice. */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: Archivo, 'IBM Plex Sans', sans-serif;
+  letter-spacing: -0.015em;
+}
+
+/* Numbers in a clinic get compared down a column — never let them jitter. */
+.font-mono,
+table td,
+table th,
+input[type='number'],
+input[type='date'],
+input[type='time'] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Every interactive element must show where focus is, for keyboard and for gloves. */
+:where(button, a, select, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Small caps label used for section eyebrows across the app. */
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* ---- The care rail: a patient's progress through the day ---- */
+.care-rail {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.care-rail-seg {
+  height: 4px;
+  border-radius: 999px;
+  flex: 1 1 0;
+  min-width: 10px;
+  background: theme('colors.border.DEFAULT');
+  transition: background-color 0.25s ease;
+}
+.care-rail-seg[data-state='done'] {
+  background: theme('colors.triage.done');
+}
+.care-rail-seg[data-state='active'] {
+  background: theme('colors.triage.active');
+  animation: rail-pulse 1.8s ease-in-out infinite;
+}
+.care-rail-seg[data-state='wait'] {
+  background: theme('colors.triage.wait');
+}
+.care-rail-seg[data-state='urgent'] {
+  background: theme('colors.triage.urgent');
+}
+
+@keyframes rail-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Scrollbars, so dense tables don't get a chunky OS bar through them. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c1cbd7 transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #c1cbd7;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #a5b2c3;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.2s ease-out;
+}
+
+/* Nobody should get motion they didn't ask for. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print: bills and prescriptions leave this building on paper. */
+@media print {
+  /* !important because body carries the `bg-surface-page` utility, and a class beats
+     a bare element selector — without this a sheet prints pale grey wherever the
+     reader has "background graphics" switched on. */
+  body {
+    background: #fff !important;
+  }
+  .print\:hidden,
+  header,
+  footer,
+  nav {
+    display: none !important;
+  }
+
+  /* While a printable document is open it lives outside #root (see PrintPortal), so
+     the whole app can be taken off the paper — otherwise the screen behind the modal
+     prints along with the bill. */
+  body.printing #root {
+    display: none !important;
+  }
+}
+
+/* React Big Calendar Mobile Overrides */
+@media (max-width: 640px) {
+  .rbc-toolbar {
+    flex-direction: column !important;
+    gap: 12px;
+    align-items: stretch !important;
+  }
+  .rbc-toolbar .rbc-toolbar-label {
+    text-align: center;
+    font-size: 14px;
+    padding: 4px 0;
+  }
+  .rbc-toolbar button {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  .rbc-btn-group {
+    display: flex;
+    justify-content: center;
+  }
+  .rbc-btn-group > button {
+    flex: 1;
+  }
+}
