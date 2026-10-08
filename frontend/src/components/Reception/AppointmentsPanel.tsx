@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
-import { CalendarPlus, Search, X, CalendarClock } from 'lucide-react';
+import { CalendarPlus, Search, X, CalendarClock, ChevronRight, Clock, Users } from 'lucide-react';
+import { SlotPicker } from '../Appointments/SlotPicker';
 
 interface PatientOption {
   id: string;
@@ -19,6 +20,16 @@ interface Appointment {
   reasonForVisit?: string;
   patient: { id: string; name: string; phone: string };
   doctor: { id: string; name: string };
+}
+
+interface DaySlotDoctor {
+  doctorId: string;
+  doctorName: string;
+  sessions: any[];
+  slots: string[];
+  capacity: number;
+  bookedCount: number;
+  nextFree: string | null;
 }
 
 const inputClass =
@@ -41,24 +52,38 @@ export const AppointmentsPanel: React.FC = () => {
   const [selected, setSelected] = useState<PatientOption | null>(null);
   const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
   const [doctorId, setDoctorId] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('10:00');
-  const [durationMins, setDurationMins] = useState('30');
+  
+  // Date selection
+  const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showNext7Days, setShowNext7Days] = useState(false);
+  
+  // Booking state
+  const [time, setTime] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Day strip state
+  const [daySlots, setDaySlots] = useState<DaySlotDoctor[]>([]);
+  const [loadingDaySlots, setLoadingDaySlots] = useState(false);
 
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/appointments');
+      const qs = showNext7Days
+        ? `from=${viewDate}&to=${new Date(new Date(viewDate).getTime() + 7 * 86400000).toISOString().split('T')[0]}`
+        : `date=${viewDate}`;
+      const res = await apiFetch(`/api/appointments?${qs}`);
       if (!res.ok) throw new Error('Failed to load appointments');
       const result = await res.json();
       const rows: Appointment[] = Array.isArray(result) ? result : result.data || [];
-      // Upcoming first — the desk cares about what's ahead, not history.
+      
       const now = Date.now();
       setAppointments(
         rows
-          .filter((a) => new Date(a.startTime).getTime() >= now - 12 * 3600 * 1000)
+          .filter((a) => showNext7Days ? new Date(a.startTime).getTime() >= now - 12 * 3600 * 1000 : true)
           .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
       );
     } catch (err: any) {
@@ -68,8 +93,27 @@ export const AppointmentsPanel: React.FC = () => {
     }
   };
 
+  const fetchDaySlots = async () => {
+    if (!viewDate) return;
+    setLoadingDaySlots(true);
+    try {
+      const res = await apiFetch(`/api/appointments/slots/day?date=${viewDate}`);
+      const data = await res.json();
+      setDaySlots(Array.isArray(data) ? data : []);
+    } catch {
+      // Non-fatal
+    } finally {
+      setLoadingDaySlots(false);
+    }
+  };
+
   useEffect(() => {
     fetchAppointments();
+    fetchDaySlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewDate, showNext7Days]);
+
+  useEffect(() => {
     (async () => {
       try {
         const res = await apiFetch('/api/users?role=DOCTOR,MASTER');
@@ -106,16 +150,38 @@ export const AppointmentsPanel: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  useEffect(() => {
+    if (!doctorId || !viewDate) {
+      setAvailableSlots([]);
+      setSessions([]);
+      setTime('');
+      return;
+    }
+    const fetchSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const res = await apiFetch(`/api/appointments/slots/available?doctorId=${doctorId}&date=${viewDate}`);
+        const data = await res.json();
+        setAvailableSlots(data.slots || []);
+        setSessions(data.sessions || []);
+      } catch (err) {
+        addToast('error', 'Failed to load available slots');
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [doctorId, viewDate]);
+
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selected || !doctorId || !date) {
-      addToast('error', 'Patient, doctor and date are required');
+    if (!selected || !doctorId || !viewDate || !time) {
+      addToast('error', 'Patient, doctor, date, and time slot are required');
       return;
     }
     setSubmitting(true);
     try {
-      const start = new Date(`${date}T${time}:00`);
-      const end = new Date(start.getTime() + Number(durationMins) * 60000);
+      const start = new Date(`${viewDate}T${time}:00`);
       const res = await apiFetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,20 +189,25 @@ export const AppointmentsPanel: React.FC = () => {
           patientId: selected.id,
           doctorId,
           startTime: start.toISOString(),
-          endTime: end.toISOString(),
           reasonForVisit: reason.trim() || undefined,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Could not book appointment');
+      if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error('That slot was just taken — pick another');
+        }
+        throw new Error(data.message || 'Could not book appointment');
+      }
 
       addToast('success', `Appointment booked for ${selected.name}`);
       setShowForm(false);
       setSelected(null);
       setSearch('');
       setReason('');
-      setDate('');
+      setTime('');
       fetchAppointments();
+      fetchDaySlots();
     } catch (err: any) {
       addToast('error', err.message || 'Could not book appointment');
     } finally {
@@ -166,14 +237,72 @@ export const AppointmentsPanel: React.FC = () => {
           <h3 className="text-sm font-semibold text-ink-primary">Appointments & Follow-ups</h3>
           <p className="text-xs text-ink-secondary mt-0.5">Book a new slot or a follow-up visit for an existing patient.</p>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer shrink-0"
-        >
-          <CalendarPlus className="w-3.5 h-3.5" />
-          <span>Book</span>
-        </button>
+        <div className="flex gap-2 items-center">
+          <input 
+            type="date" 
+            value={viewDate} 
+            onChange={e => setViewDate(e.target.value)} 
+            className="px-2 py-1.5 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card w-36" 
+          />
+          <label className="text-xs flex items-center gap-1.5 text-ink-secondary cursor-pointer">
+            <input type="checkbox" checked={showNext7Days} onChange={e => setShowNext7Days(e.target.checked)} className="rounded border-border" />
+            Next 7 days
+          </label>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="ml-2 inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer shrink-0"
+          >
+            <CalendarPlus className="w-3.5 h-3.5" />
+            <span>Book</span>
+          </button>
+        </div>
       </div>
+      
+      {!showNext7Days && !loadingDaySlots && daySlots.length > 0 && (
+        <div className="bg-surface-page border border-border rounded-lg p-2 space-y-2">
+          <h4 className="text-xs font-semibold text-ink-secondary px-2 pt-1 uppercase tracking-wider">Sessions Today</h4>
+          {daySlots.map(d => {
+            const formatTime = (t: string) => {
+              const [h, m] = t.split(':').map(Number);
+              const ampm = h >= 12 ? 'PM' : 'AM';
+              const hr = h % 12 || 12;
+              return `${hr}:${m.toString().padStart(2, '0')} ${ampm}`;
+            };
+            const firstStart = d.sessions[0]?.startTime;
+            const lastEnd = d.sessions[d.sessions.length - 1]?.endTime;
+            
+            return (
+              <button 
+                key={d.doctorId}
+                onClick={() => {
+                  setDoctorId(d.doctorId);
+                  setShowForm(true);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-md hover:bg-brand/5 border border-transparent hover:border-brand/20 text-left transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-brand-soft flex items-center justify-center text-brand-deep font-medium text-xs">
+                    {d.doctorName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-ink-primary">Dr. {d.doctorName}</div>
+                    <div className="text-[11px] text-ink-secondary flex items-center gap-2">
+                      <Clock className="w-3 h-3" /> {formatTime(firstStart)} – {formatTime(lastEnd)}
+                      <Users className="w-3 h-3 ml-1" /> {d.bookedCount} of {d.capacity} booked
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right flex items-center gap-2">
+                  <div className="text-[11px] text-ink-secondary">
+                    {d.nextFree ? <><span className="text-status-success font-medium">next free {formatTime(d.nextFree)}</span></> : <span className="text-status-danger font-medium">Fully booked</span>}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-ink-secondary/50" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleBook} className="bg-surface-page p-4 rounded-lg border border-border space-y-3">
@@ -218,8 +347,8 @@ export const AppointmentsPanel: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="col-span-2 sm:col-span-1">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
               <label className="block text-xs font-semibold text-ink-secondary mb-1">
                 Doctor <span className="text-status-danger">*</span>
               </label>
@@ -232,20 +361,20 @@ export const AppointmentsPanel: React.FC = () => {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                Date <span className="text-status-danger">*</span>
-              </label>
-              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">Time</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">Mins</label>
-              <input type="number" min="5" step="5" value={durationMins} onChange={(e) => setDurationMins(e.target.value)} className={inputClass} />
-            </div>
+            
+            {doctorId && viewDate && (
+              <div className="bg-surface-card p-3 rounded-md border border-border">
+                <SlotPicker 
+                  availableSlots={availableSlots}
+                  sessions={sessions}
+                  selectedSlot={time}
+                  onSelectSlot={setTime}
+                  loading={loadingSlots}
+                  doctorName={doctors.find(d => d.id === doctorId)?.name}
+                  dateStr={viewDate}
+                />
+              </div>
+            )}
           </div>
 
           <div>

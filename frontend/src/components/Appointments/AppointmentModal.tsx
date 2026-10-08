@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { X, Calendar, Clock, User, Stethoscope } from 'lucide-react';
 import { Appointment } from './AppointmentsCalendar';
+import { SlotPicker } from './SlotPicker';
 
 interface Props {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface Props {
   appointment: Appointment | null;
   initialSlot: { start: Date; end: Date } | null;
   onLogVisit?: (appointment: Appointment) => void;
+  prefill?: { patientId?: string; doctorId?: string; reason?: string };
 }
 
 export const AppointmentModal: React.FC<Props> = ({
@@ -20,6 +22,7 @@ export const AppointmentModal: React.FC<Props> = ({
   appointment,
   initialSlot,
   onLogVisit,
+  prefill,
 }) => {
   const { apiFetch } = useAuth();
   const { addToast } = useToast();
@@ -34,7 +37,7 @@ export const AppointmentModal: React.FC<Props> = ({
   const [selectedSlot, setSelectedSlot] = useState('');
   
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [slotDuration, setSlotDuration] = useState(15);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [status, setStatus] = useState('Scheduled');
   const [reason, setReason] = useState('');
@@ -60,8 +63,8 @@ export const AppointmentModal: React.FC<Props> = ({
         setStatus(appointment.status);
         setReason(appointment.reasonForVisit || '');
       } else if (initialSlot) {
-        setPatientId('');
-        setDoctorId('');
+        setPatientId(prefill?.patientId ?? '');
+        setDoctorId(prefill?.doctorId ?? '');
         
         const d = new Date(initialSlot.start);
         const yyyy = d.getFullYear();
@@ -74,7 +77,7 @@ export const AppointmentModal: React.FC<Props> = ({
         setSelectedSlot(`${h}:${m}`);
         
         setStatus('Scheduled');
-        setReason('');
+        setReason(prefill?.reason ?? '');
       } else {
         const now = new Date();
         const yyyy = now.getFullYear();
@@ -82,11 +85,11 @@ export const AppointmentModal: React.FC<Props> = ({
         const dd = String(now.getDate()).padStart(2, '0');
         setAppointmentDate(`${yyyy}-${mm}-${dd}`);
         
-        setPatientId('');
-        setDoctorId('');
+        setPatientId(prefill?.patientId ?? '');
+        setDoctorId(prefill?.doctorId ?? '');
         setSelectedSlot('');
         setStatus('Scheduled');
-        setReason('');
+        setReason(prefill?.reason ?? '');
       }
     }
   }, [isOpen, appointment, initialSlot]);
@@ -102,7 +105,7 @@ export const AppointmentModal: React.FC<Props> = ({
         const res = await apiFetch(`/api/appointments/slots/available?doctorId=${doctorId}&date=${appointmentDate}`);
         const data = await res.json();
         setAvailableSlots(data.slots || []);
-        setSlotDuration(data.slotDuration || 15);
+        setSessions(data.sessions || []);
       } catch (err) {
         addToast('error', 'Failed to load available slots');
       } finally {
@@ -142,13 +145,11 @@ export const AppointmentModal: React.FC<Props> = ({
       }
 
       const start = new Date(`${appointmentDate}T${selectedSlot}:00`);
-      const end = new Date(start.getTime() + slotDuration * 60000);
 
       const payload = {
         patientId,
         doctorId,
         startTime: start.toISOString(),
-        endTime: end.toISOString(),
         status,
         reasonForVisit: reason || undefined,
       };
@@ -164,6 +165,18 @@ export const AppointmentModal: React.FC<Props> = ({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Operation failed' }));
+        if (res.status === 409) {
+          addToast('error', err.message || 'That slot was just taken — pick another');
+          // Refresh slots in place
+          const refreshRes = await apiFetch(`/api/appointments/slots/available?doctorId=${doctorId}&date=${appointmentDate}`);
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            setAvailableSlots(data.slots || []);
+            setSessions(data.sessions || []);
+            setSelectedSlot('');
+          }
+          return; // Do not close modal
+        }
         throw new Error(err.message || 'Operation failed');
       }
 
@@ -246,7 +259,7 @@ export const AppointmentModal: React.FC<Props> = ({
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" /> Date
@@ -259,35 +272,20 @@ export const AppointmentModal: React.FC<Props> = ({
                   className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Available Slot
-                </label>
-                {loadingSlots ? (
-                  <div className="w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-secondary">
-                    Loading slots...
-                  </div>
-                ) : availableSlots.length === 0 ? (
-                  <div className="w-full px-3 py-2 rounded-md border border-status-danger/30 text-xs bg-status-danger/5 text-status-danger">
-                    No slots available
-                  </div>
-                ) : (
-                  <select
-                    required
-                    value={selectedSlot}
-                    onChange={(e) => setSelectedSlot(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
-                  >
-                    <option value="">Select a time slot</option>
-                    {availableSlots.map(slot => (
-                      <option key={slot} value={slot}>{slot}</option>
-                    ))}
-                    {appointment && appointment.doctorId === doctorId && !availableSlots.includes(selectedSlot) && (
-                      <option value={selectedSlot}>{selectedSlot} (Current)</option>
-                    )}
-                  </select>
-                )}
-              </div>
+              
+              {doctorId && appointmentDate && (
+                <div>
+                  <SlotPicker 
+                    availableSlots={appointment && appointment.doctorId === doctorId && !availableSlots.includes(selectedSlot) && selectedSlot ? [...availableSlots, selectedSlot].sort() : availableSlots}
+                    sessions={sessions}
+                    selectedSlot={selectedSlot}
+                    onSelectSlot={setSelectedSlot}
+                    loading={loadingSlots}
+                    doctorName={doctors.find(d => d.id === doctorId)?.name}
+                    dateStr={appointmentDate}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-3">

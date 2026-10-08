@@ -6,9 +6,10 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, Plus, Clock } from 'lucide-react';
 import { AppointmentModal } from './AppointmentModal';
 import { VisitLoggingModal } from '../Visits/VisitLoggingModal';
+import { DoctorScheduleModal } from '../Users/DoctorScheduleModal';
 
 const locales = {
   'en-US': enUS,
@@ -47,8 +48,10 @@ export const AppointmentsCalendar: React.FC = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [visitModalAppointment, setVisitModalAppointment] = useState<Appointment | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
   const canManageAppointments = hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN', 'DOCTOR');
+  const { user } = useAuth();
 
   const fetchAppointments = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -126,19 +129,30 @@ export const AppointmentsCalendar: React.FC = () => {
           </p>
         </div>
 
-        {canManageAppointments && (
-          <button
-            onClick={() => {
-              setSelectedAppointment(null);
-              setSelectedSlot(null);
-              setIsModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Appointment</span>
-          </button>
-        )}
+        <div className="flex gap-2">
+          {hasRole('DOCTOR') && (
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-brand hover:text-brand-deep hover:bg-brand-soft rounded-md transition-colors cursor-pointer shrink-0 border border-brand/20"
+            >
+              <Clock className="w-4 h-4" />
+              <span>My Schedule</span>
+            </button>
+          )}
+          {canManageAppointments && (
+            <button
+              onClick={() => {
+                setSelectedAppointment(null);
+                setSelectedSlot(null);
+                setIsModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Appointment</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-surface-card rounded-[10px] border border-border shadow-xs p-2 sm:p-4 flex-1 flex flex-col min-h-0 overflow-x-auto">
@@ -192,6 +206,15 @@ export const AppointmentsCalendar: React.FC = () => {
           date: visitModalAppointment?.startTime ? new Date(visitModalAppointment.startTime).toISOString().split('T')[0] : undefined,
         }}
       />
+      
+      {user?.id && (
+        <DoctorScheduleModal
+          isOpen={isScheduleModalOpen}
+          onClose={() => setIsScheduleModalOpen(false)}
+          doctorId={user.id}
+          doctorName={user.name}
+        />
+      )}
     </div>
   );
 };

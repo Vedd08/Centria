@@ -20,8 +20,15 @@ export class AppointmentsController {
 
   @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Get()
-  findAll(@CurrentUser() user: any) {
-    return this.appointmentsService.findAll(user.clinicId);
+  findAll(
+    @CurrentUser() user: any,
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('doctorId') doctorId?: string,
+    @Query('status') status?: string
+  ) {
+    return this.appointmentsService.findAll(user.clinicId, { date, from, to, doctorId, status });
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
@@ -32,23 +39,34 @@ export class AppointmentsController {
     @Query('date') date: string
   ) {
     if (!doctorId || !date) {
-      return { slots: [], slotDuration: 15 };
+      return { slots: [], slotDuration: 15, sessions: [] };
     }
     return this.appointmentsService.getAvailableSlots(user.clinicId, doctorId, date);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
+  @Get('slots/day')
+  getDaySlots(
+    @CurrentUser() user: any,
+    @Query('date') date: string
+  ) {
+    if (!date) return [];
+    return this.appointmentsService.getDaySlots(user.clinicId, date);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Get('schedule/:doctorId')
   getDoctorSchedule(@Param('doctorId') doctorId: string, @CurrentUser() user: any) {
-    return this.appointmentsService.getDoctorSchedule(user.clinicId, doctorId);
+    return this.appointmentsService.getDoctorSchedule(user.clinicId, doctorId, user);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Patch('schedule/:doctorId')
   updateDoctorSchedule(@Param('doctorId') doctorId: string, @Body() body: { schedules: any[] }, @CurrentUser() user: any) {
-    return this.appointmentsService.updateDoctorSchedule(user.clinicId, doctorId, body.schedules);
+    return this.appointmentsService.updateDoctorSchedule(user.clinicId, doctorId, body.schedules, user);
   }
 
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
     return this.appointmentsService.findOne(id, user.clinicId);

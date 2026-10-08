@@ -14,8 +14,8 @@ export class CreateAppointmentDto {
   startTime: string;
 
   @IsDateString()
-  @IsNotEmpty()
-  endTime: string;
+  @IsOptional()
+  endTime?: string;
 
   @IsString()
   @IsOptional()
