@@ -5,6 +5,8 @@ import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { CommissionsService } from '../commissions/commissions.service';
+import { PackagesService } from '../packages/packages.service';
+import { toLocalDateKey } from '../common/date.helper';
 
 /** Roles that may be recorded as the attending doctor on a visit. */
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
@@ -17,6 +19,7 @@ export class VisitsService {
   constructor(
     private prisma: PrismaService,
     private commissionsService: CommissionsService,
+    private packagesService: PackagesService,
   ) {}
 
   async create(clinicId: string, createVisitDto: CreateVisitDto) {
@@ -60,40 +63,14 @@ export class VisitsService {
       }
     }
 
-    // 4. Business Rule 2: Package & Sittings Validation
-    let packagePurchaseRecord: any = null;
-    if (createVisitDto.packagePurchaseId) {
-      packagePurchaseRecord = await this.prisma.packagePurchase.findFirst({
-        where: { id: createVisitDto.packagePurchaseId, clinicId },
-      });
-
-      if (!packagePurchaseRecord) {
-        throw new NotFoundException(`Package purchase ID ${createVisitDto.packagePurchaseId} not found`);
-      }
-
-      if (packagePurchaseRecord.sittingsRemaining <= 0) {
-        throw new BadRequestException(
-          `Business Rule 2 Violation: Package '${packagePurchaseRecord.packageName}' has 0 remaining sittings! Cannot bill visit against exhausted package.`
-        );
-      }
-    }
-
-    const todayDate = new Date().toISOString().split('T')[0];
+    // 4. Removed duplicate Package & Sittings Validation, now handled atomically in transaction.
+    const todayDate = toLocalDateKey(new Date());
     const basePrice = treatment?.price ?? 0;
 
     // 5. Execute atomic transaction to save Visit & decrement sittings
     const newVisit = await this.prisma.$transaction(async (tx) => {
-      if (packagePurchaseRecord) {
-        await tx.packagePurchase.update({
-          where: { id: packagePurchaseRecord.id },
-          data: {
-            sittingsUsed: packagePurchaseRecord.sittingsUsed + 1,
-            sittingsRemaining: packagePurchaseRecord.sittingsRemaining - 1,
-          },
-        });
-      }
 
-      return tx.visit.create({
+      const visit = await tx.visit.create({
         data: {
           clinicId,
           date: createVisitDto.date || todayDate,
@@ -107,7 +84,7 @@ export class VisitsService {
           treatmentName: treatment ? treatment.name : 'Not Specified',
           treatmentPrice: basePrice,
           isGstTaxable: treatment ? treatment.isGstTaxable : false, // BUSINESS RULE 1: Auto-filled from TreatmentMaster
-          packagePurchaseId: packagePurchaseRecord ? packagePurchaseRecord.id : null,
+          packagePurchaseId: null, // Set by packagesService.linkVisitToPurchase if provided
           diagnosis: createVisitDto.diagnosis,
           remarks: createVisitDto.remarks,
           otherRemarks: createVisitDto.otherRemarks,
@@ -115,8 +92,23 @@ export class VisitsService {
           bankAmount: createVisitDto.bankAmount ?? 0,
           paymentRefId: createVisitDto.paymentRefId,
           status: createVisitDto.status, // BUSINESS RULE 3: Determines if commission is earned ("New" vs others)
+          conditionTrend: createVisitDto.conditionTrend !== undefined ? (createVisitDto.conditionTrend || null) : null,
           nextAppointmentDate: createVisitDto.nextAppointmentDate || null,
         },
+      });
+
+      if (createVisitDto.packagePurchaseId) {
+        await this.packagesService.linkVisitToPurchase(
+          clinicId,
+          visit.id,
+          createVisitDto.packagePurchaseId,
+          createVisitDto.patientId,
+          tx
+        );
+      }
+
+      return tx.visit.findUnique({
+        where: { id: visit.id },
         include: {
           patient: true,
           doctor: true,
@@ -127,11 +119,16 @@ export class VisitsService {
       });
     }, TRANSACTION_OPTIONS);
 
+    if (!newVisit) {
+      throw new Error('Transaction failed to return the created visit');
+    }
+
     // 6. BUSINESS RULE 3 ENGINE CALL: Auto-calculate commissions ONLY if status is "New"
     await this.commissionsService.calculateForVisit(clinicId, newVisit.id);
 
     return this.findOne(clinicId, newVisit.id);
   }
+
 
   async update(clinicId: string, id: string, updateDto: UpdateVisitDto, requestingUser?: any) {
     const existing = await this.findOne(clinicId, id);
@@ -158,6 +155,9 @@ export class VisitsService {
     if (updateDto.paymentRefId !== undefined) data.paymentRefId = updateDto.paymentRefId;
     if (updateDto.nextAppointmentDate !== undefined) {
       data.nextAppointmentDate = updateDto.nextAppointmentDate;
+    }
+    if (updateDto.conditionTrend !== undefined) {
+      data.conditionTrend = updateDto.conditionTrend || null;
     }
 
     if (updateDto.doctorId !== undefined) {
@@ -295,18 +295,10 @@ export class VisitsService {
 
   async remove(clinicId: string, id: string) {
     const visit = await this.findOne(clinicId, id);
-    await this.prisma.$transaction(async (tx) => {
-      if (visit.packagePurchaseId) {
-        await tx.packagePurchase.update({
-          where: { id: visit.packagePurchaseId },
-          data: {
-            sittingsUsed: { decrement: 1 },
-            sittingsRemaining: { increment: 1 },
-          },
-        });
-      }
-      await tx.visit.delete({ where: { id } });
-    }, TRANSACTION_OPTIONS);
+    await this.prisma.visit.delete({ where: { id } });
+    if (visit.packagePurchaseId) {
+      await this.packagesService.syncSittings(clinicId, visit.packagePurchaseId);
+    }
     return { message: 'Visit deleted successfully' };
   }
 }

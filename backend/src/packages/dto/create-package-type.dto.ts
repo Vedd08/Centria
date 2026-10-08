@@ -20,4 +20,21 @@ export class CreatePackageTypeDto {
   @IsOptional()
   @IsBoolean()
   isGstTaxable?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  sittingGapDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  treatmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  doctorId?: string;
 }

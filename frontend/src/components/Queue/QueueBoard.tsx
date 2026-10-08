@@ -5,7 +5,9 @@ import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { CareRail } from '../common/CareRail';
 import { CheckInModal } from './CheckInModal';
+import { AssignDoctorModal } from './AssignDoctorModal';
 import { QueueDetail } from './QueueDetail';
+import { SellPackageModal } from '../Packages/SellPackageModal';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
 import { UserPlus, Search, Repeat, RefreshCw, ClipboardList } from 'lucide-react';
 
@@ -36,6 +38,8 @@ export const QueueBoard: React.FC = () => {
   const [mineOnly, setMineOnly] = useState(user?.role === 'DOCTOR');
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [selected, setSelected] = useState<QueueEntry | null>(null);
+  const [assigningEntry, setAssigningEntry] = useState<QueueEntry | null>(null);
+  const [sellingPackageFor, setSellingPackageFor] = useState<QueueEntry | null>(null);
 
   const canCheckIn = hasRole('RECEPTION', 'RM');
   const isDoctor = user?.role === 'DOCTOR' || hasRole('MASTER', 'SUPER_ADMIN');
@@ -276,9 +280,14 @@ export const QueueBoard: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-medium text-ink-primary">{e.patient?.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-ink-primary">{e.patient?.name}</span>
+                          {e.patient?.visits?.[0]?.conditionTrend === 'IMPROVING' && <span className="text-status-success font-bold" title="Improving">↑</span>}
+                          {e.patient?.visits?.[0]?.conditionTrend === 'WORSENING' && <span className="text-status-danger font-bold" title="Worsening">↓</span>}
+                          {e.patient?.visits?.[0]?.conditionTrend === 'SAME' && <span className="text-ink-secondary font-bold" title="Unchanged">→</span>}
+                        </div>
                         {e.isRegular && (
-                          <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-soft text-brand-deep border border-brand/20">
+                          <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-soft text-brand-deep border border-brand/20">
                             <Repeat className="w-2.5 h-2.5" /> Regular
                           </span>
                         )}
@@ -312,6 +321,23 @@ export const QueueBoard: React.FC = () => {
                         <CareRail status={e.status} pendingDispense={pending > 0} className="mt-1.5 w-28" />
                       </td>
                       <td className="py-3 px-4 text-right">
+                        {e.recommendedPackageTypeId && e.recommendedPackageType && hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN') && (
+                          <div className="mb-2 text-left bg-brand-soft/50 border border-brand/20 p-2 rounded flex flex-col gap-1 w-max ml-auto">
+                            <span className="text-[10px] font-semibold text-brand-deep">Doctor recommended: {e.recommendedPackageType.name} — ₹{e.recommendedPackageType.price}</span>
+                            <button
+                              onClick={() => setSellingPackageFor(e)}
+                              className="self-end px-2 py-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-deep rounded cursor-pointer"
+                            >
+                              Sell Package
+                            </button>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => setAssigningEntry(e)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded transition-colors cursor-pointer mr-2"
+                        >
+                          Assign
+                        </button>
                         <button
                           onClick={() => setSelected(e)}
                           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded transition-colors cursor-pointer"
@@ -329,6 +355,22 @@ export const QueueBoard: React.FC = () => {
       )}
 
       <CheckInModal isOpen={showCheckIn} onClose={() => setShowCheckIn(false)} onCheckedIn={fetchBoard} />
+      <AssignDoctorModal
+        isOpen={!!assigningEntry}
+        onClose={() => setAssigningEntry(null)}
+        onAssigned={fetchBoard}
+        entry={assigningEntry}
+      />
+      {sellingPackageFor && (
+        <SellPackageModal
+          isOpen={true}
+          onClose={() => setSellingPackageFor(null)}
+          onSuccess={fetchBoard}
+          initialPatientId={sellingPackageFor.patientId}
+          initialPackageTypeId={sellingPackageFor.recommendedPackageTypeId!}
+          linkToQueueId={sellingPackageFor.id}
+        />
+      )}
     </div>
   );
 };

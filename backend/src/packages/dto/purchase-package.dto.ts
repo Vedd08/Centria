@@ -26,4 +26,8 @@ export class PurchasePackageDto {
   @IsOptional()
   @IsString()
   paymentRef?: string;
+
+  @IsOptional()
+  @IsString()
+  linkToQueueId?: string;
 }

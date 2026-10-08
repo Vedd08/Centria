@@ -3,6 +3,8 @@ import { HistoryPatient } from '../PatientHistory/PatientHistoryPanel';
 export interface CareOrder {
   id: string;
   orderType: string;
+  medicineId?: string;
+  treatmentId?: string;
   description: string;
   dosage?: string;
   route?: string;
@@ -21,16 +23,20 @@ export interface CareOrder {
   orderedBy?: { id: string; name: string };
   performedBy?: { id: string; name: string };
   dispensedBy?: { id: string; name: string };
+  sourceTemplates?: string;
+  createdAt?: string;
 }
 
 export interface QueueEntry {
   id: string;
+  patientId?: string;
   tokenNumber: number;
   queueDate: string;
   complaint?: string;
   isRegular: boolean;
   status: string;
   careType?: string;
+  departmentId?: string;
   department?: { id: string; name: string; code: string } | null;
   diagnosis?: string;
   doctorNotes?: string;
@@ -40,12 +46,22 @@ export interface QueueEntry {
   staffNotes?: string;
   consultationFee?: number;
   nextAppointmentDate?: string;
+  recommendedPackageTypeId?: string;
+  recommendedPackageType?: any;
   checkedInAt: string;
   seenAt?: string;
   patient: HistoryPatient;
   doctor?: { id: string; name: string };
   checkedInBy?: { id: string; name: string };
   visitId?: string;
+  visit?: {
+    id: string;
+    treatmentId?: string;
+    treatmentName: string;
+    treatment?: { id: string; name: string; isGstTaxable: boolean; } | null;
+    packagePurchaseId?: string | null;
+    conditionTrend?: string;
+  };
   admissionId?: string;
   admissionRequestedAt?: string;
   admissionRequestReason?: string;

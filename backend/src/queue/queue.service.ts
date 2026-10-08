@@ -6,6 +6,7 @@ import { CheckInDto } from './dto/check-in.dto';
 import { AssessQueueDto } from './dto/assess-queue.dto';
 import { UpdateQueueStatusDto } from './dto/update-queue-status.dto';
 import { RequestAdmissionDto } from './dto/request-admission.dto';
+import { toLocalDateKey } from '../common/date.helper';
 
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
 
@@ -19,7 +20,19 @@ const CARE_TYPE_BY_ROLE: Record<string, string | undefined> = {
 };
 
 const QUEUE_INCLUDE = {
-  patient: true,
+  patient: {
+    include: {
+      visits: {
+        where: { conditionTrend: { not: null } },
+        orderBy: { date: 'desc' },
+        take: 1,
+        select: { conditionTrend: true, date: true },
+      },
+      _count: {
+        select: { visits: true }
+      }
+    },
+  },
   department: { select: { id: true, name: true, code: true } },
   doctor: { select: { id: true, name: true, role: true } },
   checkedInBy: { select: { id: true, name: true, role: true } },
@@ -35,16 +48,22 @@ const QUEUE_INCLUDE = {
     },
     orderBy: { createdAt: 'asc' },
   },
+  recommendedPackageType: true,
 } as const;
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => toLocalDateKey(new Date());
 
 /** Rounds a money figure to paise. Same convention as InvoicesService. */
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+import { PackagesService } from '../packages/packages.service';
+
 @Injectable()
 export class QueueService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private packagesService: PackagesService
+  ) {}
 
   /**
    * Reception check-in. Allocates the next token for the day and flags the patient
@@ -189,10 +208,20 @@ export class QueueService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      if (dto.recommendedPackageTypeId) {
+        const pkgType = await tx.packageType.findFirst({
+          where: { id: dto.recommendedPackageTypeId, clinicId }
+        });
+        if (!pkgType || !pkgType.isActive) {
+          throw new BadRequestException('Recommended package type is not active or not found');
+        }
+      }
+
       // Reuse the visit if the doctor re-saves their assessment, so repeated edits
       // don't litter the day book with duplicates.
       let visitId = entry.visitId;
-      const visitData = {
+
+      const visitData: any = {
         date: entry.queueDate,
         visitType: dto.careType,
         patientId: entry.patientId,
@@ -206,8 +235,13 @@ export class QueueService {
         remarks: dto.doctorNotes || null,
         nextAppointmentDate: dto.nextAppointmentDate || null,
         status: entry.isRegular ? 'Follow Up' : 'New',
+        packagePurchaseId: dto.usePackagePurchaseId ? undefined : null,
         clinicId,
       };
+
+      if (dto.conditionTrend !== undefined) {
+        visitData.conditionTrend = dto.conditionTrend || null;
+      }
 
       if (visitId) {
         await tx.visit.update({ where: { id: visitId }, data: visitData });
@@ -216,24 +250,41 @@ export class QueueService {
         visitId = created.id;
       }
 
-      return tx.patientQueue.update({
+      const queueData: any = {
+        doctorId,
+        careType: dto.careType,
+        diagnosis: dto.diagnosis,
+        doctorNotes: dto.doctorNotes,
+        patientNotes: dto.patientNotes,
+        staffNotes: dto.staffNotes,
+        nextAppointmentDate: dto.nextAppointmentDate,
+        ...(dto.consultationFee !== undefined ? { consultationFee: dto.consultationFee } : {}),
+        seenAt: entry.seenAt ?? new Date(),
+        // Handing over to the nurse/service desk is what "doctor is done" means.
+        status: 'AWAITING_SERVICE',
+        visitId,
+      };
+
+      if (dto.recommendedPackageTypeId !== undefined) {
+        queueData.recommendedPackageTypeId = dto.recommendedPackageTypeId || null;
+      }
+
+      const updatedQueue = await tx.patientQueue.update({
         where: { id },
-        data: {
-          doctorId,
-          careType: dto.careType,
-          diagnosis: dto.diagnosis,
-          doctorNotes: dto.doctorNotes,
-          patientNotes: dto.patientNotes,
-          staffNotes: dto.staffNotes,
-          nextAppointmentDate: dto.nextAppointmentDate,
-          ...(dto.consultationFee !== undefined ? { consultationFee: dto.consultationFee } : {}),
-          seenAt: entry.seenAt ?? new Date(),
-          // Handing over to the nurse/service desk is what "doctor is done" means.
-          status: 'AWAITING_SERVICE',
-          visitId,
-        },
+        data: queueData,
         include: QUEUE_INCLUDE,
       });
+
+      if (dto.usePackagePurchaseId) {
+        await this.packagesService.linkVisitToPurchase(clinicId, visitId, dto.usePackagePurchaseId, entry.patientId, tx);
+      }
+      
+      const oldPackagePurchaseId = entry.visit?.packagePurchaseId;
+      if (oldPackagePurchaseId && oldPackagePurchaseId !== dto.usePackagePurchaseId) {
+        await this.packagesService.syncSittings(clinicId, oldPackagePurchaseId, tx);
+      }
+
+      return updatedQueue;
     }, TRANSACTION_OPTIONS);
   }
 
@@ -425,6 +476,7 @@ export class QueueService {
         frequency: o.frequency,
         instructions: o.instructions,
         quantity: o.quantity,
+        medicineId: o.medicineId,
       }));
 
     const procedures = entry.careOrders

@@ -5,6 +5,7 @@ import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { Package, Plus, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Tag, Layers, UserCheck, Shield } from 'lucide-react';
 import { Patient } from '../Patients/PatientList';
 import { PackageTypeModal } from './PackageTypeModal';
+import { SellPackageModal } from './SellPackageModal';
 import { money } from '../../utils/money';
 
 export interface PackageTypeItem {
@@ -13,6 +14,10 @@ export interface PackageTypeItem {
   description?: string;
   price: number;
   totalSittings: number;
+  sittingGapDays?: number;
+  isActive?: boolean;
+  treatmentId?: string;
+  doctorId?: string;
 }
 
 export interface PackagePurchaseItem {
@@ -51,7 +56,7 @@ export const PackageList: React.FC = () => {
 
   const { addToast } = useToast();
   const canSellPackage = hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN');
-  const isAdmin = hasRole('MASTER', 'SUPER_ADMIN');
+  const canManagePackages = hasRole('MASTER', 'SUPER_ADMIN', 'DOCTOR');
 
   const fetchData = async () => {
     setLoading(true);
@@ -144,7 +149,7 @@ export const PackageList: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded-md transition-colors cursor-pointer shrink-0"
           >
             <Shield className="w-4 h-4 text-brand" />
-            <span>{isAdmin ? 'Manage Package Types' : 'View Package Types'}</span>
+            <span>{canManagePackages ? 'Manage Package Types' : 'View Package Types'}</span>
           </button>
 
           {canSellPackage && (
@@ -298,99 +303,13 @@ export const PackageList: React.FC = () => {
         )}
       </div>
 
-      {/* Sell Package Modal */}
-      {isSellModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-surface-card rounded-[10px] border border-border shadow-xl max-w-md w-full p-6 space-y-5 mx-2 sm:mx-0 my-4 sm:my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <h3 className="text-base font-bold text-ink-primary flex items-center gap-2">
-                <Tag className="w-4 h-4 text-brand" /> Sell Package to Patient
-              </h3>
-              <button
-                onClick={() => setIsSellModalOpen(false)}
-                className="p-1 rounded-md text-ink-secondary hover:bg-surface-page text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-md bg-status-danger/10 border border-status-danger/20 text-status-danger text-xs">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSellSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                  Select Patient <span className="text-status-danger">*</span>
-                </label>
-                <select
-                  required
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
-                >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.uhid} — {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                  Select Package <span className="text-status-danger">*</span>
-                </label>
-                <select
-                  required
-                  value={selectedPackageTypeId}
-                  onChange={(e) => handlePackageTypeSelect(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card font-semibold text-ink-primary"
-                >
-                  {packageTypes.map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} ({pkg.totalSittings} Sittings — ₹{pkg.price})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                  Amount Paid (₹) <span className="text-status-danger">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card font-bold"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-border flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSellModalOpen(false)}
-                  className="px-4 py-1.5 text-xs font-medium text-ink-secondary hover:text-ink-primary rounded-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={selling}
-                  className="px-4 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {selling ? 'Issuing...' : 'Issue Package & Create Sittings'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SellPackageModal
+        isOpen={isSellModalOpen}
+        onClose={() => setIsSellModalOpen(false)}
+        onSuccess={fetchData}
+        initialPackageTypeId={selectedPackageTypeId}
+        initialPatientId={selectedPatientId}
+      />
 
       <PackageTypeModal
         isOpen={isTypeModalOpen}

@@ -12,22 +12,22 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class PackagesController {
   constructor(private readonly packagesService: PackagesService) {}
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Post('types')
   createType(@CurrentUser() user: any, @Body() dto: CreatePackageTypeDto) {
-    return this.packagesService.createPackageType(user.clinicId, dto);
+    return this.packagesService.createPackageType(user, dto);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Put('types/:id')
   updateType(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: CreatePackageTypeDto) {
-    return this.packagesService.updatePackageType(user.clinicId, id, dto);
+    return this.packagesService.updatePackageType(user, id, dto);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Delete('types/:id')
   removeType(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.packagesService.removePackageType(user.clinicId, id);
+    return this.packagesService.removePackageType(user, id);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'ACCOUNT')

@@ -15,6 +15,10 @@ export class AssessQueueDto {
   diagnosis?: string;
 
   @IsOptional()
+  @IsIn(['IMPROVING', 'SAME', 'WORSENING'])
+  conditionTrend?: string;
+
+  @IsOptional()
   @IsString()
   doctorNotes?: string;
 
@@ -43,4 +47,14 @@ export class AssessQueueDto {
   @IsOptional()
   @IsString()
   treatmentId?: string;
+
+  /** If the patient is redeeming a package sitting */
+  @IsOptional()
+  @IsString()
+  usePackagePurchaseId?: string;
+
+  /** If the doctor recommends a new package */
+  @IsOptional()
+  @IsString()
+  recommendedPackageTypeId?: string;
 }

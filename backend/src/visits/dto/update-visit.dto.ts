@@ -43,6 +43,10 @@ export class UpdateVisitDto {
   diagnosis?: string;
 
   @IsOptional()
+  @IsIn(['IMPROVING', 'SAME', 'WORSENING'])
+  conditionTrend?: string;
+
+  @IsOptional()
   @IsString()
   remarks?: string;
 

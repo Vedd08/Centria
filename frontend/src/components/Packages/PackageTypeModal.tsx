@@ -23,6 +23,10 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
   const [newDescription, setNewDescription] = useState('');
   const [newPrice, setNewPrice] = useState<number>(5000);
   const [newSittings, setNewSittings] = useState<number>(5);
+  const [newSittingGapDays, setNewSittingGapDays] = useState<number>(30);
+  const [newTreatmentId, setNewTreatmentId] = useState<string>('');
+  
+  const [treatments, setTreatments] = useState<{id: string, name: string}[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +36,13 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
   const fetchPackageTypes = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/packages/types', {
-        });
+      const res = await apiFetch('/api/packages/types', {});
       const data = await res.json();
-      if (res.ok) {
-        setPackageTypes(data);
-      }
+      if (res.ok) setPackageTypes(data);
+      
+      const tRes = await apiFetch('/api/treatments');
+      const tData = await tRes.json();
+      if (tRes.ok) setTreatments(tData);
     } catch (err: any) {
       addToast('error', err.message || 'Failed to load package types');
     } finally {
@@ -67,6 +72,8 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
           description: newDescription.trim() || undefined,
           price: Number(newPrice),
           totalSittings: Number(newSittings),
+          sittingGapDays: Number(newSittingGapDays),
+          treatmentId: newTreatmentId || undefined,
         }),
       });
 
@@ -77,6 +84,8 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
       setNewDescription('');
       setNewPrice(5000);
       setNewSittings(5);
+      setNewSittingGapDays(30);
+      setNewTreatmentId('');
       fetchPackageTypes();
       onUpdate();
     } catch (err: any) {
@@ -114,7 +123,8 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
     setConfirmDelete(null);
   };
 
-  const canEdit = user?.role === 'MASTER' || user?.role === 'SUPER_ADMIN';
+  const canEdit = user?.role === 'MASTER' || user?.role === 'SUPER_ADMIN' || user?.role === 'DOCTOR';
+  const getTreatmentName = (tId: string | null | undefined) => treatments.find(t => t.id === tId)?.name || 'General';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
@@ -152,45 +162,105 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Package Name (e.g. PRP 5 Sessions)"
-                  className="w-full px-3 py-2 rounded-lg border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Package Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Package Name (e.g. PRP 5 Sessions)"
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    disabled={submitting}
+                  />
+                </div>
                 
-                <input
-                  type="text"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Description (Optional)"
-                  className="w-full px-3 py-2 rounded-lg border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
-                />
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Description (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Description (Optional)"
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    disabled={submitting}
+                  />
+                </div>
 
-                <input
-                  type="number"
-                  required
-                  min={0}
-                  step="any"
-                  value={newPrice}
-                  onChange={(e) => setNewPrice(Number(e.target.value))}
-                  placeholder="Price ₹"
-                  className="w-full px-3 py-2 rounded-lg border border-border text-xs font-mono focus:ring-1 focus:ring-brand bg-surface-card"
-                />
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(Number(e.target.value))}
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
 
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={newSittings}
-                  onChange={(e) => setNewSittings(Number(e.target.value))}
-                  placeholder="Total Sittings"
-                  className="w-full px-3 py-2 rounded-lg border border-border text-xs font-mono focus:ring-1 focus:ring-brand bg-surface-card"
-                />
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Total Sittings
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newSittings}
+                    onChange={(e) => setNewSittings(Number(e.target.value))}
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Sitting Gap (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newSittingGapDays}
+                    onChange={(e) => setNewSittingGapDays(Number(e.target.value))}
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Treatment
+                  </label>
+                  <select
+                    value={newTreatmentId}
+                    onChange={(e) => setNewTreatmentId(e.target.value)}
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    disabled={submitting}
+                  >
+                    <option value="">None (General)</option>
+                    {treatments.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <strong>Summary: </strong> 
+                {newName || 'New Package'} covers {newSittings} sittings for {getTreatmentName(newTreatmentId)} at ₹{newPrice}. 
+                {newSittingGapDays > 0 ? ` Sittings are spaced ${newSittingGapDays} days apart.` : ''}
+              </div>
+
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
@@ -206,7 +276,7 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary px-1">
               <span>Package Title ({packageTypes.length} items)</span>
-              <span>Price & Sittings</span>
+              <span>Details & Price</span>
             </div>
 
             <div className="max-h-80 overflow-y-auto border border-border rounded-xl divide-y divide-border/60 bg-surface-card">
@@ -221,7 +291,18 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                     <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-brand/10 text-brand-soft border border-brand/20">
                       {pkg.totalSittings} Sittings
                     </span>
-                    {canEdit && (
+                    {!pkg.isActive && (
+                      <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                        Inactive
+                      </span>
+                    )}
+                    <span className={`text-[11px] font-medium ${pkg.sittingGapDays ? 'text-ink-secondary' : 'text-status-warning'}`}>
+                      {pkg.sittingGapDays ? `${pkg.sittingGapDays}d gap` : 'No sitting gap set'}
+                    </span>
+                    <span className={`text-[11px] font-medium ${pkg.treatmentId ? 'text-ink-secondary' : 'text-status-warning'}`}>
+                      {pkg.treatmentId ? getTreatmentName(pkg.treatmentId) : 'Not linked to a treatment'}
+                    </span>
+                    {(canEdit && (user?.role !== 'DOCTOR' || (pkg as any).doctorId === user?.id)) && (
                       <button
                         onClick={() => setConfirmDelete({ id: pkg.id, name: pkg.name })}
                         disabled={deletingId === pkg.id}
