@@ -1,9 +1,11 @@
+import { toLocalDateKey } from '../common/date.helper';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertSubscriptionDto } from './dto/upsert-subscription.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { computeRevenue } from '../common/revenue';
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => toLocalDateKey(new Date());
 
 /**
  * Moves a YYYY-MM-DD forward one month, clamped to the target month's length.
@@ -54,10 +56,7 @@ export class PlatformService {
           this.prisma.user.count({ where: { clinicId: clinic.id } }),
           this.prisma.patient.count({ where: { clinicId: clinic.id } }),
           this.prisma.visit.count({ where: { clinicId: clinic.id } }),
-          this.prisma.visit.aggregate({
-            where: { clinicId: clinic.id },
-            _sum: { cashAmount: true, bankAmount: true },
-          }),
+          computeRevenue(this.prisma, clinic.id),
           this.prisma.visit.findFirst({
             where: { clinicId: clinic.id },
             orderBy: { date: 'desc' },
@@ -76,7 +75,7 @@ export class PlatformService {
           staffCount,
           patients,
           visits,
-          revenue: Number(revenue._sum.cashAmount ?? 0) + Number(revenue._sum.bankAmount ?? 0),
+          revenue: revenue.total,
           lastActivity: lastVisit?.date ?? null,
           subscription: clinic.subscription
             ? {
@@ -106,10 +105,7 @@ export class PlatformService {
       }),
       this.prisma.patient.count({ where: { clinicId: id } }),
       this.prisma.visit.groupBy({ by: ['visitType'], where: { clinicId: id }, _count: { _all: true } }),
-      this.prisma.visit.aggregate({
-        where: { clinicId: id },
-        _sum: { cashAmount: true, bankAmount: true },
-      }),
+      computeRevenue(this.prisma, id),
       this.prisma.admission.count({ where: { clinicId: id, status: 'ADMITTED' } }),
       this.prisma.medicine.findMany({ where: { clinicId: id }, select: { stockQty: true, unitPrice: true } }),
       this.prisma.purchase.aggregate({ where: { clinicId: id }, _sum: { totalValue: true }, _count: { _all: true } }),
@@ -130,7 +126,7 @@ export class PlatformService {
         patients,
         visitsOpd: visitsByType.find((v) => v.visitType === 'OPD')?._count._all ?? 0,
         visitsIpd: visitsByType.find((v) => v.visitType === 'IPD')?._count._all ?? 0,
-        revenue: Number(revenue._sum.cashAmount ?? 0) + Number(revenue._sum.bankAmount ?? 0),
+        revenue: revenue.total,
         currentlyAdmitted: admissions,
         queueToday,
         stockValue: stock.reduce((a, m) => a + m.stockQty * Number(m.unitPrice), 0),

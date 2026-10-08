@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
+import { Pagination } from '../common/Pagination';
 import { exportToCsv } from '../../utils/exportToCsv';
 import {
   Wallet,
@@ -23,18 +24,18 @@ interface Summary {
     visitBank: number;
     packageCash: number;
     packageBank: number;
+    invoiceCash: number;
+    invoiceBank: number;
     visitCount: number;
     packageCount: number;
   };
   receipts: { invoiceTotal: number; invoiceCash: number; invoiceBank: number; invoiceGst: number; invoiceCount: number };
   wardAndService: {
-    pharmacySales: number;
-    dispensedSales: number;
-    pendingSales: number;
-    serviceCharges: number;
-    byNurseIpd: number;
-    byStaffOpd: number;
-    orderCount: number;
+    byNurse: number;
+    byStaff: number;
+    raisedOrderCount: number;
+    performedOrderCount: number;
+    performedByDoctorsCount: number;
   };
   expenses: { purchaseTotal: number; purchaseTaxable: number; inputGst: number; purchaseCount: number };
   net: number;
@@ -89,6 +90,9 @@ export const AccountsDashboard: React.FC = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
 
   const firstOfMonth = () => {
     const d = new Date();
@@ -98,13 +102,14 @@ export const AccountsDashboard: React.FC = () => {
   const [from, setFrom] = useState(firstOfMonth());
   const [to, setTo] = useState(new Date().toISOString().split('T')[0]);
 
-  const load = async (signal?: AbortSignal) => {
+  const load = async (signal?: AbortSignal, p: number = page) => {
     setLoading(true);
     try {
       const qs = `from=${from}&to=${to}`;
+      const lqs = `from=${from}&to=${to}&page=${p}&pageSize=20`;
       const [sRes, lRes] = await Promise.all([
         apiFetch(`/api/accounts/summary?${qs}`, { signal }),
-        apiFetch(`/api/accounts/ledger?${qs}`, { signal }),
+        apiFetch(`/api/accounts/ledger?${lqs}`, { signal }),
       ]);
       if (!sRes.ok) throw new Error('Failed to load the account summary');
       const s = await sRes.json();
@@ -112,6 +117,9 @@ export const AccountsDashboard: React.FC = () => {
       if (signal?.aborted) return;
       setSummary(s);
       setLedger(l.entries || []);
+      setTotalPages(l.totalPages || 1);
+      setTotalEntries(l.total || 0);
+      setPage(l.page || 1);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       addToast('error', err.message || 'Failed to load accounts');
@@ -122,10 +130,53 @@ export const AccountsDashboard: React.FC = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    load(controller.signal);
+    setPage(1);
+    load(controller.signal, 1);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    load(undefined, newPage);
+  };
+
+  const handleExport = async () => {
+    try {
+      const allEntries = [];
+      let currentPage = 1;
+      const pageSize = 50;
+      let totalFetched = 0;
+      const initialRes = await apiFetch(`/api/accounts/ledger?from=${from}&to=${to}&page=${currentPage}&pageSize=${pageSize}`);
+      if (!initialRes.ok) throw new Error('Failed to export ledger');
+      const initialData = await initialRes.json();
+      allEntries.push(...(initialData.entries || []));
+      totalFetched += (initialData.entries || []).length;
+      const expectedTotal = initialData.total || 0;
+
+      while (totalFetched < expectedTotal) {
+        currentPage++;
+        const pRes = await apiFetch(`/api/accounts/ledger?from=${from}&to=${to}&page=${currentPage}&pageSize=${pageSize}`);
+        if (!pRes.ok) break;
+        const pData = await pRes.json();
+        const batch = pData.entries || [];
+        if (batch.length === 0) break;
+        allEntries.push(...batch);
+        totalFetched += batch.length;
+      }
+
+      exportToCsv('accounts-ledger', allEntries, [
+        { key: 'date', label: 'Date' },
+        { key: 'kind', label: 'Type' },
+        { key: 'source', label: 'Source' },
+        { key: 'reference', label: 'Reference' },
+        { key: 'description', label: 'Description' },
+        { key: 'amount', label: 'Amount' },
+      ]);
+    } catch (e: any) {
+      addToast('error', e.message || 'Failed to export ledger');
+    }
+  };
 
   return (
     <div className="space-y-6 font-sans text-ink-primary">
@@ -154,15 +205,15 @@ export const AccountsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {loading || !summary ? (
+      {loading && !summary ? (
         <LoadingSkeleton rows={4} />
-      ) : (
+      ) : summary && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Collected"
               value={money(summary.income.collected)}
-              sub={`${summary.income.visitCount} visits · ${summary.income.packageCount} packages`}
+              sub={`${summary.receipts.invoiceCount} receipts · ${summary.income.visitCount} visits · ${summary.income.packageCount} packages`}
               icon={TrendingUp}
               tone="success"
             />
@@ -198,6 +249,8 @@ export const AccountsDashboard: React.FC = () => {
                 ['Visit bank', summary.income.visitBank],
                 ['Package cash', summary.income.packageCash],
                 ['Package bank', summary.income.packageBank],
+                ['Receipts (cash)', summary.income.invoiceCash],
+                ['Receipts (bank)', summary.income.invoiceBank],
               ].map(([label, val]) => (
                 <div key={label as string} className="flex justify-between text-xs">
                   <span className="text-ink-secondary">{label}</span>
@@ -210,24 +263,24 @@ export const AccountsDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs space-y-2.5">
+            <div className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs space-y-2.5 flex flex-col">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <Pill className="w-4 h-4 text-brand" /> Ward &amp; Service Desk
               </h3>
-              {[
-                ['Given by nurse (IPD)', summary.wardAndService.byNurseIpd],
-                ['Given by staff (OPD)', summary.wardAndService.byStaffOpd],
-                ['Medicines dispensed', summary.wardAndService.dispensedSales],
-                ['Awaiting dispense', summary.wardAndService.pendingSales],
-                ['Service charges', summary.wardAndService.serviceCharges],
-              ].map(([label, val]) => (
-                <div key={label as string} className="flex justify-between text-xs">
-                  <span className="text-ink-secondary">{label}</span>
-                  <span className="font-mono">{money(val as number)}</span>
-                </div>
-              ))}
-              <p className="text-[10px] text-ink-secondary/70 border-t border-border pt-2">
-                {summary.wardAndService.orderCount} care order(s) in this period.
+              <div className="space-y-2.5 flex-1">
+                {[
+                  ['Performed by nurse', summary.wardAndService.byNurse],
+                  ['Performed by staff', summary.wardAndService.byStaff],
+                ].map(([label, val]) => (
+                  <div key={label as string} className="flex justify-between text-xs">
+                    <span className="text-ink-secondary">{label}</span>
+                    <span className="font-mono">{money(val as number)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-ink-secondary/70 border-t border-border pt-2 mt-auto">
+                {summary.wardAndService.performedOrderCount} of {summary.wardAndService.raisedOrderCount} care order(s) raised in this period have been performed
+                {summary.wardAndService.performedByDoctorsCount > 0 ? ` · ${summary.wardAndService.performedByDoctorsCount} performed by doctors` : ''}.
               </p>
             </div>
 
@@ -246,7 +299,7 @@ export const AccountsDashboard: React.FC = () => {
                   <span className="font-mono">{money(val as number)}</span>
                 </div>
               ))}
-              <p className="text-[10px] text-ink-secondary/70 border-t border-border pt-2">
+              <p className="text-[10px] text-ink-secondary/70 border-t border-border pt-2 mt-auto">
                 {summary.receipts.invoiceCount} printed receipt(s).
               </p>
             </div>
@@ -256,16 +309,7 @@ export const AccountsDashboard: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h3 className="text-sm font-semibold">Ledger</h3>
               <button
-                onClick={() =>
-                  exportToCsv('accounts-ledger', ledger, [
-                    { key: 'date', label: 'Date' },
-                    { key: 'kind', label: 'Type' },
-                    { key: 'source', label: 'Source' },
-                    { key: 'reference', label: 'Reference' },
-                    { key: 'description', label: 'Description' },
-                    { key: 'amount', label: 'Amount' },
-                  ])
-                }
+                onClick={handleExport}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" /> Export
@@ -275,48 +319,64 @@ export const AccountsDashboard: React.FC = () => {
             {ledger.length === 0 ? (
               <p className="p-8 text-center text-xs text-ink-secondary">No money movements in this period.</p>
             ) : (
-              <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="sticky top-0 bg-surface-page">
-                    <tr className="border-b border-border text-ink-secondary font-medium">
-                      <th className="py-2.5 px-4">Date</th>
-                      <th className="py-2.5 px-4">Type</th>
-                      <th className="py-2.5 px-4">Source</th>
-                      <th className="py-2.5 px-4">Description</th>
-                      <th className="py-2.5 px-4 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {ledger.map((e, i) => (
-                      <tr key={i} className="hover:bg-surface-page/60">
-                        <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{e.date}</td>
-                        <td className="py-2.5 px-4">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium border ${
-                              e.kind === 'INCOME'
-                                ? 'bg-status-success/10 text-status-success border-status-success/20'
-                                : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 bg-surface-page">
+                      <tr className="border-b border-border text-ink-secondary font-medium">
+                        <th className="py-2.5 px-4">Date</th>
+                        <th className="py-2.5 px-4">Type</th>
+                        <th className="py-2.5 px-4">Source</th>
+                        <th className="py-2.5 px-4">Reference</th>
+                        <th className="py-2.5 px-4">Description</th>
+                        <th className="py-2.5 px-4 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {ledger.map((e, i) => (
+                        <tr key={i} className="hover:bg-surface-page/60">
+                          <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{e.date}</td>
+                          <td className="py-2.5 px-4">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                e.kind === 'INCOME'
+                                  ? 'bg-status-success/10 text-status-success border-status-success/20'
+                                  : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+                              }`}
+                            >
+                              {e.kind === 'INCOME' ? 'In' : 'Out'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-ink-secondary whitespace-nowrap">{e.source}</td>
+                          <td className="py-2.5 px-4 text-ink-secondary font-mono max-w-[120px] truncate" title={e.reference}>
+                            {e.reference.length > 20 ? e.reference.replace(/([0-9a-fA-F-]{10,})/, (match) => match.slice(0, 6) + '…') : e.reference}
+                          </td>
+                          <td className="py-2.5 px-4 max-w-[280px] truncate" title={e.description}>
+                            {e.description}
+                          </td>
+                          <td
+                            className={`py-2.5 px-4 text-right font-mono font-medium ${
+                              e.kind === 'INCOME' ? 'text-status-success' : 'text-status-danger'
                             }`}
                           >
-                            {e.kind === 'INCOME' ? 'In' : 'Out'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-ink-secondary whitespace-nowrap">{e.source}</td>
-                        <td className="py-2.5 px-4 max-w-[280px] truncate" title={e.description}>
-                          {e.description}
-                        </td>
-                        <td
-                          className={`py-2.5 px-4 text-right font-mono font-medium ${
-                            e.kind === 'INCOME' ? 'text-status-success' : 'text-status-danger'
-                          }`}
-                        >
-                          {e.kind === 'INCOME' ? '+' : '−'}
-                          {money(e.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            {e.kind === 'INCOME' ? '+' : '−'}
+                            {money(e.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {totalPages > 1 && (
+                  <div className="border-t border-border p-3">
+                    <Pagination
+                      page={page}
+                      pageSize={20}
+                      total={totalEntries}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -325,3 +385,4 @@ export const AccountsDashboard: React.FC = () => {
     </div>
   );
 };
+

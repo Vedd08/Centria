@@ -31,4 +31,15 @@ export class AdminController {
   getPharmacyRecords(@CurrentUser() user: any, @Query('from') from?: string, @Query('to') to?: string) {
     return this.adminService.getPharmacyRecords(user.clinicId, from, to);
   }
+
+  @Get('revenue')
+  getRevenueList(
+    @CurrentUser() user: any,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminService.getRevenueList(user.clinicId, from, to, page, pageSize);
+  }
 }

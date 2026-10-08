@@ -1,3 +1,4 @@
+import { toLocalDateKey } from '../common/date.helper';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -242,7 +243,7 @@ export class MedicinesService {
   async getExpiringBatches(clinicId: string, daysAhead: number) {
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + daysAhead);
-    const targetDateStr = targetDate.toISOString().split('T')[0];
+    const targetDateStr = toLocalDateKey(targetDate);
 
     return this.prisma.medicineBatch.findMany({
       where: {

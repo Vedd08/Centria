@@ -18,7 +18,15 @@ export class AccountsController {
   }
 
   @Get('ledger')
-  getLedger(@CurrentUser() user: any, @Query('from') from?: string, @Query('to') to?: string) {
-    return this.accountsService.getLedger(user.clinicId, from, to);
+  getLedger(
+    @CurrentUser() user: any,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string
+  ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const s = pageSize ? parseInt(pageSize, 10) : 20;
+    return this.accountsService.getLedger(user.clinicId, p, s, from, to);
   }
 }

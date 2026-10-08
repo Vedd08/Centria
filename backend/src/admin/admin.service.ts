@@ -1,5 +1,7 @@
+import { toLocalDateKey } from '../common/date.helper';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { computeRevenue, getRevenueLedgerRows } from '../common/revenue';
 
 const STOCK_BACKED = ['MEDICINE', 'INJECTION'];
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
@@ -8,9 +10,9 @@ const FLOOR_ROLES = ['NURSE', 'STAFF'];
 const monthsAgo = (n: number) => {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
-  return d.toISOString().split('T')[0];
+  return toLocalDateKey(d);
 };
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => toLocalDateKey(new Date());
 
 /**
  * Read-only management reporting for the owner/admin: who did what, what it earned,
@@ -33,10 +35,7 @@ export class AdminService {
       this.prisma.patientQueue.count({ where: { clinicId, queueDate: today() } }),
     ]);
 
-    const visitTotals = await this.prisma.visit.aggregate({
-      where: { clinicId },
-      _sum: { cashAmount: true, bankAmount: true },
-    });
+    const revenueTotals = await computeRevenue(this.prisma, clinicId);
 
     return {
       patients,
@@ -45,10 +44,10 @@ export class AdminService {
       currentlyAdmitted: admissions,
       queueToday,
       staffByRole: Object.fromEntries(users.map((u) => [u.role, u._count._all])),
-      lifetimeRevenue: Number(visitTotals._sum.cashAmount ?? 0) + Number(visitTotals._sum.bankAmount ?? 0),
+      lifetimeRevenue: revenueTotals.total,
       invoiceTotal: Number(invoices._sum.totalAmount ?? 0),
       invoiceCount: invoices._count._all,
-      purchaseTotal: Number(purchases._sum.totalValue ?? 0),
+      purchaseTotal: Math.round(Number(purchases._sum.totalValue ?? 0) * 100) / 100,
       purchaseCount: purchases._count._all,
       medicineCount: medicines.length,
       stockValue: medicines.reduce((a, m) => a + m.stockQty * Number(m.unitPrice), 0),
@@ -209,7 +208,7 @@ export class AdminService {
       },
       purchases: {
         count: purchaseTotals._count._all,
-        total: Number(purchaseTotals._sum.totalValue ?? 0),
+        total: Math.round(Number(purchaseTotals._sum.totalValue ?? 0) * 100) / 100,
         recent: purchases.map((p) => ({
           id: p.id,
           vendorName: p.vendorName,
@@ -233,6 +232,39 @@ export class AdminService {
         by: m.performedBy?.name ?? null,
         at: m.createdAt,
       })),
+    };
+  }
+
+  async getRevenueList(clinicId: string, from?: string, to?: string, page = '1', pageSize = '15') {
+    const p = parseInt(page, 10);
+    const size = parseInt(pageSize, 10);
+
+    const [allEntries, totals] = await Promise.all([
+      getRevenueLedgerRows(this.prisma, clinicId, from, to),
+      computeRevenue(this.prisma, clinicId, from, to),
+    ]);
+
+    allEntries.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Map to what the frontend expects
+    const formattedRows = allEntries.map((e) => ({
+      date: e.date,
+      source: e.source.toLowerCase().replace('direct ', ''), // e.g. "visit", "package", "receipt"
+      patient: e.patientName,
+      method: e.paymentMethod,
+      amount: e.amount,
+    }));
+
+    const totalRows = formattedRows.length;
+    const paginated = formattedRows.slice((p - 1) * size, p * size);
+
+    return {
+      data: paginated,
+      total: totalRows,
+      page: p,
+      pageSize: size,
+      totalPages: Math.ceil(totalRows / size),
+      summary: totals,
     };
   }
 }

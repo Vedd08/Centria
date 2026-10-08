@@ -6,6 +6,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import { exportToCsv } from '../../utils/exportToCsv';
 import { AccountsDashboard } from '../Accounts/AccountsDashboard';
 import { PatientList } from '../Patients/PatientList';
+import { StatDetailModal, DetailKind } from './StatDetailModal';
 import {
   LayoutDashboard,
   Landmark,
@@ -30,13 +31,31 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 
-const Stat: React.FC<{ label: string; value: string; sub?: string }> = ({ label, value, sub }) => (
-  <div className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs">
-    <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">{label}</p>
-    <p className="text-lg font-semibold text-ink-primary leading-tight mt-1">{value}</p>
-    {sub && <p className="text-[11px] text-ink-secondary mt-0.5">{sub}</p>}
-  </div>
-);
+const Stat: React.FC<{ label: string; value: string; sub?: string; onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void }> = ({ label, value, sub, onClick }) => {
+  const inner = (
+    <>
+      <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">{label}</p>
+      <p className="text-lg font-semibold text-ink-primary leading-tight mt-1">{value}</p>
+      {sub && <p className="text-[11px] text-ink-secondary mt-0.5">{sub}</p>}
+      {onClick && <span className="absolute bottom-4 right-4 text-[10px] font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View details &rarr;</span>}
+    </>
+  );
+
+  const baseClasses = "relative bg-surface-card p-4 rounded-[10px] border border-border shadow-xs text-left w-full h-full block";
+
+  if (onClick) {
+    return (
+      <button 
+        type="button" 
+        onClick={onClick} 
+        className={`${baseClasses} group hover:-translate-y-0.5 transition-transform cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-brand`}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className={baseClasses}>{inner}</div>;
+};
 
 /** The owner's management console — every record set in one place. */
 export const AdminPanel: React.FC = () => {
@@ -50,6 +69,18 @@ export const AdminPanel: React.FC = () => {
   const [pharmacy, setPharmacy] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState<Set<Tab>>(new Set());
+  
+  const [activeDetail, setActiveDetail] = useState<{ kind: DetailKind; extraState?: string; subLabel: string; totalValue: string; triggerElement?: HTMLElement | null } | null>(null);
+
+  const openDetail = (e: React.MouseEvent<HTMLButtonElement>, kind: DetailKind, extraState?: string, customSubLabel?: string, customTotalValue?: string) => {
+     setActiveDetail({
+        kind,
+        extraState,
+        triggerElement: e.currentTarget as HTMLElement,
+        subLabel: customSubLabel || '',
+        totalValue: customTotalValue || ''
+     });
+  };
 
   useEffect(() => {
     // Each record set is fetched the first time its tab is opened.
@@ -111,43 +142,48 @@ export const AdminPanel: React.FC = () => {
       {tab === 'overview' && !loading && overview && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Patients" value={String(overview.patients)} sub={`${overview.queueToday} in today's queue`} />
+            <Stat label="Patients" value={String(overview.patients)} sub={`${overview.queueToday} in today's queue`} onClick={(e) => openDetail(e, 'patients', undefined, `${overview.queueToday} in today's queue`, String(overview.patients))} />
             <Stat
               label="Visits"
-              value={String(overview.visitsOpd + overview.visitsIpd)}
-              sub={`OPD ${overview.visitsOpd} · IPD ${overview.visitsIpd}`}
+              value={String(overview.visitsOpd + overview.currentlyAdmitted)}
+              sub={`OPD ${overview.visitsOpd} · Admissions ${overview.currentlyAdmitted}`}
+              onClick={(e) => openDetail(e, 'visits', undefined, `OPD ${overview.visitsOpd} · Admissions ${overview.currentlyAdmitted}`, String(overview.visitsOpd + overview.currentlyAdmitted))}
             />
-            <Stat label="Lifetime Revenue" value={money(overview.lifetimeRevenue)} sub="Cash + bank on visits" />
-            <Stat label="Stock Purchases" value={money(overview.purchaseTotal)} sub={`${overview.purchaseCount} bills`} />
+            <Stat label="Lifetime Revenue" value={money(overview.lifetimeRevenue)} sub="Cash + bank on visits & receipts" onClick={(e) => openDetail(e, 'revenue', undefined, "Cash + bank on visits & receipts", money(overview.lifetimeRevenue))} />
+            <Stat label="Stock Purchases" value={money(overview.purchaseTotal)} sub={`${overview.purchaseCount} bills`} onClick={(e) => openDetail(e, 'purchases', undefined, `${overview.purchaseCount} bills`, money(overview.purchaseTotal))} />
             <Stat
               label="Currently Admitted"
               value={String(overview.currentlyAdmitted)}
               sub="Patients on a ward bed"
+              onClick={(e) => openDetail(e, 'admitted', undefined, "Patients on a ward bed", String(overview.currentlyAdmitted))}
             />
             <Stat
               label="Pharmacy Stock Value"
               value={money(overview.stockValue)}
               sub={`${overview.medicineCount} items`}
+              onClick={(e) => openDetail(e, 'stock', undefined, `${overview.medicineCount} items`, money(overview.stockValue))}
             />
             <Stat
               label="Low Stock Items"
               value={String(overview.lowStockCount)}
               sub="At or below reorder point"
+              onClick={(e) => openDetail(e, 'lowStock', undefined, "At or below reorder point", String(overview.lowStockCount))}
             />
-            <Stat label="Receipts Issued" value={String(overview.invoiceCount)} sub={money(overview.invoiceTotal)} />
+            <Stat label="Receipts Issued" value={String(overview.invoiceCount)} sub={money(overview.invoiceTotal)} onClick={(e) => openDetail(e, 'receipts', undefined, money(overview.invoiceTotal), String(overview.invoiceCount))} />
           </div>
 
           <div className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs">
             <h3 className="text-sm font-semibold mb-3">Team</h3>
             <div className="flex flex-wrap gap-2">
               {Object.entries(overview.staffByRole as Record<string, number>).map(([role, count]) => (
-                <span
+                <button
                   key={role}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-surface-page border border-border"
+                  onClick={(e) => openDetail(e, 'team', role, `${role} role accounts`, String(count))}
+                  className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-surface-page hover:bg-surface-page/80 border border-border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-brand transition-colors"
                 >
                   <span className="font-medium">{role}</span>
                   <span className="font-mono text-ink-secondary">{count}</span>
-                </span>
+                </button>
               ))}
             </div>
           </div>
@@ -395,6 +431,17 @@ export const AdminPanel: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {activeDetail && (
+        <StatDetailModal
+          kind={activeDetail.kind}
+          extraState={activeDetail.extraState}
+          subLabel={activeDetail.subLabel}
+          totalValue={activeDetail.totalValue}
+          onClose={() => setActiveDetail(null)}
+          triggerElement={activeDetail.triggerElement}
+        />
       )}
     </div>
   );
