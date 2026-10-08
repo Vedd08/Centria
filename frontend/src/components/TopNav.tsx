@@ -88,11 +88,25 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, onSelectTab }) => {
           }
         }
 
+        // Follow-ups summary — only relevant for RECEPTION and RM
+        if (user && ['RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN'].includes(user.role)) {
+          try {
+            const fuRes = await apiFetch('/api/follow-ups/summary');
+            if (fuRes.ok) {
+              const fuData = await fuRes.json();
+              const fuCount = fuData.total ?? 0;
+              if (fuCount > 0) {
+                items.push({ type: 'followup', message: `${fuCount} follow-up${fuCount !== 1 ? 's' : ''} due`, link: 'reception', tab: 'followups' });
+              }
+            }
+          } catch {}
+        }
+
         setNotifications(items);
       } catch {}
     };
     fetchNotifications();
-  }, []);
+  }, [user?.role]);
 
   const handleSearchInput = (query: string) => {
     setSearchQuery(query);
@@ -314,7 +328,7 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, onSelectTab }) => {
                   >
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${
-                        n.type === 'warning' ? 'bg-status-warning' : 'bg-brand'
+                        n.type === 'warning' ? 'bg-status-warning' : n.type === 'followup' ? 'bg-status-success' : 'bg-brand'
                       }`} />
                       <span className="font-medium text-ink-primary">{n.message}</span>
                     </div>

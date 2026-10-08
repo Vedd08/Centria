@@ -1,19 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { QueueBoard } from '../Queue/QueueBoard';
 import { AppointmentsPanel } from './AppointmentsPanel';
 import { PaymentsPanel } from './PaymentsPanel';
+import { FollowUpsTab } from './FollowUpsTab';
 import { PatientRegistrationModal } from '../Patients/PatientRegistrationModal';
 import { AdmitPatientModal } from '../IPD/AdmitPatientModal';
 import { useToast } from '../../context/ToastContext';
-import { ClipboardList, CalendarClock, Receipt, UserPlus, BedDouble } from 'lucide-react';
+import { ClipboardList, CalendarClock, Receipt, UserPlus, BedDouble, PhoneCall } from 'lucide-react';
 
-type Tab = 'queue' | 'appointments' | 'payments';
-
-const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: 'queue', label: "Today's Queue", icon: ClipboardList },
-  { key: 'appointments', label: 'Appointments', icon: CalendarClock },
-  { key: 'payments', label: 'Payments', icon: Receipt },
-];
+type Tab = 'queue' | 'appointments' | 'payments' | 'followups';
 
 /** The front desk console: check patients in, book appointments, take payments. */
 export const ReceptionDesk: React.FC = () => {
@@ -21,7 +17,23 @@ export const ReceptionDesk: React.FC = () => {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isAdmitOpen, setIsAdmitOpen] = useState(false);
   const [queueKey, setQueueKey] = useState(0);
+  const [followUpCount, setFollowUpCount] = useState(0);
   const { addToast } = useToast();
+  const { apiFetch } = useAuth();
+
+  useEffect(() => {
+    apiFetch('/api/follow-ups/summary')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setFollowUpCount(d.total ?? 0); })
+      .catch(() => {});
+  }, [apiFetch]);
+
+  const TABS: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
+    { key: 'queue', label: "Today's Queue", icon: ClipboardList },
+    { key: 'appointments', label: 'Appointments', icon: CalendarClock },
+    { key: 'payments', label: 'Payments', icon: Receipt },
+    { key: 'followups', label: 'Follow-ups', icon: PhoneCall, badge: followUpCount },
+  ];
 
   return (
     <div className="space-y-5 font-sans text-ink-primary">
@@ -63,6 +75,11 @@ export const ReceptionDesk: React.FC = () => {
             >
               <Icon className="w-3.5 h-3.5" />
               {t.label}
+              {t.badge != null && t.badge > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-status-danger text-white">
+                  {t.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -82,6 +99,12 @@ export const ReceptionDesk: React.FC = () => {
       {tab === 'payments' && (
         <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs">
           <PaymentsPanel />
+        </div>
+      )}
+
+      {tab === 'followups' && (
+        <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs">
+          <FollowUpsTab />
         </div>
       )}
 

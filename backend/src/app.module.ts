@@ -30,6 +30,7 @@ import { PlatformModule } from './platform/platform.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { RmModule } from './rm/rm.module';
 import { RetailSalesModule } from './retail-sales/retail-sales.module';
+import { FollowUpsModule } from './follow-ups/follow-ups.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { RetailSalesModule } from './retail-sales/retail-sales.module';
     DepartmentsModule,
     RmModule,
     RetailSalesModule,
+    FollowUpsModule,
   ],
 })
 export class AppModule {}

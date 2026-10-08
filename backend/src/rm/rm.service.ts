@@ -1,7 +1,9 @@
+import { toLocalDateKey } from '../common/date.helper';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { CommissionsService } from '../commissions/commissions.service';
+import { FollowUpsService } from '../follow-ups/follow-ups.service';
 
 /** Roles that may act as, or report on, a relationship manager. */
 const RM_ROLES = ['RM', 'MASTER', 'SUPER_ADMIN'];
@@ -9,7 +11,7 @@ const RM_ROLES = ['RM', 'MASTER', 'SUPER_ADMIN'];
 /** A client with no visit in this many days has gone quiet and is worth a call. */
 const LAPSED_AFTER_DAYS = 60;
 
-const dayString = (d: Date) => d.toISOString().split('T')[0];
+const dayString = (d: Date) => toLocalDateKey(d);
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
@@ -31,6 +33,7 @@ export class RmService {
   constructor(
     private prisma: PrismaService,
     private commissions: CommissionsService,
+    private followUpsService: FollowUpsService,
   ) {}
 
   /** Admins may inspect any RM's desk; an RM only ever sees their own. */
@@ -110,37 +113,20 @@ export class RmService {
       .filter((r) => monthVisitIds.has(r.visitId))
       .reduce((a, r) => a + Number(r.calculatedAmount), 0);
 
-    // --- Follow-ups that have come due ---
-    const followUps = await this.prisma.visit.findMany({
-      where: { ...mine, nextAppointmentDate: { not: null, lte: today } },
-      select: {
-        id: true,
-        date: true,
-        nextAppointmentDate: true,
-        treatmentName: true,
-        status: true,
-        patient: { select: { id: true, name: true, phone: true, uhid: true } },
-      },
-      orderBy: { nextAppointmentDate: 'asc' },
-      take: 50,
-    });
-
-    // Drop anyone who has already been back since the date they were due.
-    const dueList = [];
-    for (const f of followUps) {
-      const returned = await this.prisma.visit.count({
-        where: { clinicId, patientId: f.patient.id, date: { gt: f.nextAppointmentDate! } },
-      });
-      if (returned === 0) {
-        dueList.push({
-          ...f,
-          overdueDays: Math.max(
-            0,
-            Math.round((Date.parse(today) - Date.parse(f.nextAppointmentDate!)) / 86400000),
-          ),
-        });
-      }
-    }
+    // --- Follow-ups via the shared service, scoped to this RM ---
+    const followUpBuckets = await this.followUpsService.getFollowUps(clinicId, { rmId: rm.id });
+    // Flatten buckets back to a flat dueList for the RM desk's existing shape
+    const dueList = [
+      ...followUpBuckets.overdue,
+      ...followUpBuckets.today,
+      ...followUpBuckets.next7Days,
+    ].flatMap(item => item.reasons.map(r => ({
+      id: r.refId,
+      nextAppointmentDate: r.dueDate,
+      treatmentName: r.label,
+      patient: item.patient,
+      overdueDays: r.overdueDays,
+    })));
 
     // --- Packages with sittings still owed to the client ---
     const packagesOwed = clientIds.length
