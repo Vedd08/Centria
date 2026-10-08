@@ -4,7 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { DocumentsTab } from './DocumentsTab';
-import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet } from 'lucide-react';
+import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet, Activity, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { money } from '../../utils/money';
 
 export interface HistoryPatient {
@@ -19,6 +19,8 @@ export interface HistoryPatient {
   allergyNotes?: string;
   referringDoctor?: string;
   howHeardAboutUs?: string;
+  visits?: { conditionTrend?: string }[];
+  _count?: { visits: number };
 }
 
 interface VisitSummary {
@@ -63,12 +65,13 @@ interface AdmissionSummary {
   bed?: { bedNumber: string; ward?: { name: string } };
 }
 
-type TabKey = 'overview' | 'opd' | 'ipd' | 'prescriptions' | 'documents' | 'admissions';
+type TabKey = 'overview' | 'opd' | 'ipd' | 'progress' | 'prescriptions' | 'documents' | 'admissions';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'overview', label: 'Overview', icon: User },
   { key: 'opd', label: 'OPD History', icon: Stethoscope },
   { key: 'ipd', label: 'IPD History', icon: Clock },
+  { key: 'progress', label: 'Progress', icon: Activity },
   { key: 'prescriptions', label: 'Prescriptions', icon: Pill },
   { key: 'documents', label: 'Documents & Images', icon: FileText },
   { key: 'admissions', label: 'Ward Admissions', icon: BedDouble },
@@ -94,6 +97,8 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
   const [prescriptionsLoading, setPrescriptionsLoading] = useState(false);
   const [admissions, setAdmissions] = useState<AdmissionSummary[]>([]);
   const [admissionsLoading, setAdmissionsLoading] = useState(false);
+  const [progressTimeline, setProgressTimeline] = useState<any[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
   const [ltv, setLtv] = useState<LifetimeValue | null>(null);
 
   // Lifetime value mirrors the clinic's spreadsheet headline figure, so it loads
@@ -139,6 +144,10 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
           const res = await apiFetch(`/api/admissions?patientId=${patient.id}`);
           const result = await res.json();
           setAdmissions(Array.isArray(result) ? result : result.data || []);
+        } else if (activeTab === 'progress') {
+          setProgressLoading(true);
+          const res = await apiFetch(`/api/patients/${patient.id}/progress`);
+          setProgressTimeline(await res.json());
         }
         setLoadedTabs((prev) => new Set(prev).add(activeTab));
       } catch (err: any) {
@@ -147,6 +156,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
         setVisitsLoading(false);
         setPrescriptionsLoading(false);
         setAdmissionsLoading(false);
+        setProgressLoading(false);
       }
     };
 
@@ -355,6 +365,68 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
                   {adm.dischargeDate && ` • Discharged ${new Date(adm.dischargeDate).toLocaleDateString()}`}
                   {adm.doctor && ` • Dr. ${adm.doctor.name}`}
                 </p>
+              </div>
+            ))}
+          </div>
+        ))}
+
+      {activeTab === 'progress' &&
+        (progressLoading ? (
+          <LoadingSkeleton rows={2} />
+        ) : progressTimeline.length === 0 ? (
+          <div className="text-ink-secondary text-xs py-8 text-center bg-surface-page rounded-lg border border-border">
+            No progress updates or condition trends recorded for this patient.
+          </div>
+        ) : (
+          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+            {(() => {
+              const trendItems = progressTimeline.filter((t) => t.trend);
+              if (trendItems.length === 0) return null;
+              const total = trendItems.length;
+              const latest = trendItems[0].trend;
+              const latestCount = trendItems.filter((t) => t.trend === latest).length;
+              let direction = '';
+              if (latest === 'IMPROVING') direction = 'Improving — better';
+              if (latest === 'WORSENING') direction = 'Worsening — worse';
+              if (latest === 'SAME') direction = 'Unchanged — the same';
+              
+              return (
+                <div className="flex justify-center mb-6">
+                  <div className="text-center text-xs font-semibold text-ink-secondary relative z-10 bg-surface-page inline-block px-4 border border-border rounded-full shadow-sm py-1">
+                    {direction} at {latestCount} of the last {total} visits
+                  </div>
+                </div>
+              );
+            })()}
+            {progressTimeline.map((item, idx) => (
+              <div key={item.id + idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-surface-page shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow flex-col gap-1 text-[10px] text-ink-primary font-bold z-10">
+                  {item.trend === 'IMPROVING' && <ArrowUp className="w-4 h-4 text-status-success" />}
+                  {item.trend === 'WORSENING' && <ArrowDown className="w-4 h-4 text-status-danger" />}
+                  {item.trend === 'SAME' && <ArrowRight className="w-4 h-4 text-ink-secondary" />}
+                  {!item.trend && <span className="text-ink-secondary font-medium">--</span>}
+                </div>
+                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-lg border border-border bg-surface-card shadow-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-ink-secondary uppercase tracking-wider">{item.type}</span>
+                    <span className="text-[10px] text-ink-secondary/70">{new Date(item.date).toLocaleString()}</span>
+                  </div>
+                  {item.status && (
+                    <div className="mb-2">
+                      <StatusBadge label={item.status} variant={item.status === 'CRITICAL' ? 'danger' : item.status === 'NEEDS_ATTENTION' ? 'warning' : 'success'} />
+                    </div>
+                  )}
+                  {item.notes && <p className="text-xs text-ink-primary whitespace-pre-wrap">{item.notes}</p>}
+                  {item.vitals && (
+                    <div className="mt-2 pt-2 border-t border-border flex items-center gap-3 text-[10px] text-ink-secondary flex-wrap">
+                      {item.vitals.bp && <span>BP: {item.vitals.bp}</span>}
+                      {item.vitals.pr && <span>PR: {item.vitals.pr}</span>}
+                      {item.vitals.spo2 && <span>SpO2: {item.vitals.spo2}%</span>}
+                      {item.vitals.temp && <span>Temp: {item.vitals.temp}°</span>}
+                    </div>
+                  )}
+                  {item.doctor && <p className="text-[10px] text-ink-secondary mt-2 text-right">- Dr. {item.doctor}</p>}
+                </div>
               </div>
             ))}
           </div>

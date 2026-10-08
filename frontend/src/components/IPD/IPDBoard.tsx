@@ -6,7 +6,7 @@ import { Pagination } from '../common/Pagination';
 import { StatusBadge } from '../common/StatusBadge';
 import { AdmitPatientModal } from './AdmitPatientModal';
 import { AdmissionDetail, Admission } from './AdmissionDetail';
-import { CONDITION_LABEL, conditionVariant } from './conditionStatus';
+import { CONDITION_LABEL, conditionVariant, getConditionTrend } from './conditionStatus';
 import { QueueEntry } from '../Queue/types';
 import { BedDouble, Search, UserPlus, Eye, Stethoscope, Clock } from 'lucide-react';
 
@@ -278,10 +278,30 @@ export const IPDBoard: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       {adm.status === 'ADMITTED' ? (
-                        <StatusBadge
-                          label={CONDITION_LABEL[adm.currentStatus] || adm.currentStatus}
-                          variant={conditionVariant(adm.currentStatus)}
-                        />
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge
+                              label={CONDITION_LABEL[adm.currentStatus] || adm.currentStatus}
+                              variant={conditionVariant(adm.currentStatus)}
+                            />
+                            {(() => {
+                              const latest = adm.progressNotes?.[0]?.status;
+                              const prev = adm.progressNotes?.[1]?.status;
+                              const trend = getConditionTrend(latest, prev);
+                              if (trend === 'IMPROVING') return <span className="text-status-success font-bold" title="Improving">↑</span>;
+                              if (trend === 'WORSENING') return <span className="text-status-danger font-bold" title="Worsening">↓</span>;
+                              if (trend === 'SAME') return <span className="text-ink-secondary font-bold" title="Unchanged">→</span>;
+                              return null;
+                            })()}
+                          </div>
+                          {adm.progressNotes?.[0] && (
+                            <div className="text-[10px] text-ink-secondary flex items-center gap-2 flex-wrap">
+                              {adm.progressNotes[0].bloodPressure && <span title="Blood Pressure">BP: {adm.progressNotes[0].bloodPressure}</span>}
+                              {adm.progressNotes[0].pulse && <span title="Pulse">PR: {adm.progressNotes[0].pulse}</span>}
+                              {adm.progressNotes[0].spo2 && <span title="SpO2">SpO2: {adm.progressNotes[0].spo2}%</span>}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-ink-secondary/60">—</span>
                       )}

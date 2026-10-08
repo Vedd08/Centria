@@ -15,6 +15,12 @@ const ADMISSION_INCLUDE = {
   doctor: { select: { id: true, name: true, email: true, role: true } },
   admittedBy: { select: { id: true, name: true, email: true, role: true } },
   dischargedBy: { select: { id: true, name: true, email: true, role: true } },
+  progressNotes: {
+    where: { status: { not: null } },
+    orderBy: { createdAt: 'desc' },
+    take: 2,
+    select: { status: true, pulse: true, bloodPressure: true, spo2: true },
+  },
 } as const;
 
 @Injectable()

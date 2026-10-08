@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { X, Calendar, Stethoscope, Lock, AlertCircle, Check, Package } from 'lucide-react';
+import { X, Calendar, Stethoscope, Lock, AlertCircle, Check, Package, ArrowUp, ArrowRight, ArrowDown } from 'lucide-react';
 import { Patient } from '../Patients/PatientList';
 
 interface TreatmentItem {
@@ -59,6 +59,7 @@ export const VisitLoggingModal: React.FC<Props> = ({ isOpen, onClose, onVisitLog
   
   const [operator, setOperator] = useState<string>(''); // Free text (intentional)
   const [diagnosis, setDiagnosis] = useState<string>('');
+  const [conditionTrend, setConditionTrend] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [otherRemarks, setOtherRemarks] = useState<string>('');
   const [status, setStatus] = useState<'New' | 'Follow Up' | 'Dressing'>('New');
@@ -217,6 +218,7 @@ export const VisitLoggingModal: React.FC<Props> = ({ isOpen, onClose, onVisitLog
           operator,
           packagePurchaseId: billAgainstPackage ? selectedPackagePurchaseId : undefined,
           diagnosis: diagnosis || undefined,
+          conditionTrend: conditionTrend || undefined,
           remarks: remarks || undefined,
           otherRemarks: otherRemarks || undefined,
           cashAmount: cashAmount ? Number(cashAmount) : undefined,
@@ -559,9 +561,46 @@ export const VisitLoggingModal: React.FC<Props> = ({ isOpen, onClose, onVisitLog
 
           {/* Clinical Diagnosis Notes */}
           <div>
-            <label className="block text-xs font-semibold text-ink-secondary mb-1">
-              Diagnosis & Clinical Notes (Free Text)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-ink-secondary">
+                Diagnosis & Clinical Notes (Free Text)
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setConditionTrend(conditionTrend === 'IMPROVING' ? '' : 'IMPROVING')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                    conditionTrend === 'IMPROVING'
+                      ? 'bg-status-success text-white'
+                      : 'bg-surface-page text-ink-secondary hover:bg-surface-hover border border-border'
+                  }`}
+                >
+                  <ArrowUp className="w-3 h-3" /> Better
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConditionTrend(conditionTrend === 'SAME' ? '' : 'SAME')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                    conditionTrend === 'SAME'
+                      ? 'bg-ink-secondary text-white'
+                      : 'bg-surface-page text-ink-secondary hover:bg-surface-hover border border-border'
+                  }`}
+                >
+                  <ArrowRight className="w-3 h-3" /> Same
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConditionTrend(conditionTrend === 'WORSENING' ? '' : 'WORSENING')}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+                    conditionTrend === 'WORSENING'
+                      ? 'bg-status-danger text-white'
+                      : 'bg-surface-page text-ink-secondary hover:bg-surface-hover border border-border'
+                  }`}
+                >
+                  <ArrowDown className="w-3 h-3" /> Worse
+                </button>
+              </div>
+            </div>
             <textarea
               rows={2}
               value={diagnosis}

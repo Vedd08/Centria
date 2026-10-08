@@ -21,6 +21,7 @@ export interface Admission {
   admittedBy?: { name: string };
   dischargedBy?: { name: string };
   bed?: { bedNumber: string; ward?: { name: string } };
+  progressNotes?: { status: string; pulse: string; bloodPressure: string; spo2: string }[];
 }
 
 interface AdmissionDetailProps {

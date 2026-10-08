@@ -41,6 +41,12 @@ export class PatientsController {
     return this.patientsService.getLifetimeValue(user.clinicId, id);
   }
 
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'NURSE', 'STAFF')
+  @Get(':id/progress')
+  getProgress(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.patientsService.getProgress(user.clinicId, id);
+  }
+
   @Roles('SUPER_ADMIN', 'MASTER', 'RM', 'RECEPTION')
   @Put(':id')
   update(@CurrentUser() user: any, @Param('id') id: string, @Body() updatePatientDto: UpdatePatientDto) {

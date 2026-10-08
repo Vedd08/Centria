@@ -101,21 +101,26 @@ export class PatientsService {
    * Returned alongside the OPD/IPD split so the patient header can show the breakdown.
    */
   async getLifetimeValue(clinicId: string, id: string) {
-    await this.findOne(clinicId, id); // Ensure existence and clinic ownership
+    const patient = await this.findOne(clinicId, id); // Ensure existence and clinic ownership
 
     const [visitTotals, packageTotals] = await Promise.all([
       this.prisma.visit.groupBy({
         by: ['visitType'],
-        where: { patientId: id, clinicId },
+        where: { patientId: id, clinicId, invoices: { none: {} } },
         _sum: { cashAmount: true, bankAmount: true },
         _count: { _all: true },
       }),
       this.prisma.packagePurchase.aggregate({
-        where: { patientId: id, clinicId },
+        where: { patientId: id, clinicId, invoices: { none: {} } },
         _sum: { cashAmount: true, bankAmount: true },
         _count: { _all: true },
       }),
     ]);
+
+    const invoiceTotals = await this.prisma.invoice.aggregate({
+      where: { patientUhid: patient.uhid, clinicId },
+      _sum: { totalAmount: true }
+    });
 
     const sumFor = (type: string) => {
       const row = visitTotals.find((v) => v.visitType === type);
@@ -126,16 +131,83 @@ export class PatientsService {
     const opdValue = sumFor('OPD');
     const ipdValue = sumFor('IPD');
     const packageValue = Number(packageTotals._sum.cashAmount ?? 0) + Number(packageTotals._sum.bankAmount ?? 0);
+    const invoiceValue = Number(invoiceTotals._sum.totalAmount ?? 0);
 
     return {
-      lifetimeValue: opdValue + ipdValue + packageValue,
+      lifetimeValue: opdValue + ipdValue + packageValue + invoiceValue,
       opdValue,
       ipdValue,
       packageValue,
+      invoiceValue,
       opdVisits: countFor('OPD'),
       ipdVisits: countFor('IPD'),
       packages: packageTotals._count._all,
     };
+  }
+
+  async getProgress(clinicId: string, id: string) {
+    await this.findOne(clinicId, id); // Ensure existence and clinic ownership
+
+    const visits = await this.prisma.visit.findMany({
+      where: { patientId: id, clinicId, conditionTrend: { not: null } },
+      select: { id: true, date: true, conditionTrend: true, diagnosis: true, doctor: { select: { name: true } } }
+    });
+
+    const admissions = await this.prisma.admission.findMany({
+      where: { patientId: id, clinicId },
+      include: {
+        progressNotes: {
+          where: { status: { not: null } },
+          orderBy: { createdAt: 'asc' },
+          include: { author: { select: { name: true } } }
+        }
+      }
+    });
+
+    const STATUS_RANK: Record<string, number> = { STABLE: 0, NEEDS_ATTENTION: 1, CRITICAL: 2 };
+    const progress: any[] = [];
+    
+    for (const v of visits) {
+      progress.push({
+        id: v.id,
+        type: 'OPD',
+        date: new Date(v.date),
+        trend: v.conditionTrend,
+        notes: v.diagnosis,
+        doctor: v.doctor?.name
+      });
+    }
+
+    for (const adm of admissions) {
+      let prevStatus = null;
+      for (const note of adm.progressNotes) {
+        let trend = null;
+        if (prevStatus) {
+          const latestRank = STATUS_RANK[note.status!] ?? -1;
+          const prevRank = STATUS_RANK[prevStatus] ?? -1;
+          if (latestRank !== -1 && prevRank !== -1) {
+            if (latestRank < prevRank) trend = 'IMPROVING';
+            else if (latestRank > prevRank) trend = 'WORSENING';
+            else trend = 'SAME';
+          }
+        }
+        
+        progress.push({
+          id: note.id,
+          type: 'IPD',
+          date: note.createdAt,
+          trend: trend,
+          status: note.status,
+          notes: note.note,
+          vitals: { bp: note.bloodPressure, pr: note.pulse, spo2: note.spo2, temp: note.temperature },
+          doctor: note.author?.name
+        });
+        prevStatus = note.status;
+      }
+    }
+
+    progress.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return progress;
   }
 
   async update(clinicId: string, id: string, updatePatientDto: UpdatePatientDto) {
