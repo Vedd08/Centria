@@ -7,6 +7,7 @@ import { AssessQueueDto } from './dto/assess-queue.dto';
 import { UpdateQueueStatusDto } from './dto/update-queue-status.dto';
 import { RequestAdmissionDto } from './dto/request-admission.dto';
 import { toLocalDateKey } from '../common/date.helper';
+import { textContains } from '../common/text-search';
 
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
 
@@ -165,9 +166,9 @@ export class QueueService {
     if (filters.search) {
       const term = filters.search.trim();
       where.OR = [
-        { patient: { name: { contains: term } } },
-        { patient: { phone: { contains: term } } },
-        { complaint: { contains: term } },
+        { patient: { name: textContains(term) } },
+        { patient: { phone: textContains(term) } },
+        { complaint: textContains(term) },
       ];
     }
 

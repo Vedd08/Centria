@@ -1,5 +1,6 @@
 import { toLocalDateKey } from '../common/date.helper';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { receiveStock } from '../common/stock-receiver';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
@@ -7,6 +8,7 @@ import { CreateMedicineDto } from './dto/create-medicine.dto';
 import { UpdateMedicineDto } from './dto/update-medicine.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { RefillStockDto } from './dto/refill-stock.dto';
+import { textContains } from '../common/text-search';
 
 @Injectable()
 export class MedicinesService {
@@ -58,7 +60,7 @@ export class MedicinesService {
     const medicines = await this.prisma.medicine.findMany({
       where: {
         clinicId,
-        ...(term ? { name: { contains: term } } : {}),
+        ...(term ? { name: textContains(term) } : {}),
       },
       orderBy: { name: 'asc' },
     });
@@ -172,68 +174,7 @@ export class MedicinesService {
    */
   async refillStock(clinicId: string, dto: RefillStockDto, requestingUser?: any) {
     return this.prisma.$transaction(async (tx) => {
-      // 1. Create the Purchase record for accounts department
-      const purchase = await tx.purchase.create({
-        data: {
-          clinicId,
-          vendorName: dto.vendorName,
-          vendorGstn: dto.vendorGstn || '',
-          invoiceNumber: dto.invoiceNumber,
-          invoiceDate: dto.invoiceDate,
-          itemDescription: 'Pharmacy Stock Refill',
-          inputClassification: 'Medicine Stock',
-          itcEligibility: 'Full',
-          taxableValue: dto.totalValue,
-          igst: 0,
-          cgst: 0,
-          sgst: 0,
-          totalValue: dto.totalValue,
-          recordedById: requestingUser?.id || '',
-        }
-      });
-
-      // 2. Process each medicine item
-      for (const item of dto.items) {
-        const medicine = await tx.medicine.findFirst({ where: { id: item.medicineId, clinicId } });
-        if (!medicine) {
-          throw new NotFoundException(`Medicine ID ${item.medicineId} not found`);
-        }
-
-        // Add Batch
-        await tx.medicineBatch.create({
-          data: {
-            medicineId: item.medicineId,
-            batchNumber: item.batchNumber,
-            expiryDate: item.expiryDate,
-            originalQty: item.quantity,
-            currentQty: item.quantity,
-            costPrice: item.costPrice,
-            purchaseId: purchase.id
-          }
-        });
-
-        // Update Stock
-        await tx.medicine.update({
-          where: { id: item.medicineId },
-          data: { stockQty: { increment: item.quantity } }
-        });
-
-        const updated = await tx.medicine.findUniqueOrThrow({ where: { id: item.medicineId } });
-
-        // Log Stock Movement
-        await tx.stockMovement.create({
-          data: {
-            clinicId,
-            medicineId: item.medicineId,
-            delta: item.quantity,
-            reason: `Wholesaler Refill (Batch: ${item.batchNumber})`,
-            newQty: updated.stockQty,
-            performedById: requestingUser?.id || null
-          }
-        });
-      }
-
-      return purchase;
+      return receiveStock(clinicId, dto, requestingUser, tx);
     }, TRANSACTION_OPTIONS);
   }
 
@@ -249,7 +190,7 @@ export class MedicinesService {
       where: {
         medicine: { clinicId },
         currentQty: { gt: 0 },
-        expiryDate: { lte: targetDateStr }
+        OR: [ { expiryDate: { lte: targetDateStr } }, { expiryDate: null } ]
       },
       include: {
         medicine: { select: { id: true, name: true, unit: true, shelf: true } },

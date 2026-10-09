@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UpdateUserDto } from './users.controller';
+import { textContains } from '../common/text-search';
 
 /** Never select passwordHash — this list feeds client-side staff dropdowns. */
 const STAFF_FIELDS = {
@@ -41,7 +42,7 @@ export class UsersService {
       where: {
         clinicId,
         ...(roles && roles.length > 0 ? { role: { in: roles } } : {}),
-        ...(term ? { OR: [{ name: { contains: term } }, { email: { contains: term } }] } : {}),
+        ...(term ? { OR: [{ name: textContains(term) }, { email: textContains(term) }] } : {}),
       },
       select: STAFF_FIELDS,
       orderBy: { name: 'asc' },

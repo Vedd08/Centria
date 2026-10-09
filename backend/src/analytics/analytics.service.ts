@@ -330,6 +330,7 @@ export class AnalyticsService {
         if (b.currentQty <= 0) continue;
         const value = b.currentQty * Number(b.costPrice);
         batchCostValue += value;
+        if (!b.expiryDate) continue;
         const daysLeft = Math.floor(
           (new Date(b.expiryDate).getTime() - new Date(today).getTime()) / 86_400_000,
         );

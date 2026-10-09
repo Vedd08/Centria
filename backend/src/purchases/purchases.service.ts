@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { receiveStock } from '../common/stock-receiver';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
+import { textContains } from '../common/text-search';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -31,6 +33,12 @@ export class PurchasesService {
     const recordedById = requestingUser?.id;
     if (!recordedById) {
       throw new BadRequestException('Recording user could not be determined');
+    }
+
+    if (dto.inputClassification === 'Medicine Stock') {
+      return this.prisma.$transaction(async (tx) => {
+        return receiveStock(clinicId, dto, requestingUser, tx);
+      });
     }
 
     // Derived server-side so the ledger total always reconciles with its components.
@@ -67,16 +75,17 @@ export class PurchasesService {
         ...(term
           ? {
               OR: [
-                { vendorName: { contains: term } },
-                { vendorGstn: { contains: term } },
-                { invoiceNumber: { contains: term } },
-                { itemDescription: { contains: term } },
+                { vendorName: textContains(term) },
+                { vendorGstn: textContains(term) },
+                { invoiceNumber: textContains(term) },
+                { itemDescription: textContains(term) },
               ],
             }
           : {}),
       },
       include: {
         recordedBy: { select: { id: true, name: true, role: true } },
+        _count: { select: { batches: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

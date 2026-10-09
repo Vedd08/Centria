@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
-import { ShoppingCart, Plus, Search, RefreshCw, X, Info } from 'lucide-react';
+import { ShoppingCart, Plus, Search, RefreshCw, X, Info, Package } from 'lucide-react';
 import { money } from '../../utils/money';
+import { StockRefill } from '../Pharmacy/StockRefill';
 
 type ItcEligibility = 'Full' | 'Mixed Use' | 'Ineligible';
 type InputClassification = 'Capital Goods' | 'Consumables' | 'Medicine Stock' | 'Other';
@@ -65,6 +66,8 @@ export const PurchaseList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  
+  const [prefillPurchase, setPrefillPurchase] = useState<{ id: string; vendorName: string; vendorGstn: string; invoiceNumber: string; invoiceDate: string; } | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -308,7 +311,8 @@ export const PurchaseList: React.FC = () => {
                   {visible.map((p) => {
                     const tax = p.igst + p.cgst + p.sgst;
                     return (
-                      <tr key={p.id} className="hover:bg-surface-page/60 transition-colors">
+                      <React.Fragment key={p.id}>
+                        <tr className="hover:bg-surface-page/60 transition-colors">
                         <td className="py-3.5 px-4 font-mono text-ink-secondary">{p.invoiceDate}</td>
                         <td className="py-3.5 px-4">
                           <div className="font-medium text-ink-primary">{p.vendorName}</div>
@@ -340,6 +344,22 @@ export const PurchaseList: React.FC = () => {
                           />
                         </td>
                       </tr>
+                      {p.inputClassification === 'Medicine Stock' && (p as any)._count?.batches === 0 && (
+                        <tr key={`${p.id}-orphan`} className="bg-status-danger/5">
+                          <td colSpan={8} className="py-2.5 px-4">
+                            <div className="flex items-center justify-between text-xs text-status-danger">
+                              <span className="font-semibold flex items-center gap-1.5"><Info className="w-4 h-4" /> No stock recorded for this medicine bill.</span>
+                              <button 
+                                onClick={() => setPrefillPurchase({ id: p.id, vendorName: p.vendorName, vendorGstn: p.vendorGstn, invoiceNumber: p.invoiceNumber, invoiceDate: p.invoiceDate })}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 font-medium text-white bg-status-danger hover:bg-status-danger/90 rounded-md transition-colors"
+                              >
+                                <Package className="w-3.5 h-3.5" /> Receive stock against this bill
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -348,6 +368,18 @@ export const PurchaseList: React.FC = () => {
           </div>
         )}
       </div>
+
+      {prefillPurchase && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-card rounded-[10px] w-full max-w-5xl my-4 sm:my-8 shadow-xl max-h-[95vh] overflow-y-auto">
+            <StockRefill 
+              prefillPurchase={prefillPurchase} 
+              onComplete={() => { setPrefillPurchase(null); fetchData(); }} 
+              onCancel={() => setPrefillPurchase(null)} 
+            />
+          </div>
+        </div>
+      )}
 
       {/* Record Purchase Modal */}
       {isAddOpen && (

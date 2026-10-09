@@ -24,6 +24,10 @@ export class RefillStockItemDto {
 }
 
 export class RefillStockDto {
+  @IsOptional()
+  @IsString()
+  purchaseId?: string;
+
   @IsString()
   @IsNotEmpty()
   vendorName: string;

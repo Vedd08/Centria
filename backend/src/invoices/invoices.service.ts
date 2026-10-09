@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { textContains } from '../common/text-search';
 
 interface InvoiceFilters {
   search?: string;
@@ -194,11 +195,11 @@ export class InvoicesService {
       if (filters.search) {
         const term = filters.search.trim();
         where.OR = [
-          { invoiceNumber: { contains: term } },
-          { patientName: { contains: term } },
-          { patientUhid: { contains: term } },
-          { itemTitle: { contains: term } },
-          { paymentRef: { contains: term } },
+          { invoiceNumber: textContains(term) },
+          { patientName: textContains(term) },
+          { patientUhid: textContains(term) },
+          { itemTitle: textContains(term) },
+          { paymentRef: textContains(term) },
         ];
       }
 

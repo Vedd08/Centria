@@ -4,11 +4,14 @@ backend/uploads/
 
 # Local SQLite database and its backups. This file holds real patient records —
 # it must never reach a remote, and production runs on Postgres regardless.
+backend/prisma/dev.db*
 backend/prisma/*.db
 backend/prisma/*.db-journal
 backend/prisma/*.db-wal
 backend/prisma/*.backup-*
-backend/prisma/*.bak
+backend/prisma/*.bak*
+# Generated from schema.prisma at deploy time by backend/scripts/render-build.js.
+backend/prisma/schema.postgres.prisma
 
 # Local scratch script: resets every user's password to a hardcoded string and
 # seeds test patients. Useful on a dev machine, never in the repo.

@@ -5,6 +5,7 @@ import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { CreateAdmissionDto } from './dto/create-admission.dto';
 import { DischargeAdmissionDto } from './dto/discharge-admission.dto';
 import { CreateProgressNoteDto } from './dto/create-progress-note.dto';
+import { textContains } from '../common/text-search';
 
 /** Roles that may be recorded as the attending doctor on an admission. */
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
@@ -108,10 +109,10 @@ export class AdmissionsService {
     if (filters.search) {
       const term = filters.search.trim();
       where.OR = [
-        { patient: { name: { contains: term } } },
-        { patient: { uhid: { contains: term } } },
-        { doctor: { name: { contains: term } } },
-        { reasonForAdmission: { contains: term } },
+        { patient: { name: textContains(term) } },
+        { patient: { uhid: textContains(term) } },
+        { doctor: { name: textContains(term) } },
+        { reasonForAdmission: textContains(term) },
       ];
     }
 

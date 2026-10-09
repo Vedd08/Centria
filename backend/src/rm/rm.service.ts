@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { CommissionsService } from '../commissions/commissions.service';
 import { FollowUpsService } from '../follow-ups/follow-ups.service';
+import { textContains } from '../common/text-search';
 
 /** Roles that may act as, or report on, a relationship manager. */
 const RM_ROLES = ['RM', 'MASTER', 'SUPER_ADMIN'];
@@ -203,7 +204,7 @@ export class RmService {
         clinicId,
         rmId: rm.id,
         ...(term
-          ? { patient: { OR: [{ name: { contains: term } }, { phone: { contains: term } }] } }
+          ? { patient: { OR: [{ name: textContains(term) }, { phone: textContains(term) }] } }
           : {}),
       },
       select: {

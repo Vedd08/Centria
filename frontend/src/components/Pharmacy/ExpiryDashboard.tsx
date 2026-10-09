@@ -30,6 +30,8 @@ export const ExpiryDashboard: React.FC = () => {
   }, [apiFetch, days]);
 
   const now = new Date();
+  const unknownBatches = batches.filter(b => !b.expiryDate);
+  const datedBatches = batches.filter(b => b.expiryDate);
   
   return (
     <div className="space-y-4 max-w-6xl mx-auto">
@@ -60,9 +62,56 @@ export const ExpiryDashboard: React.FC = () => {
         </div>
       </div>
 
+      {!loading && unknownBatches.length > 0 && (
+        <div className="bg-surface-card rounded-xl border border-status-warning shadow-sm overflow-hidden mb-6">
+          <div className="px-4 py-3 bg-status-warning/10 border-b border-status-warning/20">
+            <h3 className="font-bold text-status-warning-deep flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" /> Expiry unknown — verify
+            </h3>
+            <p className="text-xs text-ink-secondary mt-1">
+              These batches have stock but no expiry date was recorded. Verify and update them to prevent silent expiration.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-surface-page/30 text-ink-secondary text-xs">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">Medicine</th>
+                  <th className="px-4 py-2 font-semibold">Batch No.</th>
+                  <th className="px-4 py-2 font-semibold text-right">Qty Left</th>
+                  <th className="px-4 py-2 font-semibold text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {unknownBatches.map(batch => (
+                  <tr key={batch.id} className="hover:bg-surface-page/50">
+                    <td className="px-4 py-2 font-semibold text-ink-primary">
+                      {batch.medicine.name}
+                      <span className="block text-[10px] font-normal text-ink-secondary">Shelf: {batch.medicine.shelf || 'N/A'}</span>
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs">{batch.batchNumber}</td>
+                    <td className="px-4 py-2 text-right font-medium">
+                      {batch.currentQty} <span className="text-xs text-ink-secondary">{batch.medicine.unit}</span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => setTracingBatchId(batch.id)}
+                        className="px-2 py-1 text-xs font-semibold text-ink-secondary hover:text-brand hover:bg-brand-soft rounded transition-colors cursor-pointer"
+                      >
+                        Trace
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <LoadingSkeleton rows={5} />
-      ) : batches.length === 0 ? (
+      ) : datedBatches.length === 0 ? (
         <div className="bg-surface-card rounded-xl border border-border p-12 text-center text-ink-secondary">
           <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p className="font-semibold text-ink-primary">No batches expiring within {days} days.</p>
@@ -83,7 +132,7 @@ export const ExpiryDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {batches.map(batch => {
+                {datedBatches.map(batch => {
                   const expDate = new Date(batch.expiryDate);
                   const isExpired = expDate < now;
                   const daysLeft = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 3600 * 24));

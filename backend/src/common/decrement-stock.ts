@@ -37,10 +37,18 @@ export async function decrementStock(
   let remainingToDeduct = quantity;
   const batchDeductions: BatchDeduction[] = [];
 
-  // Get all batches with available qty, ordered by earliest expiry
+  // Get all batches with available qty
   const availableBatches = await tx.medicineBatch.findMany({
     where: { medicineId: medicine.id, currentQty: { gt: 0 } },
-    orderBy: { expiryDate: 'asc' },
+  });
+
+  // FEFO: known expiries first (earliest first), unknown expiries last
+  availableBatches.sort((a, b) => {
+    if (a.expiryDate && b.expiryDate) return a.expiryDate.localeCompare(b.expiryDate);
+    if (a.expiryDate && !b.expiryDate) return -1;
+    if (!a.expiryDate && b.expiryDate) return 1;
+    // Both unknown, fallback to creation time or batch number
+    return a.batchNumber.localeCompare(b.batchNumber);
   });
 
   for (const batch of availableBatches) {
@@ -62,8 +70,9 @@ export async function decrementStock(
     remainingToDeduct -= deductQty;
   }
 
-  // Note: if remainingToDeduct > 0 here, it means they have legacy stock without batches.
-  // We simply ignore the un-batched portion (it was deducted from total stockQty already).
+  if (remainingToDeduct > 0) {
+    throw new Error(`Invariant violation: stockQty allowed deduction of ${quantity}, but batches fell short by ${remainingToDeduct}. Ledger is inconsistent.`);
+  }
 
   return { newQty: updated.stockQty, batchDeductions };
 }

@@ -399,7 +399,7 @@ model MedicineBatch {
   medicineId      String
   medicine        Medicine              @relation(fields: [medicineId], references: [id], onDelete: Cascade)
   batchNumber     String
-  expiryDate      String // YYYY-MM-DD
+  expiryDate      String? // YYYY-MM-DD
   originalQty     Int
   currentQty      Int
   costPrice       Decimal               @default(0.0)

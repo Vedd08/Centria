@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { textContains } from '../common/text-search';
 
 @Injectable()
 export class PatientsService {
@@ -65,10 +66,10 @@ export class PatientsService {
     
     if (term) {
       where.OR = [
-        { name: { contains: term } },
-        { phone: { contains: term } },
-        { uhid: { contains: term } },
-        { referringDoctor: { contains: term } },
+        { name: textContains(term) },
+        { phone: textContains(term) },
+        { uhid: textContains(term) },
+        { referringDoctor: textContains(term) },
       ];
     }
 

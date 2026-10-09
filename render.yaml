@@ -1,0 +1,27 @@
+# Render Blueprint for the HMS backend (NestJS API).
+# The database is Neon Postgres; paste its connection string as DATABASE_URL
+# when Render asks for it. The frontend is deployed separately on Vercel.
+services:
+  - type: web
+    name: centria-hms-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: npm install --include=dev && npm run build:render
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Asia/Kolkata
+      # Lets prisma/seed.ts load demo data into the empty client-testing database.
+      - key: ALLOW_DEMO_SEED
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false

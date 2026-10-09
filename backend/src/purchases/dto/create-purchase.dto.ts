@@ -1,4 +1,6 @@
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { RefillStockItemDto } from '../../medicines/dto/refill-stock.dto';
 
 // Values below include the ones the clinic's purchase register actually uses
 // ("Input Goods/Service", "Cosmetic Usage", "Reconstructive", "Non Cosmetic Usage")
@@ -71,4 +73,10 @@ export class CreatePurchaseDto {
   @IsNumber()
   @Min(0, { message: 'SGST cannot be negative' })
   sgst?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RefillStockItemDto)
+  items?: RefillStockItemDto[];
 }

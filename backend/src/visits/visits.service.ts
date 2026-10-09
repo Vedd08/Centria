@@ -7,6 +7,7 @@ import { UpdateVisitDto } from './dto/update-visit.dto';
 import { CommissionsService } from '../commissions/commissions.service';
 import { PackagesService } from '../packages/packages.service';
 import { toLocalDateKey } from '../common/date.helper';
+import { textContains } from '../common/text-search';
 
 /** Roles that may be recorded as the attending doctor on a visit. */
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
@@ -244,13 +245,13 @@ export class VisitsService {
     if (filters.search) {
       const term = filters.search.trim();
       where.OR = [
-        { treatmentName: { contains: term } },
-        { operator: { contains: term } },
-        { diagnosis: { contains: term } },
-        { patient: { name: { contains: term } } },
-        { patient: { uhid: { contains: term } } },
-        { doctor: { name: { contains: term } } },
-        { rm: { name: { contains: term } } },
+        { treatmentName: textContains(term) },
+        { operator: textContains(term) },
+        { diagnosis: textContains(term) },
+        { patient: { name: textContains(term) } },
+        { patient: { uhid: textContains(term) } },
+        { doctor: { name: textContains(term) } },
+        { rm: { name: textContains(term) } },
       ];
     }
 

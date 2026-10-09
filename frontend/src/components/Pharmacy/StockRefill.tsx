@@ -13,7 +13,19 @@ interface RefillItem {
   costPrice: number;
 }
 
-export const StockRefill: React.FC = () => {
+export interface StockRefillProps {
+  prefillPurchase?: {
+    id: string;
+    vendorName: string;
+    vendorGstn?: string;
+    invoiceNumber: string;
+    invoiceDate: string;
+  };
+  onComplete?: () => void;
+  onCancel?: () => void;
+}
+
+export const StockRefill: React.FC<StockRefillProps> = ({ prefillPurchase, onComplete, onCancel }) => {
   const { apiFetch } = useAuth();
   const { addToast } = useToast();
 
@@ -22,10 +34,10 @@ export const StockRefill: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   // Form State
-  const [vendorName, setVendorName] = useState('');
-  const [vendorGstn, setVendorGstn] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [vendorName, setVendorName] = useState(prefillPurchase?.vendorName || '');
+  const [vendorGstn, setVendorGstn] = useState(prefillPurchase?.vendorGstn || '');
+  const [invoiceNumber, setInvoiceNumber] = useState(prefillPurchase?.invoiceNumber || '');
+  const [invoiceDate, setInvoiceDate] = useState(prefillPurchase?.invoiceDate || new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<RefillItem[]>([]);
   const [search, setSearch] = useState('');
 
@@ -95,6 +107,7 @@ export const StockRefill: React.FC = () => {
     setSaving(true);
     try {
       const payload = {
+        purchaseId: prefillPurchase?.id,
         vendorName,
         vendorGstn,
         invoiceNumber,
@@ -124,6 +137,8 @@ export const StockRefill: React.FC = () => {
       setVendorGstn('');
       setInvoiceNumber('');
       setItems([]);
+
+      if (onComplete) onComplete();
     } catch (err: any) {
       addToast('error', err.message);
     } finally {
@@ -150,7 +165,8 @@ export const StockRefill: React.FC = () => {
               type="text" 
               value={vendorName} 
               onChange={e => setVendorName(e.target.value)} 
-              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm" 
+              disabled={!!prefillPurchase}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm disabled:opacity-50" 
               placeholder="e.g. PharmaCo Ltd"
             />
           </div>
@@ -160,7 +176,8 @@ export const StockRefill: React.FC = () => {
               type="text" 
               value={vendorGstn} 
               onChange={e => setVendorGstn(e.target.value)} 
-              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm" 
+              disabled={!!prefillPurchase}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm disabled:opacity-50" 
               placeholder="e.g. 27AAAAA0000A1Z5"
             />
           </div>
@@ -170,7 +187,8 @@ export const StockRefill: React.FC = () => {
               type="text" 
               value={invoiceNumber} 
               onChange={e => setInvoiceNumber(e.target.value)} 
-              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm" 
+              disabled={!!prefillPurchase}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm disabled:opacity-50" 
               placeholder="INV-12345"
             />
           </div>
@@ -180,7 +198,8 @@ export const StockRefill: React.FC = () => {
               type="date" 
               value={invoiceDate} 
               onChange={e => setInvoiceDate(e.target.value)} 
-              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm" 
+              disabled={!!prefillPurchase}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-surface-page focus:border-brand focus:ring-1 focus:ring-brand outline-none text-sm disabled:opacity-50" 
             />
           </div>
         </div>
@@ -303,6 +322,14 @@ export const StockRefill: React.FC = () => {
       </div>
 
       <div className="flex justify-end gap-3">
+        {onCancel && (
+          <button 
+            onClick={onCancel}
+            className="flex items-center gap-2 px-6 py-3 bg-surface-page hover:bg-surface-card border border-border text-ink-primary font-semibold rounded-lg shadow-sm transition-all"
+          >
+            Cancel
+          </button>
+        )}
         <button 
           onClick={handleSubmit}
           disabled={saving || items.length === 0}
