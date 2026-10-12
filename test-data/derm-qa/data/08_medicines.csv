@@ -1,0 +1,36 @@
+﻿medicine_id,name,unit,dosage_form,category,unit_price,cost_price,is_gst_taxable,tax_rate,hsn_code,shelf,reorder_point,stock_scenario,needs_gst_professional_review,test_data
+M01,Doxycycline 100mg Capsule (Test),capsule,Capsule,Antibiotic (oral),12,6,YES,12,3004,Rack A,30,MULTI_BATCH,YES,YES
+M02,Isotretinoin 20mg Capsule (Test),capsule,Capsule,Retinoid (oral),45,25,YES,12,3004,Rack A,20,AVAILABLE,YES,YES
+M03,Adapalene 0.1% Gel 15g (Test),tube,Gel,Topical retinoid,210,120,YES,12,3004,Rack C,6,DIFFERENT_BATCH_ONLY,YES,YES
+M04,Clindamycin 1% Gel 20g (Test),tube,Gel,Topical antibiotic,160,90,YES,12,3004,Rack C,6,AVAILABLE,YES,YES
+M05,Benzoyl Peroxide 2.5% Gel 20g (Test),tube,Gel,Topical anti-acne,140,80,YES,12,3004,Rack C,6,NEAR_EXPIRY,YES,YES
+M06,Minoxidil 5% Solution 60ml (Test),bottle,Solution,Hair (topical),650,380,YES,12,3004,Rack D,6,AVAILABLE,YES,YES
+M07,Finasteride 1mg Tablet (Test),tablet,Tablet,Hair (oral),9,4,YES,12,3004,Rack A,60,AVAILABLE,YES,YES
+M08,Biotin 10mg Tablet (Test),tablet,Tablet,Supplement,8,4,YES,18,2106,Rack A,60,AVAILABLE,YES,YES
+M09,Hydroquinone 2% + Tretinoin + Mometasone Cream 15g (Test),tube,Cream,Depigmenting,260,150,YES,12,3004,Rack C,5,AVAILABLE,YES,YES
+M10,Tranexamic Acid 250mg Tablet (Test),tablet,Tablet,Depigmenting (oral),14,7,YES,12,3004,Rack A,60,AVAILABLE,YES,YES
+M11,Sunscreen SPF 50 Gel 50g (Test),tube,Gel,Photoprotection,520,300,YES,18,3304,Rack C,8,MULTI_BATCH,YES,YES
+M12,Mometasone 0.1% Cream 15g (Test),tube,Cream,Topical steroid,120,65,YES,12,3004,Rack C,6,AVAILABLE,YES,YES
+M13,Tacrolimus 0.03% Ointment 10g (Test),tube,Ointment,Calcineurin inhibitor,340,200,YES,12,3004,Rack C,10,LOW_STOCK,YES,YES
+M14,Cetirizine 10mg Tablet (Test),tablet,Tablet,Antihistamine,2,0.8,YES,12,3004,Rack A,30,EXPIRED_BATCH,YES,YES
+M15,Emollient Lotion 200ml (Test),bottle,Lotion,Moisturiser,450,250,YES,18,3304,Rack D,6,RETURN_TO_SUPPLIER,YES,YES
+M16,Clobetasol 0.05% Ointment 15g (Test),tube,Ointment,Topical steroid (potent),110,60,YES,12,3004,Rack C,6,AVAILABLE,YES,YES
+M17,Methotrexate 7.5mg Tablet (Test),tablet,Tablet,Immunosuppressant,6,3,YES,12,3004,Rack A,20,AVAILABLE,YES,YES
+M18,Calcipotriol 0.005% Ointment 30g (Test),tube,Ointment,Vitamin D analogue,690,400,YES,12,3004,Rack C,4,ZERO_STOCK,YES,YES
+M19,Itraconazole 100mg Capsule (Test),capsule,Capsule,Antifungal (oral),32,18,YES,12,3004,Rack A,30,INSUFFICIENT_FOR_RX,YES,YES
+M20,Luliconazole 1% Cream 30g (Test),tube,Cream,Antifungal (topical),380,210,YES,12,3004,Rack C,6,PATIENT_RETURN,YES,YES
+M21,Terbinafine 250mg Tablet (Test),tablet,Tablet,Antifungal (oral),20,10,YES,12,3004,Rack A,20,AVAILABLE,YES,YES
+M22,Salicylic + Lactic Acid Wart Paint 10ml (Test),bottle,Solution,Keratolytic,160,90,YES,12,3004,Rack D,4,AVAILABLE,YES,YES
+M23,Mupirocin 2% Ointment 5g (Test),tube,Ointment,Topical antibiotic,115,60,YES,12,3004,Rack C,6,AVAILABLE,YES,YES
+M24,Paracetamol 500mg Tablet (Test),tablet,Tablet,Analgesic,2,0.7,YES,12,3004,Rack A,50,NEAR_EXPIRY_MULTI_BATCH,YES,YES
+M25,Amoxicillin-Clavulanate 625mg Tablet (Test),tablet,Tablet,Antibiotic (oral),22,12,YES,12,3004,Rack A,30,AVAILABLE,YES,YES
+M26,Ceftriaxone 1g Injection (Test),vial,Injection,Antibiotic (IV),65,35,YES,12,3004,Rack E,10,AVAILABLE,YES,YES
+M27,Lignocaine 2% Injection 30ml (Test),vial,Injection,Local anaesthetic,45,25,YES,12,3004,Rack E,6,CONSUMABLE,YES,YES
+M28,Povidone Iodine 5% Solution 100ml (Test),bottle,Solution,Antiseptic,95,50,YES,12,3004,Rack D,4,CONSUMABLE,YES,YES
+M29,Paraffin Gauze Dressing 10x10cm (Test),piece,Dressing,Wound care,35,18,YES,12,3005,Rack F,20,CONSUMABLE,YES,YES
+M30,Sterile Gauze Pad Pack (Test),pack,Dressing,Wound care,40,20,YES,12,3005,Rack F,20,CONSUMABLE,YES,YES
+M31,PRP Kit — Single Use (Test),piece,Kit,Procedure consumable,1800,1100,YES,12,9018,Rack E,4,CONSUMABLE,YES,YES
+M32,Triamcinolone 40mg/ml Injection (Test),vial,Injection,Steroid (intralesional),120,70,YES,12,3004,Rack E,4,AVAILABLE,YES,YES
+M33,Levocetirizine 5mg Tablet (Test),tablet,Tablet,Antihistamine,4,1.5,YES,12,3004,Rack A,30,AVAILABLE,YES,YES
+M34,Levocetirizine 2.5mg/5ml Syrup 60ml (Test),bottle,Syrup,Antihistamine (paediatric),85,45,YES,12,3004,Rack B,6,AVAILABLE,YES,YES
+M35,Folic Acid 5mg Tablet (Test),tablet,Tablet,Supplement,1.5,0.5,YES,12,3004,Rack A,30,AVAILABLE,YES,YES

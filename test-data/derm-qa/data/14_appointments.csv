@@ -1,0 +1,111 @@
+﻿appointment_ref,patient_id,doctor,date,start_time,status,reason,encounter_id,rescheduled_from,test_data
+A0001,QA-P001,D2,2026-09-22,15:15,Completed,Dark patches on both cheeks,E0001,,YES
+A0002,QA-P001,D2,2026-10-06,17:30,Completed,Came for booked procedure session,E0002,,YES
+A0003,QA-P002,D1,2026-09-28,12:30,Completed,Dark marks after pimples healed,E0003,2026-09-25 13:45,YES
+A0004,QA-P003,D2,2026-09-24,18:00,Completed,Came for booked procedure session,E0005,,YES
+A0005,QA-P004,D2,2026-10-09,17:30,Completed,Came for booked procedure session,E0007,,YES
+A0006,QA-P005,D2,2026-09-16,14:30,Completed,Pigmentation increasing after sun exposure,E0008,,YES
+A0007,QA-P005,D2,2026-09-30,16:45,Completed,Came for booked procedure session,E0009,,YES
+A0008,QA-P006,D2,2026-09-19,17:45,Completed,Hair thinning on crown and front,E0010,,YES
+A0009,QA-P007,D2,2026-10-10,15:45,Completed,Came for booked procedure session,E0012,,YES
+A0010,QA-P008,D2,2026-09-18,17:15,Completed,Excess hair on upper lip and chin,E0013,,YES
+A0011,QA-P009,D3,2026-09-16,18:00,Completed,Warts on hands increasing,E0014,,YES
+A0012,QA-P012,D1,2026-10-09,12:15,Completed,Came for booked procedure session,E0020,,YES
+A0013,QA-P013,D4,2026-09-17,12:15,Completed,Came for dressing,E0022,,YES
+A0014,QA-P013,D4,2026-09-19,11:00,Completed,Came for dressing,E0023,,YES
+A0015,QA-P013,D4,2026-09-24,10:15,Completed,Came for dressing,E0025,,YES
+A0016,QA-P015,D4,2026-09-22,10:45,Completed,Swelling on upper back for 1 year,E0028,,YES
+A0017,QA-P015,D4,2026-10-08,11:45,Completed,Follow-up visit as advised,E0030,,YES
+A0018,QA-P016,D1,2026-09-15,10:15,Completed,Acne on cheeks and forehead,E0031,,YES
+A0019,QA-P016,D1,2026-09-29,11:15,Completed,Came for booked procedure session,E0032,,YES
+A0020,QA-P017,D4,2026-09-22,11:00,Completed,Large raw wound on leg after accident,E0033,,YES
+A0021,QA-P017,D4,2026-10-10,10:45,Completed,Follow-up visit as advised,E0035,,YES
+A0022,QA-P018,D1,2026-09-22,12:30,Completed,Itchy circular patches on waist and thighs,E0036,,YES
+A0023,QA-P018,D1,2026-10-06,12:15,Completed,Follow-up visit as advised,E0037,,YES
+A0024,QA-P019,D4,2026-09-22,10:00,Completed,Road accident wound on leg not healing,E0038,2026-09-19 12:00,YES
+A0025,QA-P019,D4,2026-09-24,12:45,Completed,Came for dressing,E0039,,YES
+A0026,QA-P019,D4,2026-09-26,12:30,Completed,Came for dressing,E0040,,YES
+A0027,QA-P019,D4,2026-09-29,11:00,Completed,Came for dressing,E0041,,YES
+A0028,QA-P019,D4,2026-10-01,10:00,Completed,Came for dressing,E0042,,YES
+A0029,QA-P020,D1,2026-09-21,10:45,Completed,Acne on cheeks and forehead,E0043,,YES
+A0030,QA-P020,D1,2026-10-05,13:30,Completed,Came for booked procedure session,E0044,,YES
+A0031,QA-P021,D2,2026-09-22,18:00,Completed,Wants treatment for acne scars,E0045,,YES
+A0032,QA-P021,D2,2026-09-29,16:45,Completed,Came for booked procedure session,E0046,,YES
+A0033,QA-P025,D2,2026-09-21,16:00,Completed,Hair fall and thinning at top of head,E0051,,YES
+A0034,QA-P027,D3,2026-09-25,16:45,Completed,Painful growth on sole of foot,E0053,,YES
+A0035,QA-P027,D3,2026-10-09,16:30,Completed,Came for booked procedure session,E0054,,YES
+A0036,QA-P028,D1,2026-09-21,11:45,Completed,Thick scaly patches on scalp and body,E0055,,YES
+A0037,QA-P030,D1,2026-09-25,11:30,Completed,Dark marks after pimples healed,E0058,,YES
+A0038,QA-P031,D2,2026-09-22,15:45,Completed,Sudden excessive hair fall,E0059,,YES
+A0039,QA-P032,D1,2026-09-17,10:00,Completed,Acne on cheeks and forehead,E0060,,YES
+A0040,QA-P033,D1,2026-09-25,10:15,Completed,Itchy rash on earlobes and neck,E0062,2026-09-24 10:45,YES
+A0041,QA-P033,D1,2026-10-09,11:45,Completed,Follow-up visit as advised,E0063,,YES
+A0042,QA-P034,D2,2026-09-23,15:30,Completed,Wants treatment for acne scars,E0064,,YES
+A0043,QA-P035,D1,2026-09-19,11:15,Completed,Pimples on face,E0066,,YES
+A0044,QA-P035,D1,2026-10-03,10:30,Completed,Came for booked procedure session,E0067,,YES
+A0045,QA-P037,D4,2026-09-29,12:45,Completed,Came for booked procedure session,E0070,,YES
+A0046,QA-P037,D4,2026-10-10,12:15,Completed,Follow-up visit as advised,E0071,,YES
+A0047,QA-P038,D2,2026-09-16,14:15,Completed,Hair volume reduced,E0072,,YES
+A0048,QA-P038,D2,2026-09-30,18:15,Completed,Came for booked procedure session,E0073,,YES
+A0049,QA-P039,D2,2026-09-15,18:00,Completed,Dark patches on both cheeks,E0074,,YES
+A0050,QA-P039,D2,2026-09-29,15:30,Completed,Came for booked procedure session,E0075,,YES
+A0051,QA-P041,D3,2026-09-25,15:30,Completed,Painful growth on sole of foot,E0077,,YES
+A0052,QA-P041,D3,2026-10-09,16:15,Completed,Came for booked procedure session,E0078,,YES
+A0053,QA-P042,D2,2026-09-23,15:45,Completed,Acne marks and pits on cheeks,E0079,,YES
+A0054,QA-P042,D2,2026-09-30,16:15,Completed,Came for booked procedure session,E0080,,YES
+A0055,QA-P043,D1,2026-09-22,13:30,Completed,Itchy ring-shaped rash in groin,E0081,,YES
+A0056,QA-P043,D1,2026-10-06,11:15,Completed,Follow-up visit as advised,E0082,,YES
+A0057,QA-P044,D1,2026-10-03,11:30,Completed,Follow-up visit as advised,E0084,2026-10-02 11:45,YES
+A0058,QA-P045,D2,2026-10-03,14:45,Completed,Hair coming out in bunches while combing,E0085,,YES
+A0059,QA-P046,D3,2026-09-16,15:45,Completed,Child has itchy dry skin rash,E0086,,YES
+A0060,QA-P046,D3,2026-10-02,17:30,Completed,Follow-up visit as advised,E0087,,YES
+A0061,QA-P047,D4,2026-10-06,11:00,Completed,"Ugly scar on face after accident, wants correction",E0088,,YES
+A0062,QA-P048,D4,2026-09-15,11:30,Completed,Growth on scalp increasing in size,E0090,,YES
+A0063,QA-P048,D4,2026-10-06,10:30,Completed,Follow-up visit as advised,E0091,,YES
+A0064,QA-P050,D2,2026-09-24,17:30,Completed,Came for booked procedure session,E0094,2026-09-21 16:45,YES
+A0065,QA-P001,D2,2026-10-20,18:45,Scheduled,Booked follow-up: PROC (Q-Switched Nd:YAG Laser Toning),,,YES
+A0066,QA-P002,D1,2026-10-19,12:15,Scheduled,Booked follow-up: PROC (Glycolic Acid Peel),,,YES
+A0067,QA-P004,D2,2026-11-06,18:15,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0068,QA-P005,D2,2026-10-14,16:00,Scheduled,Booked follow-up: PROC (Q-Switched Nd:YAG Laser Toning),,,YES
+A0069,QA-P008,D2,2026-10-16,17:45,Scheduled,Booked follow-up: PROC (Diode Laser Hair Reduction (Face)),,,YES
+A0070,QA-P009,D3,2026-10-14,16:15,Scheduled,Booked follow-up: FU,,,YES
+A0071,QA-P010,D2,2026-10-28,17:45,Scheduled,Booked follow-up: PROC (Diode Laser Hair Reduction (Face)),,,YES
+A0072,QA-P011,D2,2026-10-22,16:30,Scheduled,Booked follow-up: PROC (Q-Switched Nd:YAG Laser Toning),,,YES
+A0073,QA-P012,D1,2026-10-23,13:45,Scheduled,Booked follow-up: PROC (Salicylic Acid Peel),,,YES
+A0074,QA-P020,D1,2026-10-19,13:00,Scheduled,Booked follow-up: PROC (Salicylic Acid Peel),,,YES
+A0075,QA-P021,D2,2026-10-27,15:15,Scheduled,Booked follow-up: PROC (Microneedling with Serum),,,YES
+A0076,QA-P022,D2,2026-10-16,18:45,Scheduled,Booked follow-up: PROC (Diode Laser Hair Reduction (Face)),,,YES
+A0077,QA-P023,D3,2026-10-14,16:45,Scheduled,Booked follow-up: FU,,,YES
+A0078,QA-P024,D2,2026-11-05,15:30,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0079,QA-P025,D2,2026-10-19,18:00,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0080,QA-P025,D2,2026-11-16,15:15,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0081,QA-P026,D1,2026-10-17,11:15,Scheduled,Booked follow-up: FU,,,YES
+A0082,QA-P027,D3,2026-10-23,16:15,Scheduled,Booked follow-up: FU,,,YES
+A0083,QA-P029,D2,2026-10-24,17:30,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0084,QA-P029,D2,2026-11-21,16:45,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0085,QA-P030,D1,2026-10-16,10:15,Scheduled,Booked follow-up: PROC (Glycolic Acid Peel),,,YES
+A0086,QA-P031,D2,2026-10-20,14:15,Scheduled,Booked follow-up: FU,,,YES
+A0087,QA-P032,D1,2026-10-15,12:15,Scheduled,Booked follow-up: PROC (Salicylic Acid Peel),,,YES
+A0088,QA-P034,D2,2026-10-28,15:45,Scheduled,Booked follow-up: PROC (Microneedling with Serum),,,YES
+A0089,QA-P035,D1,2026-10-17,11:00,Scheduled,Booked follow-up: PROC (Salicylic Acid Peel),,,YES
+A0090,QA-P036,D2,2026-10-14,14:00,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0091,QA-P036,D2,2026-11-11,14:45,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0092,QA-P038,D2,2026-10-28,15:30,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0093,QA-P040,D3,2026-10-14,16:00,Scheduled,Booked follow-up: FU,,,YES
+A0094,QA-P041,D3,2026-10-23,16:45,Scheduled,Booked follow-up: FU,,,YES
+A0095,QA-P042,D2,2026-10-28,15:00,Scheduled,Booked follow-up: PROC (Microneedling with Serum),,,YES
+A0096,QA-P047,D4,2026-10-24,10:15,Scheduled,Booked follow-up: FU,,,YES
+A0097,QA-P049,D2,2026-10-20,15:00,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0098,QA-P049,D2,2026-11-17,15:00,Scheduled,Booked follow-up: PROC (PRP Scalp Session),,,YES
+A0099,QA-P050,D2,2026-10-22,15:00,Scheduled,Booked follow-up: PROC (Microneedling with Serum),,,YES
+A0100,QA-P013,D4,2026-09-24,11:15,Cancelled,[TEST] Patient travelling,,,YES
+A0101,QA-P025,D2,2026-10-08,14:00,Cancelled,[TEST] Feeling unwell — will rebook,,,YES
+A0102,QA-P022,D2,2026-10-06,15:00,Cancelled,[TEST] Patient travelling,,,YES
+A0103,QA-P020,D1,2026-10-01,10:45,Cancelled,[TEST] Patient travelling,,,YES
+A0104,QA-P050,D2,2026-09-21,15:30,Cancelled,[TEST] Patient travelling,,,YES
+A0105,QA-P047,D4,2026-09-17,11:30,Cancelled,[TEST] Feeling unwell — will rebook,,,YES
+A0106,QA-P016,D1,2026-09-16,13:30,No-Show,"[TEST] Did not attend, no call",,,YES
+A0107,QA-P015,D4,2026-10-03,11:30,No-Show,"[TEST] Did not attend, no call",,,YES
+A0108,QA-P037,D4,2026-10-01,12:15,No-Show,"[TEST] Did not attend, no call",,,YES
+A0109,QA-P005,D2,2026-09-16,17:45,No-Show,"[TEST] Did not attend, no call",,,YES
+A0110,QA-P030,D1,2026-10-01,10:15,No-Show,"[TEST] Did not attend, no call",,,YES

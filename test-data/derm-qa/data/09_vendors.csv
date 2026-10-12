@@ -1,0 +1,3 @@
+﻿vendor_id,name,gstin,state,supply_type,test_data
+V1,[TEST] Sahyadri Pharma Distributors,TEST-GSTN-V1-NOT-VALID,Maharashtra (27),Intra-state,YES
+V2,[TEST] MedSurg Consumables Co.,TEST-GSTN-V2-NOT-VALID,Karnataka (29),Inter-state (IGST expected),YES

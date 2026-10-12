@@ -1,0 +1,142 @@
+﻿payment_ref,target_type,target_ref,patient_id,date,mode,amount,kind,details_json,received_by,test_data
+PAY-0001,PATIENT_BILL,PB-REF-0001,QA-P001,2026-09-22,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0002,PHARMACY_BILL,PH-REF-0001,QA-P001,2026-09-22,UPI,2660.96,FULL,"{""transactionId"":""TESTUPI00000002"",""upiId"":""qa.payer002@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0003,PATIENT_BILL,PB-REF-0002,QA-P001,2026-10-06,CASH,500,FULL,"{""amountReceived"":1000}",S02,YES
+PAY-0004,PATIENT_BILL,PB-REF-0003,QA-P002,2026-09-28,UPI,3750,FULL,"{""transactionId"":""TESTUPI00000004"",""upiId"":""qa.payer004@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0005,PHARMACY_BILL,PH-REF-0002,QA-P002,2026-09-28,UPI,613.6,FULL,"{""transactionId"":""TESTUPI00000005"",""upiId"":""qa.payer005@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0006,PATIENT_BILL,PB-REF-0004,QA-P003,2026-09-17,UPI,800,FULL,"{""transactionId"":""TESTUPI00000006"",""upiId"":""qa.payer006@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0007,PHARMACY_BILL,PH-REF-0003,QA-P003,2026-09-17,CASH,128.8,FULL,"{""amountReceived"":200}",S12,YES
+PAY-0008,PATIENT_BILL,PB-REF-0005,QA-P003,2026-09-24,UPI,4040,FULL,"{""transactionId"":""TESTUPI00000008"",""upiId"":""qa.payer008@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0009,PATIENT_BILL,PB-REF-0006,QA-P004,2026-09-25,UPI,800,FULL,"{""transactionId"":""TESTUPI00000009"",""upiId"":""qa.payer009@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S02,YES
+PAY-0010,PHARMACY_BILL,PH-REF-0004,QA-P004,2026-09-25,CASH,1011.2,FULL,"{""amountReceived"":1100}",S12,YES
+PAY-0011,PATIENT_BILL,PB-REF-0007,QA-P004,2026-10-09,UPI,500,FULL,"{""transactionId"":""TESTUPI00000011"",""upiId"":""qa.payer011@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0012,PATIENT_BILL,PB-REF-0008,QA-P005,2026-09-16,CASH,800,FULL,"{""amountReceived"":1300}",S02,YES
+PAY-0013,PHARMACY_BILL,PH-REF-0005,QA-P005,2026-09-16,CARD,2660.96,FULL,"{""cardType"":""Credit"",""cardNetwork"":""Visa"",""cardLast4"":""4224"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000013"",""approvalCode"":""A78773""}",S12,YES
+PAY-0014,PATIENT_BILL,PB-REF-0009,QA-P005,2026-09-30,UPI,500,FULL,"{""transactionId"":""TESTUPI00000014"",""upiId"":""qa.payer014@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0015,PATIENT_BILL,PB-REF-0010,QA-P006,2026-09-19,UPI,400,PARTIAL (UNSUPPORTED in app — record as note only),"{""transactionId"":""TESTUPI00000015"",""upiId"":""qa.payer015@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0016,PHARMACY_BILL,PH-REF-0006,QA-P006,2026-09-19,CASH,1030.4,FULL,"{""amountReceived"":1100}",S12,YES
+PAY-0017,PATIENT_BILL,PB-REF-0011,QA-P007,2026-10-03,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0018,PATIENT_BILL,PB-REF-0013,QA-P008,2026-09-18,CASH,4930,FULL,"{""amountReceived"":5500}",S02,YES
+PAY-0019,PHARMACY_BILL,PH-REF-0008,QA-P008,2026-09-18,CASH,613.6,FULL,"{""amountReceived"":700}",S12,YES
+PAY-0020,PATIENT_BILL,PB-REF-0014,QA-P009,2026-09-16,UPI,1000,PARTIAL (UNSUPPORTED in app — record as note only),"{""transactionId"":""TESTUPI00000020"",""upiId"":""qa.payer020@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0021,PHARMACY_BILL,PH-REF-0009,QA-P009,2026-09-16,UPI,179.2,FULL,"{""transactionId"":""TESTUPI00000021"",""upiId"":""qa.payer021@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S12,YES
+PAY-0022,PATIENT_BILL,PB-REF-0016,QA-P010,2026-09-30,UPI,4930,FULL,"{""transactionId"":""TESTUPI00000022"",""upiId"":""qa.payer022@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0023,PHARMACY_BILL,PH-REF-0010,QA-P010,2026-09-30,UPI,613.6,FULL,"{""transactionId"":""TESTUPI00000023"",""upiId"":""qa.payer023@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0024,PATIENT_BILL,PB-REF-0017,QA-P011,2026-09-24,UPI,800,FULL,"{""transactionId"":""TESTUPI00000024"",""upiId"":""qa.payer024@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S02,YES
+PAY-0025,PHARMACY_BILL,PH-REF-0011,QA-P011,2026-09-24,UPI,2660.96,FULL,"{""transactionId"":""TESTUPI00000025"",""upiId"":""qa.payer025@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0026,PATIENT_BILL,PB-REF-0018,QA-P011,2026-10-08,CARD,500,FULL,"{""cardType"":""Debit"",""cardNetwork"":""Mastercard"",""cardLast4"":""0482"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000026"",""approvalCode"":""A23822""}",S02,YES
+PAY-0027,PATIENT_BILL,PB-REF-0019,QA-P012,2026-09-25,ONLINE,800,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000027"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000027"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0028,PHARMACY_BILL,PH-REF-0012,QA-P012,2026-09-25,CARD,978.88,FULL,"{""cardType"":""Credit"",""cardNetwork"":""Visa"",""cardLast4"":""7495"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000028"",""approvalCode"":""A20399""}",S12,YES
+PAY-0029,PATIENT_BILL,PB-REF-0020,QA-P012,2026-10-09,ONLINE,500,FULL,"{""transferType"":""NEFT"",""transactionId"":""TESTUTR0000000029"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000029"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0030,PATIENT_BILL,PB-REF-0021,QA-P013,2026-09-15,UPI,800,FULL,"{""transactionId"":""TESTUPI00000030"",""upiId"":""qa.payer030@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S03,YES
+PAY-0031,PHARMACY_BILL,PH-REF-0013,QA-P013,2026-09-15,CASH,246.4,FULL,"{""amountReceived"":300}",S12,YES
+PAY-0032,PATIENT_BILL,PB-REF-0026,QA-P014,2026-09-22,UPI,400,PARTIAL (UNSUPPORTED in app — record as note only),"{""transactionId"":""TESTUPI00000032"",""upiId"":""qa.payer032@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S03,YES
+PAY-0033,PATIENT_BILL,PB-REF-0027,QA-P014,2026-09-28,CARD,26400,PARTIAL (UNSUPPORTED in app — record as note only),"{""cardType"":""Debit"",""cardNetwork"":""Visa"",""cardLast4"":""0006"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000033"",""approvalCode"":""A16601""}",S03,YES
+PAY-0034,PATIENT_BILL,PB-REF-0028,QA-P015,2026-09-22,CARD,800,FULL,"{""cardType"":""Credit"",""cardNetwork"":""Mastercard"",""cardLast4"":""0232"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000034"",""approvalCode"":""A10904""}",S03,YES
+PAY-0035,PHARMACY_BILL,PH-REF-0014,QA-P015,2026-09-22,UPI,142.24,FULL,"{""transactionId"":""TESTUPI00000035"",""upiId"":""qa.payer035@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0036,PATIENT_BILL,PB-REF-0029,QA-P015,2026-09-29,CARD,6500,FULL,"{""cardType"":""Debit"",""cardNetwork"":""RuPay"",""cardLast4"":""9691"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000036"",""approvalCode"":""A29813""}",S03,YES
+PAY-0037,PATIENT_BILL,PB-REF-0030,QA-P015,2026-10-08,UPI,800,FULL,"{""transactionId"":""TESTUPI00000037"",""upiId"":""qa.payer037@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S03,YES
+PAY-0038,PATIENT_BILL,PB-REF-0031,QA-P016,2026-09-15,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0039,PATIENT_BILL,PB-REF-0032,QA-P016,2026-09-29,ONLINE,500,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000039"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000039"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0040,PATIENT_BILL,PB-REF-0035,QA-P017,2026-10-10,ONLINE,500,FULL,"{""transferType"":""IMPS"",""transactionId"":""TESTUTR0000000040"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000040"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S03,YES
+PAY-0041,PATIENT_BILL,PB-REF-0036,QA-P018,2026-09-22,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0042,PHARMACY_BILL,PH-REF-0016,QA-P018,2026-09-22,UPI,425.6,FULL,"{""transactionId"":""TESTUPI00000042"",""upiId"":""qa.payer042@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S12,YES
+PAY-0043,PATIENT_BILL,PB-REF-0037,QA-P018,2026-10-06,CARD,200,PARTIAL (UNSUPPORTED in app — record as note only),"{""cardType"":""Credit"",""cardNetwork"":""RuPay"",""cardLast4"":""2922"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000043"",""approvalCode"":""A10989""}",S02,YES
+PAY-0044,PATIENT_BILL,PB-REF-0038,QA-P019,2026-09-22,UPI,800,FULL,"{""transactionId"":""TESTUPI00000044"",""upiId"":""qa.payer044@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S03,YES
+PAY-0045,PHARMACY_BILL,PH-REF-0017,QA-P019,2026-09-22,UPI,268.8,FULL,"{""transactionId"":""TESTUPI00000045"",""upiId"":""qa.payer045@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S12,YES
+PAY-0046,PATIENT_BILL,PB-REF-0043,QA-P020,2026-09-21,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0047,PHARMACY_BILL,PH-REF-0018,QA-P020,2026-09-21,UPI,978.88,FULL,"{""transactionId"":""TESTUPI00000047"",""upiId"":""qa.payer047@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0048,PATIENT_BILL,PB-REF-0044,QA-P020,2026-10-05,UPI,500,FULL,"{""transactionId"":""TESTUPI00000048"",""upiId"":""qa.payer048@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0049,PATIENT_BILL,PB-REF-0045,QA-P021,2026-09-22,ONLINE,800,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000049"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000049"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0050,PATIENT_BILL,PB-REF-0046,QA-P021,2026-09-29,UPI,500,FULL,"{""transactionId"":""TESTUPI00000050"",""upiId"":""qa.payer050@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0051,PATIENT_BILL,PB-REF-0047,QA-P022,2026-09-18,CASH,4930,FULL,"{""amountReceived"":5500}",S02,YES
+PAY-0052,PHARMACY_BILL,PH-REF-0020,QA-P022,2026-09-18,CARD,613.6,FULL,"{""cardType"":""Debit"",""cardNetwork"":""Mastercard"",""cardLast4"":""3592"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000052"",""approvalCode"":""A33977""}",S12,YES
+PAY-0053,PATIENT_BILL,PB-REF-0048,QA-P023,2026-10-02,UPI,800,FULL,"{""transactionId"":""TESTUPI00000053"",""upiId"":""qa.payer053@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0054,PATIENT_BILL,PB-REF-0049,QA-P024,2026-09-24,UPI,800,FULL,"{""transactionId"":""TESTUPI00000054"",""upiId"":""qa.payer054@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S02,YES
+PAY-0055,PHARMACY_BILL,PH-REF-0022,QA-P024,2026-09-24,CASH,1011.2,FULL,"{""amountReceived"":1100}",S12,YES
+PAY-0056,PATIENT_BILL,PB-REF-0050,QA-P024,2026-10-08,ONLINE,500,FULL,"{""transferType"":""NEFT"",""transactionId"":""TESTUTR0000000056"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000056"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0057,PATIENT_BILL,PB-REF-0051,QA-P025,2026-09-21,UPI,800,FULL,"{""transactionId"":""TESTUPI00000057"",""upiId"":""qa.payer057@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0058,PHARMACY_BILL,PH-REF-0023,QA-P025,2026-09-21,CASH,1030.4,FULL,"{""amountReceived"":1100}",S12,YES
+PAY-0059,PATIENT_BILL,PB-REF-0052,QA-P026,2026-10-03,UPI,800,FULL,"{""transactionId"":""TESTUPI00000059"",""upiId"":""qa.payer059@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0060,PHARMACY_BILL,PH-REF-0024,QA-P026,2026-10-03,UPI,654.2,FULL,"{""transactionId"":""TESTUPI00000060"",""upiId"":""qa.payer060@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S12,YES
+PAY-0061,PATIENT_BILL,PB-REF-0053,QA-P027,2026-09-25,UPI,2000,FULL,"{""transactionId"":""TESTUPI00000061"",""upiId"":""qa.payer061@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0062,PHARMACY_BILL,PH-REF-0025,QA-P027,2026-09-25,UPI,179.2,FULL,"{""transactionId"":""TESTUPI00000062"",""upiId"":""qa.payer062@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S12,YES
+PAY-0063,PATIENT_BILL,PB-REF-0054,QA-P027,2026-10-09,CASH,1700,FULL,"{""amountReceived"":2200}",S02,YES
+PAY-0064,PATIENT_BILL,PB-REF-0055,QA-P028,2026-09-21,UPI,800,FULL,"{""transactionId"":""TESTUPI00000064"",""upiId"":""qa.payer064@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0065,PHARMACY_BILL,PH-REF-0026,QA-P028,2026-09-21,CASH,654.2,FULL,"{""amountReceived"":700}",S12,YES
+PAY-0066,PATIENT_BILL,PB-REF-0056,QA-P028,2026-10-05,ONLINE,500,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000066"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000066"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0067,PATIENT_BILL,PB-REF-0057,QA-P029,2026-09-26,ONLINE,800,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000067"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000067"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0068,PHARMACY_BILL,PH-REF-0028,QA-P029,2026-09-26,UPI,1030.4,FULL,"{""transactionId"":""TESTUPI00000068"",""upiId"":""qa.payer068@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0069,PHARMACY_BILL,PH-REF-0029,QA-P030,2026-09-25,CARD,613.6,FULL,"{""cardType"":""Debit"",""cardNetwork"":""Mastercard"",""cardLast4"":""4109"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000069"",""approvalCode"":""A54172""}",S12,YES
+PAY-0070,PATIENT_BILL,PB-REF-0059,QA-P031,2026-09-22,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0071,PATIENT_BILL,PB-REF-0060,QA-P032,2026-09-17,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0072,PHARMACY_BILL,PH-REF-0031,QA-P032,2026-09-17,CASH,978.88,FULL,"{""amountReceived"":1500}",S12,YES
+PAY-0073,PATIENT_BILL,PB-REF-0061,QA-P032,2026-10-01,UPI,500,FULL,"{""transactionId"":""TESTUPI00000073"",""upiId"":""qa.payer073@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0074,PATIENT_BILL,PB-REF-0062,QA-P033,2026-09-25,UPI,800,FULL,"{""transactionId"":""TESTUPI00000074"",""upiId"":""qa.payer074@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0075,PHARMACY_BILL,PH-REF-0032,QA-P033,2026-09-25,UPI,197.12,FULL,"{""transactionId"":""TESTUPI00000075"",""upiId"":""qa.payer075@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0076,PATIENT_BILL,PB-REF-0063,QA-P033,2026-10-09,CASH,200,PARTIAL (UNSUPPORTED in app — record as note only),"{""amountReceived"":200}",S02,YES
+PAY-0077,PHARMACY_BILL,PH-REF-0033,QA-P033,2026-10-09,UPI,22.4,FULL,"{""transactionId"":""TESTUPI00000077"",""upiId"":""qa.payer077@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S12,YES
+PAY-0078,PATIENT_BILL,PB-REF-0064,QA-P034,2026-09-23,ONLINE,800,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000078"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000078"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0079,PHARMACY_BILL,PH-REF-0034,QA-P034,2026-09-23,CASH,1144.6,FULL,"{""amountReceived"":1200}",S12,YES
+PAY-0080,PATIENT_BILL,PB-REF-0066,QA-P035,2026-09-19,UPI,800,FULL,"{""transactionId"":""TESTUPI00000080"",""upiId"":""qa.payer080@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0081,PHARMACY_BILL,PH-REF-0035,QA-P035,2026-09-19,CASH,414.4,FULL,"{""amountReceived"":1000}",S12,YES
+PAY-0082,PATIENT_BILL,PB-REF-0067,QA-P035,2026-10-03,CASH,500,FULL,"{""amountReceived"":500}",S02,YES
+PAY-0083,PATIENT_BILL,PB-REF-0068,QA-P036,2026-09-16,CASH,400,PARTIAL (UNSUPPORTED in app — record as note only),"{""amountReceived"":400}",S02,YES
+PAY-0084,PHARMACY_BILL,PH-REF-0036,QA-P036,2026-09-16,UPI,1030.4,FULL,"{""transactionId"":""TESTUPI00000084"",""upiId"":""qa.payer084@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0085,PATIENT_BILL,PB-REF-0069,QA-P037,2026-09-22,UPI,800,FULL,"{""transactionId"":""TESTUPI00000085"",""upiId"":""qa.payer085@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S03,YES
+PAY-0086,PHARMACY_BILL,PH-REF-0037,QA-P037,2026-09-22,UPI,142.24,FULL,"{""transactionId"":""TESTUPI00000086"",""upiId"":""qa.payer086@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0087,PATIENT_BILL,PB-REF-0070,QA-P037,2026-09-29,ONLINE,3000,FULL,"{""transferType"":""IMPS"",""transactionId"":""TESTUTR0000000087"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000087"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S03,YES
+PAY-0088,PATIENT_BILL,PB-REF-0071,QA-P037,2026-10-10,UPI,800,FULL,"{""transactionId"":""TESTUPI00000088"",""upiId"":""qa.payer088@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S03,YES
+PAY-0089,PATIENT_BILL,PB-REF-0072,QA-P038,2026-09-16,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0090,PHARMACY_BILL,PH-REF-0038,QA-P038,2026-09-16,CASH,1011.2,FULL,"{""amountReceived"":1600}",S12,YES
+PAY-0091,PATIENT_BILL,PB-REF-0073,QA-P038,2026-09-30,CARD,500,FULL,"{""cardType"":""Debit"",""cardNetwork"":""Mastercard"",""cardLast4"":""1572"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000091"",""approvalCode"":""A79693""}",S02,YES
+PAY-0092,PATIENT_BILL,PB-REF-0074,QA-P039,2026-09-15,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0093,PHARMACY_BILL,PH-REF-0039,QA-P039,2026-09-15,CASH,2660.96,FULL,"{""amountReceived"":3200}",S12,YES
+PAY-0094,PATIENT_BILL,PB-REF-0075,QA-P039,2026-09-29,CASH,500,FULL,"{""amountReceived"":500}",S02,YES
+PAY-0095,PATIENT_BILL,PB-REF-0076,QA-P040,2026-10-02,UPI,800,FULL,"{""transactionId"":""TESTUPI00000095"",""upiId"":""qa.payer095@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0096,PHARMACY_BILL,PH-REF-0040,QA-P040,2026-10-02,CARD,1141.4,FULL,"{""cardType"":""Credit"",""cardNetwork"":""Mastercard"",""cardLast4"":""7693"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000096"",""approvalCode"":""A27869""}",S12,YES
+PAY-0097,PATIENT_BILL,PB-REF-0077,QA-P041,2026-09-25,UPI,2000,FULL,"{""transactionId"":""TESTUPI00000097"",""upiId"":""qa.payer097@testupi"",""upiApp"":""Google Pay"",""accountHolder"":""""}",S02,YES
+PAY-0098,PHARMACY_BILL,PH-REF-0041,QA-P041,2026-09-25,ONLINE,179.2,FULL,"{""transferType"":""IMPS"",""transactionId"":""TESTUTR0000000098"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000098"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S12,YES
+PAY-0099,PATIENT_BILL,PB-REF-0078,QA-P041,2026-10-09,CASH,1700,FULL,"{""amountReceived"":2200}",S02,YES
+PAY-0100,PATIENT_BILL,PB-REF-0079,QA-P042,2026-09-23,CASH,800,FULL,"{""amountReceived"":800}",S02,YES
+PAY-0101,PHARMACY_BILL,PH-REF-0042,QA-P042,2026-09-23,ONLINE,1144.6,FULL,"{""transferType"":""NEFT"",""transactionId"":""TESTUTR0000000101"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000101"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S12,YES
+PAY-0102,PATIENT_BILL,PB-REF-0080,QA-P042,2026-09-30,CASH,9350,FULL,"{""amountReceived"":9900}",S02,YES
+PAY-0103,PATIENT_BILL,PB-REF-0081,QA-P043,2026-09-22,UPI,800,FULL,"{""transactionId"":""TESTUPI00000103"",""upiId"":""qa.payer103@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0104,PHARMACY_BILL,PH-REF-0043,QA-P043,2026-09-22,CASH,425.6,FULL,"{""amountReceived"":500}",S12,YES
+PAY-0105,PATIENT_BILL,PB-REF-0082,QA-P043,2026-10-06,ONLINE,500,FULL,"{""transferType"":""RTGS"",""transactionId"":""TESTUTR0000000105"",""accountHolder"":""[TEST] Payer Name"",""accountNumber"":""000000000105"",""bankName"":""[TEST] Demo Bank"",""ifsc"":""TEST0000001""}",S02,YES
+PAY-0106,PATIENT_BILL,PB-REF-0083,QA-P044,2026-09-19,UPI,800,FULL,"{""transactionId"":""TESTUPI00000106"",""upiId"":""qa.payer106@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S02,YES
+PAY-0107,PHARMACY_BILL,PH-REF-0044,QA-P044,2026-09-19,UPI,425.6,FULL,"{""transactionId"":""TESTUPI00000107"",""upiId"":""qa.payer107@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0108,PATIENT_BILL,PB-REF-0084,QA-P044,2026-10-03,CASH,500,FULL,"{""amountReceived"":1000}",S02,YES
+PAY-0109,PATIENT_BILL,PB-REF-0085,QA-P045,2026-10-03,CARD,800,FULL,"{""cardType"":""Credit"",""cardNetwork"":""Mastercard"",""cardLast4"":""5595"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000109"",""approvalCode"":""A64669""}",S02,YES
+PAY-0110,PATIENT_BILL,PB-REF-0086,QA-P046,2026-09-16,UPI,800,FULL,"{""transactionId"":""TESTUPI00000110"",""upiId"":""qa.payer110@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S02,YES
+PAY-0111,PHARMACY_BILL,PH-REF-0046,QA-P046,2026-09-16,UPI,1141.4,FULL,"{""transactionId"":""TESTUPI00000111"",""upiId"":""qa.payer111@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S12,YES
+PAY-0112,PATIENT_BILL,PB-REF-0087,QA-P046,2026-10-02,CASH,500,FULL,"{""amountReceived"":500}",S02,YES
+PAY-0113,PATIENT_BILL,PB-REF-0088,QA-P047,2026-10-06,CASH,800,FULL,"{""amountReceived"":800}",S03,YES
+PAY-0114,PATIENT_BILL,PB-REF-0089,QA-P047,2026-10-10,UPI,30372.96,FULL,"{""transactionId"":""TESTUPI00000114"",""upiId"":""qa.payer114@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S03,YES
+PAY-0115,PATIENT_BILL,PB-REF-0090,QA-P048,2026-09-15,CASH,400,PARTIAL (UNSUPPORTED in app — record as note only),"{""amountReceived"":400}",S03,YES
+PAY-0116,PATIENT_BILL,PB-REF-0091,QA-P048,2026-10-06,UPI,500,FULL,"{""transactionId"":""TESTUPI00000116"",""upiId"":""qa.payer116@testupi"",""upiApp"":""Paytm"",""accountHolder"":""""}",S03,YES
+PAY-0117,PHARMACY_BILL,PH-REF-0047,QA-P049,2026-09-22,CASH,1030.4,FULL,"{""amountReceived"":1600}",S12,YES
+PAY-0118,PATIENT_BILL,PB-REF-0093,QA-P050,2026-09-17,CASH,400,PARTIAL (UNSUPPORTED in app — record as note only),"{""amountReceived"":400}",S02,YES
+PAY-0119,PHARMACY_BILL,PH-REF-0048,QA-P050,2026-09-17,UPI,1144.6,FULL,"{""transactionId"":""TESTUPI00000119"",""upiId"":""qa.payer119@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S12,YES
+PAY-0120,PATIENT_BILL,PB-REF-0094,QA-P050,2026-09-24,UPI,9350,FULL,"{""transactionId"":""TESTUPI00000120"",""upiId"":""qa.payer120@testupi"",""upiApp"":""PhonePe"",""accountHolder"":""""}",S02,YES
+PAY-0121,PACKAGE_INVOICE,GI-0088,QA-P004,2026-10-09,ONLINE,38940,FULL,{},S02,YES
+PAY-0122,PACKAGE_INVOICE,GI-0089,QA-P005,2026-09-30,ONLINE,23364,FULL,{},S02,YES
+PAY-0123,PACKAGE_INVOICE,GI-0090,QA-P006,2026-09-19,CASH,38940,FULL,{},S02,YES
+PAY-0124,PACKAGE_INVOICE,GI-0091,QA-P011,2026-10-08,ONLINE,25960,FULL,{},S02,YES
+PAY-0125,PACKAGE_INVOICE,GI-0092,QA-P012,2026-10-09,ONLINE,9440,FULL,{},S02,YES
+PAY-0126,PACKAGE_INVOICE,GI-0093,QA-P013,2026-09-15,ONLINE,4000,FULL,{},S02,YES
+PAY-0127,PACKAGE_INVOICE,GI-0094,QA-P016,2026-09-29,ONLINE,8968,FULL,{},S02,YES
+PAY-0128,PACKAGE_INVOICE,GI-0095,QA-P019,2026-09-22,ONLINE,4000,FULL,{},S02,YES
+PAY-0129,PACKAGE_INVOICE,GI-0096,QA-P020,2026-10-05,ONLINE,9440,FULL,{},S02,YES
+PAY-0130,PACKAGE_INVOICE,GI-0097,QA-P024,2026-10-08,ONLINE,38940,FULL,{},S02,YES
+PAY-0131,PACKAGE_INVOICE,GI-0098,QA-P025,2026-09-21,CASH,38940,FULL,{},S02,YES
+PAY-0132,PACKAGE_INVOICE,GI-0099,QA-P029,2026-09-26,CASH,38940,FULL,{},S02,YES
+PAY-0133,PACKAGE_INVOICE,GI-0100,QA-P032,2026-10-01,CASH,9440,FULL,{},S02,YES
+PAY-0134,PACKAGE_INVOICE,GI-0101,QA-P035,2026-10-03,ONLINE,9440,FULL,{},S02,YES
+PAY-0135,PACKAGE_INVOICE,GI-0102,QA-P036,2026-09-16,ONLINE,38940,FULL,{},S02,YES
+PAY-0136,PACKAGE_INVOICE,GI-0103,QA-P038,2026-09-30,ONLINE,38940,FULL,{},S02,YES
+PAY-0137,PACKAGE_INVOICE,GI-0104,QA-P039,2026-09-29,ONLINE,25960,FULL,{},S02,YES
+PAY-0138,PACKAGE_INVOICE,GI-0105,QA-P049,2026-09-22,ONLINE,38940,FULL,{},S02,YES
+PAY-0139,RETAIL_INVOICE,GI-0106,,2026-09-19,CASH,1144.6,FULL,"{""amountReceived"":1200}",S12,YES
+PAY-0140,RETAIL_INVOICE,GI-0107,QA-P026,2026-10-01,UPI,613.6,FULL,"{""transactionId"":""TESTUPI00000140"",""upiId"":""qa.payer140@testupi"",""upiApp"":""BHIM"",""accountHolder"":""""}",S12,YES
+PAY-0141,RETAIL_INVOICE,GI-0108,,2026-10-08,CARD,196,FULL,"{""cardType"":""Credit"",""cardNetwork"":""RuPay"",""cardLast4"":""4343"",""bankName"":""[TEST] Demo Bank"",""transactionId"":""TESTRRN000141"",""approvalCode"":""A67005""}",S12,YES

@@ -1,0 +1,4 @@
+﻿probe,name,phone,dob,gender,expected,test_data
+EXACT_DUPLICATE,Komal Joshi (Test),9000010007,1960-10-09,Female,SHOULD WARN/BLOCK — same name+phone+DOB as QA-P007,YES
+SAME_PHONE_SPELLING_VARIANT,Kiaara Patil (Test),9000010008,2004-02-08,Female,SHOULD WARN — possible duplicate of QA-P008,YES
+FAMILY_MEMBER_SHARED_PHONE,Riya Kapoor (Test),9000010009,2019-05-10,Female,ALLOW with warning — child shares parent phone (QA-P009),YES

@@ -1,0 +1,57 @@
+﻿staff_id,date,shift,area,app_support
+S08,2026-09-14,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-16,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-18,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-21,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-23,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-25,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-28,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-09-30,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-10-02,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-10-05,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-10-07,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S08,2026-10-09,08:00-20:00 Day,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-15,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-17,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-19,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-22,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-24,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-26,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-09-29,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-10-01,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-10-03,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-10-06,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-10-08,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+S09,2026-10-10,20:00-08:00 Night,QA Surgical Ward,UNSUPPORTED — no nurse roster
+D4+S11,2026-09-14,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-09-16,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-09-21,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-09-23,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-09-28,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-09-30,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-10-05,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+D4+S11,2026-10-07,09:00-14:00,Operation theatre (OT-1),UNSUPPORTED — no OT/room schedule
+S10,2026-09-14,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-15,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-16,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-17,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-18,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-19,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-21,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-22,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-23,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-24,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-25,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-26,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-28,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-29,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-09-30,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-01,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-02,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-03,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-05,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-06,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-07,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-08,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-09,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking
+S10,2026-10-10,14:00-19:00,Procedure room (Laser/PRP),UNSUPPORTED — no room booking

@@ -1,0 +1,4 @@
+﻿retail_ref,date,customer,customer_phone,items,sub_total,cgst,sgst,total,payment_mode,test_data
+RS-01,2026-09-19,[TEST] Walk-in Customer A,,M11x1;M15x1,970,87.3,87.3,1144.6,CASH,YES
+RS-02,2026-10-01,Ishaan Shah (Test),9000010026,M11x1,520,46.8,46.8,613.6,UPI,YES
+RS-03,2026-10-08,[TEST] Walk-in Customer B,,M33x10;M24x10;M23x1,175,10.5,10.5,196,CARD,YES

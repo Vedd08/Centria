@@ -1,0 +1,68 @@
+﻿doc_ref,patient_id,encounter_id,admission_ref,category,title,file,mime_type,uploaded_by,test_data
+DOC-001,QA-P002,E0003,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-002,QA-P003,E0005,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-003,QA-P003,E0005,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-004,QA-P004,E0007,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-005,QA-P004,E0007,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-006,QA-P005,E0009,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-007,QA-P005,E0009,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-008,QA-P006,E0010,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-009,QA-P006,E0010,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-010,QA-P007,E0012,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-011,QA-P007,E0012,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-012,QA-P008,E0013,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-013,QA-P008,E0013,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-014,QA-P009,E0014,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-015,QA-P009,E0015,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-016,QA-P010,E0016,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-017,QA-P010,E0016,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-018,QA-P011,E0018,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-019,QA-P011,E0018,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-020,QA-P012,E0020,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-021,QA-P014,E0027,ADM-QA-01,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-022,QA-P014,E0027,ADM-QA-01,SCAN_IMAGE,[TEST] Pre-operative photograph — synthetic placeholder image,assets/placeholder-photo.png,image/png,D4,YES
+DOC-023,QA-P014,E0027,ADM-QA-01,LAB_REPORT,"[TEST] Pre-operative investigations (CBC, PT/INR, RBS, HIV/HBsAg, ECG) — SIMULATED placeholder, all within normal limits",assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-024,QA-P014,E0027,ADM-QA-01,OTHER,[TEST] Anaesthesia & operation record — SIMULATED placeholder (General anaesthesia),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-025,QA-P014,E0027,ADM-QA-01,DISCHARGE_SUMMARY,[TEST] Discharge summary — SIMULATED,assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-026,QA-P015,E0029,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D4,YES
+DOC-027,QA-P015,E0029,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-028,QA-P016,E0032,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-029,QA-P017,E0034,ADM-QA-02,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-030,QA-P017,E0034,ADM-QA-02,SCAN_IMAGE,[TEST] Pre-operative photograph — synthetic placeholder image,assets/placeholder-photo.png,image/png,D4,YES
+DOC-031,QA-P017,E0034,ADM-QA-02,LAB_REPORT,"[TEST] Pre-operative investigations (CBC, PT/INR, RBS, HIV/HBsAg, ECG) — SIMULATED placeholder, all within normal limits",assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-032,QA-P017,E0034,ADM-QA-02,OTHER,[TEST] Anaesthesia & operation record — SIMULATED placeholder (Spinal anaesthesia),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-033,QA-P017,E0034,ADM-QA-02,DISCHARGE_SUMMARY,[TEST] Discharge summary — SIMULATED,assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-034,QA-P020,E0044,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-035,QA-P022,E0047,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-036,QA-P022,E0047,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-037,QA-P024,E0050,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-038,QA-P024,E0050,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-039,QA-P025,E0051,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-040,QA-P025,E0051,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-041,QA-P027,E0053,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-042,QA-P027,E0054,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-043,QA-P029,E0057,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-044,QA-P029,E0057,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-045,QA-P030,E0058,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-046,QA-P032,E0061,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-047,QA-P034,E0065,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-048,QA-P034,E0065,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-049,QA-P035,E0067,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D1,YES
+DOC-050,QA-P036,E0068,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-051,QA-P036,E0068,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-052,QA-P037,E0070,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D4,YES
+DOC-053,QA-P037,E0070,,LAB_REPORT,[TEST] Histopathology report — SIMULATED placeholder (benign compound naevus),assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-054,QA-P038,E0073,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-055,QA-P038,E0073,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-056,QA-P039,E0075,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-057,QA-P039,E0075,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-058,QA-P041,E0077,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-059,QA-P041,E0078,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D3,YES
+DOC-060,QA-P042,E0080,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-061,QA-P042,E0080,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-062,QA-P047,E0089,ADM-QA-03,SCAN_IMAGE,[TEST] Pre-operative photograph — synthetic placeholder image,assets/placeholder-photo.png,image/png,D4,YES
+DOC-063,QA-P047,E0089,ADM-QA-03,LAB_REPORT,"[TEST] Pre-operative investigations (CBC, PT/INR, RBS, HIV/HBsAg, ECG) — SIMULATED placeholder, all within normal limits",assets/placeholder-document.pdf,application/pdf,D4,YES
+DOC-064,QA-P049,E0092,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-065,QA-P049,E0092,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES
+DOC-066,QA-P050,E0094,,SCAN_IMAGE,[TEST] Pre-procedure photograph — synthetic placeholder image (no real person),assets/placeholder-photo.png,image/png,D2,YES
+DOC-067,QA-P050,E0094,,OTHER,[TEST] Consent — SIMULATED TEST PLACEHOLDER (not a real signature),assets/placeholder-document.pdf,application/pdf,D2,YES

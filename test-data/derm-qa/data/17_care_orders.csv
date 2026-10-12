@@ -1,0 +1,120 @@
+﻿order_id,encounter_id,patient_id,order_type,medicine_id,treatment_id,not_stocked,description,dosage,route,frequency,instructions,quantity,unit_price,total_price,final_status,dispensed,performed_by,scenario,ordered_by,test_data
+O0001,E0001,QA-P001,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0002,E0001,QA-P001,MEDICINE,M09,,NO,Hydroquinone 2% + Tretinoin + Mometasone Cream 15g (Test),Pea size,Topical,Once at night,8 weeks,1,260,260,DONE,YES,S12,,D2,YES
+O0003,E0001,QA-P001,MEDICINE,M10,,NO,Tranexamic Acid 250mg Tablet (Test),250 mg,Oral,1-0-1,8 weeks,112,14,1568,DONE,YES,S12,,D2,YES
+O0004,E0003,QA-P002,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,1 month,1,520,520,DONE,YES,S12,,D1,YES
+O0005,E0004,QA-P003,MEDICINE,M23,,NO,Mupirocin 2% Ointment 5g (Test),Thin layer,Topical,Twice daily,5 days,1,115,115,DONE,YES,S12,,D2,YES
+O0006,E0006,QA-P004,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Once at night,1 month,1,650,650,DONE,YES,S12,,D2,YES
+O0007,E0006,QA-P004,MEDICINE,M08,,NO,Biotin 10mg Tablet (Test),10 mg,Oral,1-0-0,30 days,30,8,240,DONE,YES,S12,,D2,YES
+O0008,E0008,QA-P005,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0009,E0008,QA-P005,MEDICINE,M09,,NO,Hydroquinone 2% + Tretinoin + Mometasone Cream 15g (Test),Pea size,Topical,Once at night,8 weeks,1,260,260,DONE,YES,S12,,D2,YES
+O0010,E0008,QA-P005,MEDICINE,M10,,NO,Tranexamic Acid 250mg Tablet (Test),250 mg,Oral,1-0-1,8 weeks,112,14,1568,DONE,YES,S12,,D2,YES
+O0011,E0008,QA-P005,MEDICINE,,,YES,Hydroquinone 4% Cream (not stocked — Test),Pea size,Topical,Once at night,Requires clarification: stocked alternative is M09 triple combination; substitution needs doctor approval,1,0,0,ORDERED,NO,,CLARIFICATION_SUBSTITUTION_REQUIRED,D2,YES
+O0012,E0010,QA-P006,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Twice daily,1 month — Apply to thinning areas,1,650,650,DONE,YES,S12,,D2,YES
+O0013,E0010,QA-P006,MEDICINE,M07,,NO,Finasteride 1mg Tablet (Test),1 mg,Oral,0-0-1,30 days,30,9,270,DONE,YES,S12,,D2,YES
+O0014,E0011,QA-P007,MEDICINE,M23,,NO,Mupirocin 2% Ointment 5g (Test),Thin layer,Topical,Twice daily,5 days,1,115,115,DONE,YES,S12,,D2,YES
+O0015,E0013,QA-P008,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Morning and noon,1 month,1,520,520,DONE,YES,S12,,D2,YES
+O0016,E0014,QA-P009,MEDICINE,M22,,NO,Salicylic + Lactic Acid Wart Paint 10ml (Test),Apply on wart,Topical,Once at night,4 weeks,1,160,160,DONE,YES,S12,,D3,YES
+O0017,E0016,QA-P010,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Morning and noon,1 month,1,520,520,DONE,YES,S12,,D2,YES
+O0018,E0017,QA-P011,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0019,E0017,QA-P011,MEDICINE,M09,,NO,Hydroquinone 2% + Tretinoin + Mometasone Cream 15g (Test),Pea size,Topical,Once at night,8 weeks,1,260,260,DONE,YES,S12,,D2,YES
+O0020,E0017,QA-P011,MEDICINE,M10,,NO,Tranexamic Acid 250mg Tablet (Test),250 mg,Oral,1-0-1,8 weeks,112,14,1568,DONE,YES,S12,,D2,YES
+O0021,E0019,QA-P012,MEDICINE,M03,,NO,Adapalene 0.1% Gel 15g (Test),Pea size,Topical,Once at night,6 weeks,1,210,210,DONE,YES,S12,,D1,YES
+O0022,E0019,QA-P012,MEDICINE,M04,,NO,Clindamycin 1% Gel 20g (Test),Thin layer,Topical,Once in morning,6 weeks,1,160,160,DONE,YES,S12,,D1,YES
+O0023,E0019,QA-P012,MEDICINE,M01,,NO,Doxycycline 100mg Capsule (Test),100 mg,Oral,1-0-0 after food,6 weeks,42,12,504,DONE,YES,S12,,D1,YES
+O0024,E0021,QA-P013,MEDICINE,M25,,NO,Amoxicillin-Clavulanate 625mg Tablet (Test),625 mg,Oral,1-0-1 after food,5 days,10,22,220,DONE,YES,S12,,D4,YES
+O0025,E0021,QA-P013,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,SOS for pain,5 days,10,2,20,ORDERED,NO,,SAVED_NOT_DISPENSED (patient will buy outside),D4,YES
+O0026,E0027,QA-P014,TREATMENT,,TR15,NO,Split-Thickness Skin Graft (STSG),,,,,1,45000,45000,DONE,NO,D4,,D4,YES
+O0027,E0027,QA-P014,TREATMENT,,TR19,NO,IPD Bed Charges (per day),,,,Bed charges (workaround: treatment master item),3,2500,7500,DONE,NO,S08,,D4,YES
+O0028,E0027,QA-P014,INJECTION,M26,,NO,Ceftriaxone 1g Injection (Test),1 g,IV,Once daily,,3,65,195,DONE,YES,S08,,D4,YES
+O0029,E0027,QA-P014,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,1-1-1,,9,2,18,DONE,YES,S08,,D4,YES
+O0030,E0027,QA-P014,MEDICINE,M29,,NO,Paraffin Gauze Dressing 10x10cm (Test),—,Topical,With dressing,,4,35,140,DONE,YES,S11,,D4,YES
+O0031,E0027,QA-P014,MEDICINE,M27,,NO,Lignocaine 2% Injection 30ml (Test),10 ml,Local infiltration,Once (OT),,1,45,45,DONE,YES,S11,,D4,YES
+O0032,E0028,QA-P015,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,SOS for pain (max 3/day),3 days,6,2,12,DONE,YES,S12,,D4,YES
+O0033,E0028,QA-P015,MEDICINE,M23,,NO,Mupirocin 2% Ointment 5g (Test),Thin layer,Topical,Twice daily,7 days,1,115,115,DONE,YES,S12,,D4,YES
+O0034,E0031,QA-P016,MEDICINE,M03,,NO,Adapalene 0.1% Gel 15g (Test),Pea size,Topical,Once at night,6 weeks,1,210,210,DONE,YES,S12,,D1,YES
+O0035,E0031,QA-P016,MEDICINE,M04,,NO,Clindamycin 1% Gel 20g (Test),Thin layer,Topical,Once in morning,6 weeks,1,160,160,DONE,YES,S12,,D1,YES
+O0036,E0031,QA-P016,MEDICINE,M01,,NO,Doxycycline 100mg Capsule (Test),100 mg,Oral,1-0-0 after food,6 weeks,42,12,504,DONE,YES,S12,,D1,YES
+O0037,E0034,QA-P017,TREATMENT,,TR15,NO,Split-Thickness Skin Graft (STSG),,,,,1,45000,45000,DONE,NO,D4,,D4,YES
+O0038,E0034,QA-P017,TREATMENT,,TR19,NO,IPD Bed Charges (per day),,,,Bed charges (workaround: treatment master item),5,2500,12500,DONE,NO,S08,,D4,YES
+O0039,E0034,QA-P017,INJECTION,M26,,NO,Ceftriaxone 1g Injection (Test),1 g,IV,Once daily,,5,65,325,DONE,YES,S08,,D4,YES
+O0040,E0034,QA-P017,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,1-1-1,,9,2,18,DONE,YES,S08,,D4,YES
+O0041,E0034,QA-P017,MEDICINE,M29,,NO,Paraffin Gauze Dressing 10x10cm (Test),—,Topical,With dressing,,4,35,140,DONE,YES,S11,,D4,YES
+O0042,E0034,QA-P017,MEDICINE,M27,,NO,Lignocaine 2% Injection 30ml (Test),10 ml,Local infiltration,Once (OT),,1,45,45,DONE,YES,S11,,D4,YES
+O0043,E0036,QA-P018,MEDICINE,M19,,NO,Itraconazole 100mg Capsule (Test),100 mg,Oral,1-0-1 after food,14 days,28,32,896,ORDERED,NO,,INSUFFICIENT_STOCK,D1,YES
+O0044,E0036,QA-P018,MEDICINE,M20,,NO,Luliconazole 1% Cream 30g (Test),Thin layer,Topical,Twice daily,4 weeks,1,380,380,DONE,YES,S12,,D1,YES
+O0045,E0038,QA-P019,MEDICINE,M25,,NO,Amoxicillin-Clavulanate 625mg Tablet (Test),625 mg,Oral,1-0-1 after food,5 days,10,22,220,DONE,YES,S12,,D4,YES
+O0046,E0038,QA-P019,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,SOS for pain,5 days,10,2,20,DONE,YES,S12,,D4,YES
+O0047,E0043,QA-P020,MEDICINE,M03,,NO,Adapalene 0.1% Gel 15g (Test),Pea size,Topical,Once at night,6 weeks,1,210,210,DONE,YES,S12,,D1,YES
+O0048,E0043,QA-P020,MEDICINE,M04,,NO,Clindamycin 1% Gel 20g (Test),Thin layer,Topical,Once in morning,6 weeks,1,160,160,DONE,YES,S12,,D1,YES
+O0049,E0043,QA-P020,MEDICINE,M01,,NO,Doxycycline 100mg Capsule (Test),100 mg,Oral,1-0-0 after food,6 weeks,42,12,504,DONE,YES,S12,,D1,YES
+O0050,E0045,QA-P021,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0051,E0045,QA-P021,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),As needed,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D2,YES
+O0052,E0047,QA-P022,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Morning and noon,1 month,1,520,520,DONE,YES,S12,,D2,YES
+O0053,E0048,QA-P023,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),Liberal,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D3,YES
+O0054,E0048,QA-P023,MEDICINE,M12,,NO,Mometasone 0.1% Cream 15g (Test),Thin layer,Topical,Once daily,1 week then alternate days,1,120,120,ORDERED,NO,,SAVED_NOT_DISPENSED (patient will buy outside),D3,YES
+O0055,E0048,QA-P023,MEDICINE,M13,,NO,Tacrolimus 0.03% Ointment 10g (Test),Thin layer,Topical,Twice daily (face),2 weeks,1,340,340,DONE,YES,S12,"LOW_STOCK (4 received, reorder point 10) — pharmacist should see low-stock alert",D3,YES
+O0056,E0048,QA-P023,MEDICINE,M34,,NO,Levocetirizine 2.5mg/5ml Syrup 60ml (Test),2.5 ml,Oral,At bedtime,2 weeks,1,85,85,ORDERED,NO,,SAVED_NOT_DISPENSED (patient will buy outside),D3,YES
+O0057,E0049,QA-P024,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Once at night,1 month,1,650,650,DONE,YES,S12,,D2,YES
+O0058,E0049,QA-P024,MEDICINE,M08,,NO,Biotin 10mg Tablet (Test),10 mg,Oral,1-0-0,30 days,30,8,240,DONE,YES,S12,,D2,YES
+O0059,E0051,QA-P025,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Twice daily,1 month — Apply to thinning areas,1,650,650,DONE,YES,S12,,D2,YES
+O0060,E0051,QA-P025,MEDICINE,M07,,NO,Finasteride 1mg Tablet (Test),1 mg,Oral,0-0-1,30 days,30,9,270,DONE,YES,S12,,D2,YES
+O0061,E0052,QA-P026,MEDICINE,M16,,NO,Clobetasol 0.05% Ointment 15g (Test),Thin layer,Topical,Twice daily,2 weeks,1,110,110,DONE,YES,S12,,D1,YES
+O0062,E0052,QA-P026,MEDICINE,M18,,NO,Calcipotriol 0.005% Ointment 30g (Test),Thin layer,Topical,Once daily (weekdays),4 weeks — ZERO STOCK — pharmacy should flag unavailable,1,690,690,ORDERED,NO,,UNAVAILABLE_ZERO_STOCK,D1,YES
+O0063,E0052,QA-P026,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),Liberal,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D1,YES
+O0064,E0053,QA-P027,MEDICINE,M22,,NO,Salicylic + Lactic Acid Wart Paint 10ml (Test),Apply on wart,Topical,Once at night,4 weeks,1,160,160,DONE,YES,S12,,D3,YES
+O0065,E0055,QA-P028,MEDICINE,M16,,NO,Clobetasol 0.05% Ointment 15g (Test),Thin layer,Topical,Twice daily,2 weeks,1,110,110,DONE,YES,S12,,D1,YES
+O0066,E0055,QA-P028,MEDICINE,M18,,NO,Calcipotriol 0.005% Ointment 30g (Test),Thin layer,Topical,Once daily (weekdays),4 weeks — ZERO STOCK — pharmacy should flag unavailable,1,690,690,ORDERED,NO,,UNAVAILABLE_ZERO_STOCK,D1,YES
+O0067,E0055,QA-P028,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),Liberal,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D1,YES
+O0068,E0056,QA-P028,MEDICINE,M17,,NO,Methotrexate 7.5mg Tablet (Test),7.5 mg,Oral,Once WEEKLY (Sunday),4 weeks,4,6,24,DONE,YES,S12,,D1,YES
+O0069,E0056,QA-P028,MEDICINE,M35,,NO,Folic Acid 5mg Tablet (Test),5 mg,Oral,Once daily except Sunday,4 weeks,24,1.5,36,DONE,YES,S12,,D1,YES
+O0070,E0057,QA-P029,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Twice daily,1 month — Apply to thinning areas,1,650,650,DONE,YES,S12,,D2,YES
+O0071,E0057,QA-P029,MEDICINE,M07,,NO,Finasteride 1mg Tablet (Test),1 mg,Oral,0-0-1,30 days,30,9,270,DONE,YES,S12,,D2,YES
+O0072,E0058,QA-P030,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,1 month,1,520,520,DONE,YES,S12,,D1,YES
+O0073,E0059,QA-P031,MEDICINE,M08,,NO,Biotin 10mg Tablet (Test),10 mg,Oral,1-0-0,30 days,30,8,240,DONE,YES,S12,,D2,YES
+O0074,E0060,QA-P032,MEDICINE,M03,,NO,Adapalene 0.1% Gel 15g (Test),Pea size,Topical,Once at night,6 weeks,1,210,210,DONE,YES,S12,,D1,YES
+O0075,E0060,QA-P032,MEDICINE,M04,,NO,Clindamycin 1% Gel 20g (Test),Thin layer,Topical,Once in morning,6 weeks,1,160,160,DONE,YES,S12,,D1,YES
+O0076,E0060,QA-P032,MEDICINE,M01,,NO,Doxycycline 100mg Capsule (Test),100 mg,Oral,1-0-0 after food,6 weeks,42,12,504,DONE,YES,S12,,D1,YES
+O0077,E0062,QA-P033,MEDICINE,M12,,NO,Mometasone 0.1% Cream 15g (Test),Thin layer,Topical,Once daily,2 weeks,1,120,120,DONE,YES,S12,,D1,YES
+O0078,E0062,QA-P033,MEDICINE,M33,,NO,Levocetirizine 5mg Tablet (Test),5 mg,Oral,0-0-1,14 days,14,4,56,DONE,YES,S12,,D1,YES
+O0079,E0063,QA-P033,MEDICINE,M14,,NO,Cetirizine 10mg Tablet (Test),10 mg,Oral,0-0-1,10 days,10,2,20,DONE,YES,S12,"EXPIRED_BATCH_PRESENT — must dispense from CET-A2 (valid), never CET-A1 (expired 2026-09-30)",D1,YES
+O0080,E0064,QA-P034,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0081,E0064,QA-P034,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),As needed,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D2,YES
+O0082,E0066,QA-P035,MEDICINE,M03,,NO,Adapalene 0.1% Gel 15g (Test),Pea size,Topical,Once at night,6 weeks,1,210,210,DONE,YES,S12,,D1,YES
+O0083,E0066,QA-P035,MEDICINE,M04,,NO,Clindamycin 1% Gel 20g (Test),Thin layer,Topical,Once in morning,6 weeks,1,160,160,DONE,YES,S12,,D1,YES
+O0084,E0066,QA-P035,MEDICINE,M01,,NO,Doxycycline 100mg Capsule (Test),100 mg,Oral,1-0-0 after food,6 weeks,42,12,504,ORDERED,NO,,SAVED_NOT_DISPENSED (patient will buy outside),D1,YES
+O0085,E0068,QA-P036,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Twice daily,1 month — Apply to thinning areas,1,650,650,DONE,YES,S12,,D2,YES
+O0086,E0068,QA-P036,MEDICINE,M07,,NO,Finasteride 1mg Tablet (Test),1 mg,Oral,0-0-1,30 days,30,9,270,DONE,YES,S12,,D2,YES
+O0087,E0069,QA-P037,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,SOS for pain (max 3/day),3 days,6,2,12,DONE,YES,S12,,D4,YES
+O0088,E0069,QA-P037,MEDICINE,M23,,NO,Mupirocin 2% Ointment 5g (Test),Thin layer,Topical,Twice daily,7 days,1,115,115,DONE,YES,S12,,D4,YES
+O0089,E0072,QA-P038,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Once at night,1 month,1,650,650,DONE,YES,S12,,D2,YES
+O0090,E0072,QA-P038,MEDICINE,M08,,NO,Biotin 10mg Tablet (Test),10 mg,Oral,1-0-0,30 days,30,8,240,DONE,YES,S12,,D2,YES
+O0091,E0074,QA-P039,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0092,E0074,QA-P039,MEDICINE,M09,,NO,Hydroquinone 2% + Tretinoin + Mometasone Cream 15g (Test),Pea size,Topical,Once at night,8 weeks,1,260,260,DONE,YES,S12,,D2,YES
+O0093,E0074,QA-P039,MEDICINE,M10,,NO,Tranexamic Acid 250mg Tablet (Test),250 mg,Oral,1-0-1,8 weeks,112,14,1568,DONE,YES,S12,,D2,YES
+O0094,E0076,QA-P040,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),Liberal,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D3,YES
+O0095,E0076,QA-P040,MEDICINE,M12,,NO,Mometasone 0.1% Cream 15g (Test),Thin layer,Topical,Once daily,1 week then alternate days,1,120,120,DONE,YES,S12,,D3,YES
+O0096,E0076,QA-P040,MEDICINE,M13,,NO,Tacrolimus 0.03% Ointment 10g (Test),Thin layer,Topical,Twice daily (face),2 weeks,1,340,340,DONE,YES,S12,"LOW_STOCK (4 received, reorder point 10) — pharmacist should see low-stock alert",D3,YES
+O0097,E0076,QA-P040,MEDICINE,M34,,NO,Levocetirizine 2.5mg/5ml Syrup 60ml (Test),2.5 ml,Oral,At bedtime,2 weeks,1,85,85,DONE,YES,S12,,D3,YES
+O0098,E0077,QA-P041,MEDICINE,M22,,NO,Salicylic + Lactic Acid Wart Paint 10ml (Test),Apply on wart,Topical,Once at night,4 weeks,1,160,160,DONE,YES,S12,,D3,YES
+O0099,E0079,QA-P042,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0100,E0079,QA-P042,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),As needed,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D2,YES
+O0101,E0081,QA-P043,MEDICINE,M19,,NO,Itraconazole 100mg Capsule (Test),100 mg,Oral,1-0-1 after food,14 days,28,32,896,ORDERED,NO,,INSUFFICIENT_STOCK,D1,YES
+O0102,E0081,QA-P043,MEDICINE,M20,,NO,Luliconazole 1% Cream 30g (Test),Thin layer,Topical,Twice daily,4 weeks,1,380,380,DONE,YES,S12,,D1,YES
+O0103,E0083,QA-P044,MEDICINE,M19,,NO,Itraconazole 100mg Capsule (Test),100 mg,Oral,1-0-1 after food,14 days,28,32,896,ORDERED,NO,,INSUFFICIENT_STOCK,D1,YES
+O0104,E0083,QA-P044,MEDICINE,M20,,NO,Luliconazole 1% Cream 30g (Test),Thin layer,Topical,Twice daily,4 weeks,1,380,380,DONE,YES,S12,,D1,YES
+O0105,E0085,QA-P045,MEDICINE,M08,,NO,Biotin 10mg Tablet (Test),10 mg,Oral,1-0-0,30 days,30,8,240,DONE,YES,S12,,D2,YES
+O0106,E0086,QA-P046,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),Liberal,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D3,YES
+O0107,E0086,QA-P046,MEDICINE,M12,,NO,Mometasone 0.1% Cream 15g (Test),Thin layer,Topical,Once daily,1 week then alternate days,1,120,120,DONE,YES,S12,,D3,YES
+O0108,E0086,QA-P046,MEDICINE,M13,,NO,Tacrolimus 0.03% Ointment 10g (Test),Thin layer,Topical,Twice daily (face),2 weeks,1,340,340,DONE,YES,S12,"LOW_STOCK (4 received, reorder point 10) — pharmacist should see low-stock alert",D3,YES
+O0109,E0086,QA-P046,MEDICINE,M34,,NO,Levocetirizine 2.5mg/5ml Syrup 60ml (Test),2.5 ml,Oral,At bedtime,2 weeks,1,85,85,DONE,YES,S12,,D3,YES
+O0110,E0089,QA-P047,TREATMENT,,TR16,NO,Scar Revision — Post-Traumatic,,,,,1,25000,25000,ORDERED,NO,,,D4,YES
+O0111,E0089,QA-P047,TREATMENT,,TR19,NO,IPD Bed Charges (per day),,,,Bed charges (workaround: treatment master item),2,2500,5000,DONE,NO,S08,,D4,YES
+O0112,E0089,QA-P047,INJECTION,M26,,NO,Ceftriaxone 1g Injection (Test),1 g,IV,Once daily,,2,65,130,DONE,YES,S08,,D4,YES
+O0113,E0089,QA-P047,MEDICINE,M24,,NO,Paracetamol 500mg Tablet (Test),500 mg,Oral,1-1-1,,9,2,18,DONE,YES,S08,,D4,YES
+O0114,E0089,QA-P047,MEDICINE,M29,,NO,Paraffin Gauze Dressing 10x10cm (Test),—,Topical,With dressing,,4,35,140,DONE,YES,S11,,D4,YES
+O0115,E0089,QA-P047,MEDICINE,M27,,NO,Lignocaine 2% Injection 30ml (Test),10 ml,Local infiltration,Once (OT),,1,45,45,DONE,YES,S11,,D4,YES
+O0116,E0092,QA-P049,MEDICINE,M06,,NO,Minoxidil 5% Solution 60ml (Test),1 ml,Topical,Twice daily,1 month — Apply to thinning areas,1,650,650,DONE,YES,S12,,D2,YES
+O0117,E0092,QA-P049,MEDICINE,M07,,NO,Finasteride 1mg Tablet (Test),1 mg,Oral,0-0-1,30 days,30,9,270,DONE,YES,S12,,D2,YES
+O0118,E0093,QA-P050,MEDICINE,M11,,NO,Sunscreen SPF 50 Gel 50g (Test),Thin layer,Topical,Every 3 hours outdoors,2 months,1,520,520,DONE,YES,S12,,D2,YES
+O0119,E0093,QA-P050,MEDICINE,M15,,NO,Emollient Lotion 200ml (Test),As needed,Topical,Twice daily,1 month,1,450,450,DONE,YES,S12,,D2,YES

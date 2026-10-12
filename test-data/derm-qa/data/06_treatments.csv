@@ -1,0 +1,20 @@
+﻿treatment_id,name,price,is_gst_taxable,tax_rate,sac_code,classification_basis,needs_gst_professional_review,test_data
+TR01,PRP Scalp Session,6500,YES,18,999722,Aesthetic hair restoration (test: taxable),YES,YES
+TR02,Glycolic Acid Peel,2500,YES,18,999722,Cosmetic peel (test: taxable),YES,YES
+TR03,Salicylic Acid Peel,2200,YES,18,999722,Acne peel (test: taxable),YES,YES
+TR04,Q-Switched Nd:YAG Laser Toning,4500,YES,18,999722,Pigment laser (test: taxable),YES,YES
+TR05,Fractional CO2 Laser (Scars),7500,YES,18,999722,Scar resurfacing (test: taxable),YES,YES
+TR06,Microneedling with Serum,4000,YES,18,999722,Scar/texture (test: taxable),YES,YES
+TR07,Diode Laser Hair Reduction (Face),3500,YES,18,999722,Hair reduction (test: taxable),YES,YES
+TR08,RF Ablation — Seborrhoeic Keratosis,3000,YES,18,999722,Cosmetic lesion removal (test: taxable),YES,YES
+TR09,Cryotherapy — Viral Warts,1200,NO,0,999312,Medical treatment (test: exempt),YES,YES
+TR10,Electrocautery — Warts (LA),1500,NO,0,999312,Medical treatment (test: exempt),YES,YES
+TR11,Punch Biopsy with Histopathology Dispatch,2500,NO,0,999312,Diagnostic (test: exempt),YES,YES
+TR12,Excision of Benign Lesion — Primary Closure,6000,NO,0,999312,Medical/surgical (test: exempt),YES,YES
+TR13,Wound Dressing — Simple,500,NO,0,999312,Wound care (test: exempt),YES,YES
+TR14,Intralesional Triamcinolone Injection,800,NO,0,999312,Medical (test: exempt),YES,YES
+TR15,Split-Thickness Skin Graft (STSG),45000,NO,0,999311,Reconstructive surgery (test: exempt),YES,YES
+TR16,Scar Revision — Post-Traumatic,25000,NO,0,999311,Reconstructive surgery (test: exempt),YES,YES
+TR17,Local Flap Reconstruction,38000,NO,0,999311,Reconstructive surgery (test: exempt),YES,YES
+TR18,Suture Removal,300,NO,0,999312,Wound care (test: exempt),YES,YES
+TR19,IPD Bed Charges (per day),2500,NO,0,999311,Inpatient room (test: exempt) — workaround: care orders cannot carry a free price,YES,YES

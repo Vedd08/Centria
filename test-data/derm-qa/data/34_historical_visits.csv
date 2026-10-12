@@ -1,0 +1,9 @@
+﻿hv_ref,patient_id,date,doctor,visit_type,status,treatment,diagnosis,remarks,cash_amount,bank_amount,test_data
+HV-01,QA-P026,2026-05-20,D1,OPD,New,Consultation,Chronic plaque psoriasis — flare,[SIMULATED history] Topical clobetasol + emollient; review SOS,800,0,YES
+HV-02,QA-P028,2026-05-16,D1,OPD,New,Consultation,Chronic plaque psoriasis — flare,[SIMULATED history] Topical clobetasol + emollient; review SOS,800,0,YES
+HV-03,QA-P021,2026-08-04,D2,OPD,New,Consultation,Acne vulgaris — Grade III (treated),[SIMULATED history] Isotretinoin course completed; scars to be addressed after 6 months,800,0,YES
+HV-04,QA-P034,2026-06-26,D2,OPD,New,Consultation,Acne vulgaris — Grade III (treated),[SIMULATED history] Isotretinoin course completed; scars to be addressed after 6 months,800,0,YES
+HV-05,QA-P006,2026-06-15,D2,OPD,New,Consultation,Hair fall — diffuse; androgenetic alopecia suspected,[SIMULATED history] Minoxidil started; patient deferred PRP,800,0,YES
+HV-06,QA-P018,2026-05-22,D1,OPD,New,Consultation,Tinea cruris,[SIMULATED history] Topical antifungal 4 weeks; recurrence counselling,800,0,YES
+HV-07,QA-P009,2026-07-08,D3,OPD,New,Consultation,Common wart — single,[SIMULATED history] Wart paint; did not return,800,0,YES
+HV-08,QA-P001,2026-07-22,D2,OPD,New,Consultation,Melasma — epidermal,[SIMULATED history] Sunscreen + topical; lost to follow-up,800,0,YES

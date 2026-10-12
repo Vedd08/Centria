@@ -1,0 +1,15 @@
+﻿staff_id,name,role,title,dept_id,assigned_doctor,email,test_data
+S01,Ira Deshmukh (Test Admin),MASTER,Clinic Administrator,,,s01.master@aurora-qa.test,YES
+S02,Kavya Rao (Test Reception),RECEPTION,Front Desk — Morning,,,s02.reception@aurora-qa.test,YES
+S03,Rohan Desai (Test Reception),RECEPTION,Front Desk — Evening,,,s03.reception@aurora-qa.test,YES
+D1,Dr. Meera Kulkarni (Test),DOCTOR,Consultant Dermatologist — Medical & Acne,DEP-DERM,,d1.doctor@aurora-qa.test,YES
+D2,Dr. Arjun Iyer (Test),DOCTOR,"Consultant Dermatologist — Hair, Laser & Aesthetics",DEP-DERM,,d2.doctor@aurora-qa.test,YES
+D3,Dr. Sana Mirza (Test),DOCTOR,Consultant Dermatologist — Paediatric & Medical,DEP-DERM,,d3.doctor@aurora-qa.test,YES
+D4,Dr. Vikram Shetty (Test),DOCTOR,Consultant Plastic & Reconstructive Surgeon,DEP-PLAS,,d4.doctor@aurora-qa.test,YES
+S08,Asha Pillai (Test Nurse),NURSE,Ward Nurse — Day,DEP-PLAS,D4,s08.nurse@aurora-qa.test,YES
+S09,Leena DSouza (Test Nurse),NURSE,Ward Nurse — Night,DEP-PLAS,D4,s09.nurse@aurora-qa.test,YES
+S10,Nikhil Patil (Test Procedure Tech),STAFF,Procedure Room Technician (Laser/PRP),DEP-DERM,D2,s10.staff@aurora-qa.test,YES
+S11,Farah Khan (Test OT Tech),STAFF,OT / Minor Procedure Assistant,DEP-PLAS,D4,s11.staff@aurora-qa.test,YES
+S12,Deepak Joshi (Test Pharmacist),PHARMACY,Pharmacist,,,s12.pharmacy@aurora-qa.test,YES
+S13,Pooja Nair (Test Accounts),ACCOUNT,Billing & Accounts,,,s13.account@aurora-qa.test,YES
+S14,Aditya Menon (Test RM),RM,Relationship Manager,,,s14.rm@aurora-qa.test,YES

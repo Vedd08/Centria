@@ -1,0 +1,2 @@
+﻿nature,sr_from,sr_to,total_issued,cancelled,net_issued,note,file_label
+Invoices for outward supply,(first app invoice number),(last app invoice number),109,1,108,One erroneous invoice is issued and cancelled during import (CANCELLED_INVOICE scenario),TEST FILE — DO NOT FILE

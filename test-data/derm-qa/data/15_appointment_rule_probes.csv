@@ -1,0 +1,8 @@
+﻿probe,patient_id,doctor,date,start_time,expected,test_data
+DOUBLE_BOOK_SAME_SLOT,QA-P002,D1,2026-09-28,12:30,REJECT 409 — slot already taken,YES
+OUTSIDE_SESSION,QA-P003,D4,2026-10-13,16:00,REJECT 400 — not a valid open slot,YES
+DOCTOR_NO_SESSION_THAT_DAY,QA-P004,D4,2026-10-14,10:00,REJECT 400 — no session on Wednesday,YES
+DOCTOR_ON_LEAVE,QA-P005,D3,2026-09-30,15:00,SHOULD REJECT — doctor on leave (app has no leave model: expected to ACCEPT → gap),YES
+SUNDAY_CLOSED,QA-P006,D1,2026-10-18,10:00,REJECT 400 — no Sunday session,YES
+SCHEDULE_CHANGE_WITH_BOOKINGS,,D3,(Saturdays),15:00→16:00,Change Dr. Mirza Saturday session to 16:00–19:00 while 15:xx bookings exist: app should warn about affected appointments; revert afterwards (verify only — not part of import),YES
+ROOM_DOUBLE_BOOKING,,D2,(any),"(same time, laser room)",Two laser procedures in one room at the same time should be rejected — app has no room booking (UNSUPPORTED),YES

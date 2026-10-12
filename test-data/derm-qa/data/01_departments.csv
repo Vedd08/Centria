@@ -1,0 +1,3 @@
+﻿dept_id,name,code,description,test_data
+DEP-DERM,Dermatology,DERM,"[TEST] General, paediatric and aesthetic dermatology",YES
+DEP-PLAS,Plastic & Reconstructive Surgery,PLAS,"[TEST] Reconstructive surgery, wound care and scar management",YES

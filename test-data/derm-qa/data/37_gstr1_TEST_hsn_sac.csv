@@ -1,0 +1,7 @@
+﻿hsn_sac,description,rate,invoices_or_lines,taxable_value,cgst,sgst,igst,file_label
+999312,Health care services (TEST classification — exempt),0,65,55300,0,0,0,TEST FILE — DO NOT FILE
+999722,Aesthetic/cosmetic services (TEST classification),18,23,398400,35856,35856,0,TEST FILE — DO NOT FILE
+999722,Health care services (TEST classification — exempt),0,15,0,0,0,0,TEST FILE — DO NOT FILE
+999311,Health care services (TEST classification — exempt),0,2,83231,0,0,0,TEST FILE — DO NOT FILE
+3304,Photoprotection,18,3,1490,134.1,134.1,0,TEST FILE — DO NOT FILE
+3004,Antihistamine,12,3,175,10.5,10.5,0,TEST FILE — DO NOT FILE

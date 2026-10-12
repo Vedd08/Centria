@@ -1,0 +1,5 @@
+﻿package_type_id,name,treatment_id,total_sittings,price,is_gst_taxable,sitting_gap_days,doctor,description,needs_gst_professional_review,test_data
+PK1,PRP Hair Restoration — 6 Sessions (Test),TR01,6,33000,YES,28,D2,[TEST] PRP Hair Restoration — 6 Sessions (Test),YES,YES
+PK2,Acne Peel Series — 4 Sessions (Test),TR03,4,8000,YES,14,D1,[TEST] Acne Peel Series — 4 Sessions (Test),YES,YES
+PK3,Melasma Laser Toning — 6 Sessions (Test),TR04,6,22000,YES,14,D2,[TEST] Melasma Laser Toning — 6 Sessions (Test),YES,YES
+PK4,Wound Dressing — 10 Sessions (Test),TR13,10,4000,NO,2,D4,[TEST] Wound Dressing — 10 Sessions (Test),YES,YES

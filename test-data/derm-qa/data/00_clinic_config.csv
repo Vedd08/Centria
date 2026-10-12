@@ -1,0 +1,2 @@
+﻿clinicName,clinicAddress,clinicPhone,clinicEmail,clinicStateCode,gstinPlaceholder,windowStart,windowEnd,liveDay,futureHorizonDays,testPassword,consultFeeNew,consultFeeFollowUp,test_data
+[TEST] Aurora Skin & Reconstructive Clinic (QA),"[TEST DATA] Plot 0, QA Street, Pune, Maharashtra 411000 — fictional",0200000000,frontdesk@aurora-qa.test,27,TEST-GSTIN-NOT-VALID,2026-09-14,2026-10-10,IMPORT_DAY,28,QaTest@2026,800,500,YES

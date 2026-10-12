@@ -1,0 +1,14 @@
+﻿scenario,ref,action,expected,app_support,test_data
+CANCELLED_INVOICE,GI-0003,Cancel invoice issued in error,Cancellation with reason + audit trail; number not reused,"PARTIAL — DELETE hard-deletes the invoice (no audit trail, no credit note)",YES
+DUPLICATE_INVOICE,GI-0001,Collect Payment again for the same visit,REJECT 409 — visit already billed,SUPPORTED,YES
+INVALID_FIELDS,—,Create invoice with negative amount / no linked visit,REJECT 400,SUPPORTED,YES
+ADVANCE_PAYMENT,ADM-QA-02,"Collect ₹20,000 advance at admission, adjust on discharge bill",Advance receipt; adjusted against final invoice,UNSUPPORTED,YES
+PARTIAL_PAYMENT,PB bills marked PARTIAL,"Record part payment, carry balance",Outstanding balance tracked,UNSUPPORTED — bills are PAID/UNPAID only,YES
+REFUND_CREDIT_NOTE,PP-03,Patient cancels package after 1 session; refund unused sessions,"Credit note for unused value, GST reversed",UNSUPPORTED,YES
+PACKAGE_EXPIRY,PK1,Package validity 12 months,Expired package cannot be redeemed,UNSUPPORTED — no validity field,YES
+INTER_STATE_SUPPLY,QA-P017,Patient address in Karnataka,Place-of-supply decision; IGST if inter-state (needs GST professional),UNSUPPORTED — CGST/SGST only on sales,YES
+GSTR1_EXPORT,All GI-*,Export B2C/HSN summary for the month,Test file matching invoice register,UNSUPPORTED — no GSTR-1 export; reconcile against Invoices CSV export + Accounts summary,YES
+INPUT_IGST,PO2 (V2 Karnataka),Record purchase with IGST,ITC split IGST,SUPPORTED in Purchases (igst field),YES
+SPLIT_PAYMENT,ADM-QA-01 patient bill,"Pay one bill part cash, part UPI","Two tenders on one bill, both on the receipt",UNSUPPORTED — one mode per bill,YES
+BILL_DISCOUNT,Any OPD bill,Give a discount on a consultation/procedure bill,Discount line with reason and approver,UNSUPPORTED — discounts exist only on package sales,YES
+INVOICE_NUMBER_REUSE,GI-0003,"Cancel (delete) the latest invoice, then issue a new one",Cancelled number is never reused,TO VERIFY — numbering takes the highest existing number + 1,YES

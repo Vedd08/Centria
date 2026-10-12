@@ -1,0 +1,19 @@
+﻿pn_ref,admission_ref,recorded_at,author,note_type,status,blood_pressure,pulse,temperature,note,test_data
+PN-001,ADM-QA-01,2026-09-28 08:30,S08,NURSE,STABLE,123/71,75,36.89,"[SIMULATED] Post-op: dressing intact, no soaking; drain nil. Pain 3/10.",YES
+PN-002,ADM-QA-01,2026-09-28 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-003,ADM-QA-01,2026-09-29 08:30,S09,NURSE,STABLE,115/85,68,36.65,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-004,ADM-QA-01,2026-09-29 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-005,ADM-QA-01,2026-09-30 08:30,S08,NURSE,STABLE,117/71,75,37.33,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-006,ADM-QA-01,2026-09-30 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-007,ADM-QA-02,2026-09-26 08:30,S08,NURSE,STABLE,130/73,75,36.98,"[SIMULATED] Post-op: dressing intact, no soaking; drain nil. Pain 3/10.",YES
+PN-008,ADM-QA-02,2026-09-26 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-009,ADM-QA-02,2026-09-27 08:30,S09,NURSE,STABLE,112/83,95,36.6,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-010,ADM-QA-02,2026-09-27 11:00,D4,DOCTOR,NEEDS_ATTENTION,,,,"[SIMULATED] Low-grade fever 38.0°C, soakage at graft edge — wound swab sent [placeholder]; continue IV antibiotic.",YES
+PN-011,ADM-QA-02,2026-09-28 08:30,S08,NURSE,STABLE,114/71,95,36.96,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-012,ADM-QA-02,2026-09-28 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-013,ADM-QA-02,2026-09-29 08:30,S09,NURSE,STABLE,117/74,70,36.84,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-014,ADM-QA-02,2026-09-29 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-015,ADM-QA-02,2026-09-30 08:30,S08,NURSE,STABLE,117/76,95,36.83,"[SIMULATED] Afebrile, dressing dry, tolerating diet, ambulating with support.",YES
+PN-016,ADM-QA-02,2026-09-30 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES
+PN-017,ADM-QA-03,2026-10-10 08:30,S08,NURSE,STABLE,122/78,90,37.21,"[SIMULATED] Post-op: dressing intact, no soaking; drain nil. Pain 3/10.",YES
+PN-018,ADM-QA-03,2026-10-10 11:00,D4,DOCTOR,STABLE,,,,[SIMULATED] Stable. Graft/flap site inspected through window — no haematoma. Continue plan.,YES

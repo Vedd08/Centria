@@ -1,0 +1,6 @@
+﻿call_ref,patient_id,kind,due_date,outcome,note,called_by,test_data
+FC-01,QA-P016,DOCTOR_FOLLOW_UP,2026-09-16,NO_ANSWER,[TEST] Called after no-show,S02,YES
+FC-02,QA-P015,DOCTOR_FOLLOW_UP,2026-10-03,CALL_BACK,[TEST] Called after no-show,S02,YES
+FC-03,QA-P037,DOCTOR_FOLLOW_UP,2026-10-01,CALL_BACK,[TEST] Called after no-show,S02,YES
+FC-04,QA-P005,DOCTOR_FOLLOW_UP,2026-09-16,NO_ANSWER,[TEST] Called after no-show,S02,YES
+FC-05,QA-P030,DOCTOR_FOLLOW_UP,2026-10-01,CALL_BACK,[TEST] Called after no-show,S02,YES

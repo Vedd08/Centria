@@ -1,0 +1,6 @@
+﻿purchase_ref,vendor_id,vendor_invoice_no,invoice_date,line_count,taxable_value,igst,cgst,sgst,total_value,input_classification,itc_eligibility,test_data
+PO1,V1,TEST-SPD-0912,2026-09-12,27,31178,0,2115.18,2115.18,35408.36,Medicine Stock,Full,YES
+PO2,V2,TEST-MSC-0912,2026-09-12,7,13000,1560,0,0,14560,Medicine Stock,Full,YES
+PO3,V1,TEST-SPD-0919,2026-09-19,4,4990,0,407.4,407.4,5804.8,Medicine Stock,Full,YES
+PO4,V2,TEST-MSC-1003,2026-10-03,1,8800,1056,0,0,9856,Medicine Stock,Full,YES
+PO5,V1,TEST-SPD-1003,2026-10-03,1,48,0,2.88,2.88,53.76,Medicine Stock,Full,YES

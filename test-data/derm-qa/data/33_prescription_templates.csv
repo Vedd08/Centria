@@ -1,0 +1,4 @@
+﻿template_ref,doctor,name,condition,items,test_data
+TPL-01,D1,Acne Vulgaris — Grade II (Test),Acne vulgaris,M03;M04;M01,YES
+TPL-02,D1,Tinea Corporis/Cruris (Test),Dermatophytosis,M19;M20,YES
+TPL-03,D3,Atopic Dermatitis — Child (Test),Atopic dermatitis,M15;M12;M13;M34,YES
