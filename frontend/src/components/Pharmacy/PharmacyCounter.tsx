@@ -5,8 +5,9 @@ import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { MedicineList } from '../Medicines/MedicineList';
 import { CareOrder, ORDER_TYPE_LABEL, money } from '../Queue/types';
-import { Package, RefreshCw, Pill, AlertTriangle, Boxes, Receipt } from 'lucide-react';
+import { Package, RefreshCw, Pill, AlertTriangle, Boxes, Receipt, FileText } from 'lucide-react';
 import { PrintableInvoiceModal, InvoiceItem } from '../Invoices/PrintableInvoiceModal';
+import { PrintablePatientBill, PatientBill } from '../Reception/PrintablePatientBill';
 import { RetailPOS } from './RetailPOS';
 import { StockRefill } from './StockRefill';
 import { ExpiryDashboard } from './ExpiryDashboard';
@@ -17,6 +18,7 @@ type Tab = 'counter' | 'stock' | 'retail' | 'refill' | 'expiries';
 
 interface PatientGroup {
   key: string;
+  queueId?: string;
   patientName: string;
   patientPhone: string;
   token?: number;
@@ -39,6 +41,8 @@ export const PharmacyCounter: React.FC = () => {
   const [date, setDate] = useState(todayStr());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [printingInvoice, setPrintingInvoice] = useState<InvoiceItem | null>(null);
+  const [pharmacyBill, setPharmacyBill] = useState<PatientBill | null>(null);
+  const [loadingBillFor, setLoadingBillFor] = useState<string | null>(null);
 
   const fetchOrders = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -68,6 +72,20 @@ export const PharmacyCounter: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, tab]);
 
+  const openPharmacyBill = async (queueId: string) => {
+    setLoadingBillFor(queueId);
+    try {
+      const res = await apiFetch(`/api/queue/${queueId}/pharmacy-bill`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not build the pharmacy bill');
+      setPharmacyBill(data);
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not build the pharmacy bill');
+    } finally {
+      setLoadingBillFor(null);
+    }
+  };
+
   const dispense = async (order: CareOrder) => {
     setBusyId(order.id);
     try {
@@ -90,6 +108,7 @@ export const PharmacyCounter: React.FC = () => {
       if (!acc[key]) {
         acc[key] = {
           key,
+          queueId: o.queue?.id,
           patientName: o.patient?.name || 'Unknown',
           patientPhone: o.patient?.phone || '',
           token: o.queue?.tokenNumber,
@@ -219,9 +238,22 @@ export const PharmacyCounter: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Amount</p>
-                      <p className="text-sm font-semibold text-brand-deep">{money(g.total)}</p>
+                    <div className="flex items-center gap-3">
+                      {/* OPD patients pay the pharmacist; inpatients' medicines go on the patient bill. */}
+                      {g.queueId && g.careType === 'OPD' && (
+                        <button
+                          onClick={() => openPharmacyBill(g.queueId!)}
+                          disabled={loadingBillFor === g.queueId}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded-md cursor-pointer disabled:opacity-50"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          {loadingBillFor === g.queueId ? 'Loading...' : 'Pharmacy Bill'}
+                        </button>
+                      )}
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Amount</p>
+                        <p className="text-sm font-semibold text-brand-deep">{money(g.total)}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -283,6 +315,8 @@ export const PharmacyCounter: React.FC = () => {
           onClose={() => setPrintingInvoice(null)}
         />
       )}
+      <PrintablePatientBill bill={pharmacyBill} onClose={() => setPharmacyBill(null)} onChange={setPharmacyBill} />
+
     </div>
   );
 };

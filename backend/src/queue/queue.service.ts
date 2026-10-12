@@ -6,6 +6,8 @@ import { CheckInDto } from './dto/check-in.dto';
 import { AssessQueueDto } from './dto/assess-queue.dto';
 import { UpdateQueueStatusDto } from './dto/update-queue-status.dto';
 import { RequestAdmissionDto } from './dto/request-admission.dto';
+import { UpdateBillPaymentDto } from './dto/update-bill-payment.dto';
+import { cleanPaymentDetails, parsePaymentDetails, serializePaymentDetails } from '../common/payment-details';
 import { toLocalDateKey } from '../common/date.helper';
 import { textContains } from '../common/text-search';
 
@@ -50,12 +52,43 @@ const QUEUE_INCLUDE = {
     orderBy: { createdAt: 'asc' },
   },
   recommendedPackageType: true,
+  bills: { select: { kind: true, billNumber: true, paymentStatus: true, paymentMode: true } },
 } as const;
 
 const today = () => toLocalDateKey(new Date());
 
 /** Rounds a money figure to paise. Same convention as InvoicesService. */
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Orders the pharmacy dispenses — billed by the pharmacist for OPD patients. */
+const PHARMACY_ORDER_TYPES = ['MEDICINE', 'INJECTION'];
+
+export type BillKind = 'PATIENT' | 'PHARMACY';
+const BILL_PREFIX: Record<BillKind, string> = { PATIENT: 'PB', PHARMACY: 'PH' };
+
+export interface BillLine {
+  description: string;
+  kind: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  taxable: boolean;
+  hsnCode?: string;
+  taxRate?: number;
+}
+
+const orderLine = (order: any): BillLine => ({
+  description: order.description,
+  kind: order.orderType,
+  quantity: order.quantity,
+  unitPrice: Number(order.unitPrice),
+  amount: Number(order.totalPrice),
+  // Pharmacy items carry their own GST flag; anything else follows the
+  // treatment it came from, and free-text services are exempt.
+  taxable: order.medicine?.isGstTaxable ?? order.treatment?.isGstTaxable ?? false,
+  hsnCode: order.medicine?.hsnCode ?? order.treatment?.hsnCode ?? undefined,
+  taxRate: order.medicine?.taxRate ? Number(order.medicine.taxRate) : order.treatment?.taxRate ? Number(order.treatment.taxRate) : undefined,
+});
 
 import { PackagesService } from '../packages/packages.service';
 
@@ -359,16 +392,7 @@ export class QueueService {
   async getBill(clinicId: string, id: string) {
     const entry = await this.findOne(clinicId, id);
 
-    const lines: {
-      description: string;
-      kind: string;
-      quantity: number;
-      unitPrice: number;
-      amount: number;
-      taxable: boolean;
-      hsnCode?: string;
-      taxRate?: number;
-    }[] = [];
+    const lines: BillLine[] = [];
 
     const fee = Number(entry.consultationFee ?? 0);
     if (fee > 0) {
@@ -400,26 +424,44 @@ export class QueueService {
       if (order.status === 'CANCELLED') continue;
       
       // Exclusive Pharmacy Billing for OPD:
-      // Walk-in patients pay the Pharmacist directly for drugs. 
+      // Walk-in patients pay the Pharmacist directly for drugs (see getPharmacyBill).
       // IPD patients have their drugs added to their consolidated discharge bill here.
-      if (entry.careType === 'OPD' && ['MEDICINE', 'INJECTION'].includes(order.orderType)) {
+      if (entry.careType === 'OPD' && PHARMACY_ORDER_TYPES.includes(order.orderType)) {
         continue;
       }
 
-      lines.push({
-        description: order.description,
-        kind: order.orderType,
-        quantity: order.quantity,
-        unitPrice: Number(order.unitPrice),
-        amount: Number(order.totalPrice),
-        // Pharmacy items carry their own GST flag; anything else follows the
-        // treatment it came from, and free-text services are exempt.
-        taxable: order.medicine?.isGstTaxable ?? order.treatment?.isGstTaxable ?? false,
-        hsnCode: order.medicine?.hsnCode ?? order.treatment?.hsnCode ?? undefined,
-        taxRate: order.medicine?.taxRate ? Number(order.medicine.taxRate) : order.treatment?.taxRate ? Number(order.treatment.taxRate) : undefined,
-      });
+      lines.push(orderLine(order));
     }
 
+    return this.composeBill(clinicId, entry, 'PATIENT', lines);
+  }
+
+  /**
+   * The bill the pharmacist hands an OPD patient for the medicines and injections the
+   * doctor ordered. Inpatients don't get one — their drugs are on the patient bill.
+   */
+  async getPharmacyBill(clinicId: string, id: string) {
+    const entry = await this.findOne(clinicId, id);
+    if (entry.careType !== 'OPD') {
+      throw new BadRequestException(
+        "Only OPD patients get a separate pharmacy bill — this patient's medicines are on the reception patient bill",
+      );
+    }
+
+    const lines = entry.careOrders
+      .filter((o) => o.status !== 'CANCELLED' && PHARMACY_ORDER_TYPES.includes(o.orderType))
+      .map(orderLine);
+
+    return this.composeBill(clinicId, entry, 'PHARMACY', lines);
+  }
+
+  /** Totals, invoice number and payment state shared by the patient and pharmacy bills. */
+  private async composeBill(
+    clinicId: string,
+    entry: Awaited<ReturnType<QueueService['findOne']>>,
+    kind: BillKind,
+    lines: BillLine[],
+  ) {
     // Money is settled in paise, so every figure that reaches a bill is rounded to two
     // decimals — matching InvoicesService. Left raw, 9% of a price carrying paise
     // (1149.50 -> 103.455) prints a third decimal, and binary floating point turns
@@ -442,12 +484,20 @@ export class QueueService {
     const cgst = round2(totalCgst);
     const sgst = round2(totalSgst);
 
+    const bill = await this.ensureBillRecord(clinicId, entry.id, kind);
+
     return {
+      kind,
       queueId: entry.id,
       tokenNumber: entry.tokenNumber,
       queueDate: entry.queueDate,
+      billNumber: bill.billNumber,
+      paymentStatus: bill.paymentStatus,
+      paymentMode: bill.paymentMode,
+      paymentDetails: parsePaymentDetails(bill.paymentDetails),
+      paidAt: bill.paidAt,
+      receivedBy: bill.receivedBy,
       careType: entry.careType,
-      diagnosis: entry.diagnosis,
       patient: entry.patient,
       doctor: entry.doctor,
       lines,
@@ -458,6 +508,60 @@ export class QueueService {
       sgst,
       totalAmount: round2(subTotal + cgst + sgst),
     };
+  }
+
+  /**
+   * The encounter's bill record, created on first open with the next invoice number
+   * (PB-<year>-0001 for patient bills, PH-<year>-0001 for pharmacy bills, counting up
+   * per clinic per year). Reprints find the existing record and keep its number.
+   */
+  private async ensureBillRecord(clinicId: string, queueId: string, kind: BillKind) {
+    const prefix = `${BILL_PREFIX[kind]}-${new Date().getFullYear()}-`;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const existing = await this.prisma.encounterBill.findUnique({ where: { queueId_kind: { queueId, kind } } });
+      if (existing) return existing;
+
+      const latest = await this.prisma.encounterBill.findFirst({
+        where: { clinicId, billNumber: { startsWith: prefix } },
+        orderBy: { billNumber: 'desc' },
+        select: { billNumber: true },
+      });
+      const parsed = latest ? parseInt(latest.billNumber.slice(prefix.length), 10) : 0;
+      const billNumber = `${prefix}${((Number.isNaN(parsed) ? 0 : parsed) + 1).toString().padStart(4, '0')}`;
+
+      try {
+        return await this.prisma.encounterBill.create({ data: { clinicId, queueId, kind, billNumber } });
+      } catch (error) {
+        // Another request opened this bill, or took the same number, at the same
+        // moment — loop round to pick up its record or the next free number.
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+      }
+    }
+    throw new ConflictException('Could not assign an invoice number to this bill, please retry');
+  }
+
+  /**
+   * Marks an encounter's patient or pharmacy bill paid — with the mode and its
+   * details (transaction ID, account, card, UPI…) — or back to unpaid.
+   */
+  async updateBillPayment(clinicId: string, id: string, kind: BillKind, dto: UpdateBillPaymentDto, user: any) {
+    const load = () => (kind === 'PHARMACY' ? this.getPharmacyBill(clinicId, id) : this.getBill(clinicId, id));
+    const { queueId } = await load(); // Checks access and makes sure the bill record exists.
+
+    const data: Prisma.EncounterBillUpdateInput =
+      dto.status === 'PAID'
+        ? {
+            paymentStatus: 'PAID',
+            paymentMode: dto.mode,
+            paymentDetails: serializePaymentDetails(cleanPaymentDetails(dto.mode!, dto.details)),
+            paidAt: new Date(),
+            receivedBy: user?.name ?? null,
+          }
+        : { paymentStatus: 'UNPAID', paymentMode: null, paymentDetails: null, paidAt: null, receivedBy: null };
+
+    await this.prisma.encounterBill.update({ where: { queueId_kind: { queueId, kind } }, data });
+    return load();
   }
 
   /**

@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { Tag } from 'lucide-react';
 import { Patient } from '../Patients/PatientList';
 import { PackageTypeItem } from './PackageList';
+import { money } from '../../utils/money';
 
 interface SellPackageModalProps {
   isOpen: boolean;
@@ -31,11 +32,18 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
   const [selectedPackageTypeId, setSelectedPackageTypeId] = useState(initialPackageTypeId);
   const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [discountMode, setDiscountMode] = useState<'AMOUNT' | 'PERCENT'>('AMOUNT');
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
   const [selling, setSelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      // fetchData resets the amount to the package price, so start with no discount.
+      setDiscountMode('AMOUNT');
+      setDiscountInput('');
+      setDiscountReason('');
       fetchData();
       if (initialPatientId) setSelectedPatientId(initialPatientId);
       if (initialPackageTypeId) setSelectedPackageTypeId(initialPackageTypeId);
@@ -98,6 +106,32 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
     setSelectedPackageTypeId(typeId);
     const found = packageTypes.find((t) => t.id === typeId);
     if (found) setAmountPaid(found.price);
+    setDiscountInput('');
+  };
+
+  // The discount and the amount charged move together: typing either one updates the other.
+  const listPrice = Number(packageTypes.find((t) => t.id === selectedPackageTypeId)?.price ?? 0);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const discountAmount = Math.max(0, round2(listPrice - amountPaid));
+  const discountPercent = listPrice > 0 ? round2((discountAmount / listPrice) * 100) : 0;
+
+  const handleDiscountChange = (raw: string, mode = discountMode) => {
+    setDiscountInput(raw);
+    const v = Math.max(0, Number(raw) || 0);
+    const off = mode === 'PERCENT' ? (listPrice * Math.min(v, 100)) / 100 : Math.min(v, listPrice);
+    setAmountPaid(round2(listPrice - off));
+  };
+
+  const handleDiscountModeChange = (mode: 'AMOUNT' | 'PERCENT') => {
+    setDiscountMode(mode);
+    // Keep the same discount, re-expressed in the new unit.
+    setDiscountInput(discountAmount > 0 ? String(mode === 'PERCENT' ? discountPercent : discountAmount) : '');
+  };
+
+  const handleAmountChange = (value: number) => {
+    setAmountPaid(value);
+    const off = Math.max(0, round2(listPrice - value));
+    setDiscountInput(off > 0 ? String(discountMode === 'PERCENT' ? round2((off / listPrice) * 100) : off) : '');
   };
 
   const handleSellSubmit = async (e: React.FormEvent) => {
@@ -115,6 +149,7 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
           patientId: selectedPatientId,
           packageTypeId: selectedPackageTypeId,
           amountPaid: Number(amountPaid),
+          discountReason: discountAmount > 0 ? discountReason.trim() || undefined : undefined,
           linkToQueueId: linkToQueueId || undefined,
         }),
       });
@@ -122,7 +157,9 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to complete package sale');
 
-      addToast('success', 'Package sold successfully');
+      addToast('success', discountAmount > 0 ? `Package sold with ${money(discountAmount)} discount` : 'Package sold successfully');
+      setDiscountInput('');
+      setDiscountReason('');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -210,6 +247,50 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
           </div>
 
           <div>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">Discount</label>
+            <div className="flex gap-2">
+              <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+                {(['AMOUNT', 'PERCENT'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleDiscountModeChange(m)}
+                    className={`px-3 py-2 text-xs font-semibold cursor-pointer ${
+                      discountMode === m ? 'bg-brand text-white' : 'bg-surface-card text-ink-secondary hover:text-ink-primary'
+                    }`}
+                  >
+                    {m === 'AMOUNT' ? '₹' : '%'}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={discountMode === 'PERCENT' ? 100 : listPrice}
+                step="0.01"
+                value={discountInput}
+                onChange={(e) => handleDiscountChange(e.target.value)}
+                placeholder={discountMode === 'PERCENT' ? 'e.g. 10' : 'e.g. 5000'}
+                className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
+              />
+            </div>
+          </div>
+
+          {discountAmount > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">Reason for discount</label>
+              <input
+                type="text"
+                maxLength={200}
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                placeholder="e.g. Loyal patient, festival offer, doctor's approval"
+                className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
+              />
+            </div>
+          )}
+
+          <div>
             <label className="block text-xs font-semibold text-ink-secondary mb-1">
               Amount Paid (₹) <span className="text-status-danger">*</span>
             </label>
@@ -218,10 +299,29 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
               required
               min={0}
               value={amountPaid}
-              onChange={(e) => setAmountPaid(Number(e.target.value))}
+              onChange={(e) => handleAmountChange(Number(e.target.value))}
               className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card font-bold"
             />
           </div>
+
+          {listPrice > 0 && (
+            <div className="p-3 rounded-md bg-surface-page border border-border text-xs space-y-1">
+              <div className="flex justify-between text-ink-secondary">
+                <span>Package price</span>
+                <span className="font-mono">{money(listPrice)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-status-success">
+                  <span>Discount ({discountPercent}%)</span>
+                  <span className="font-mono">− {money(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-ink-primary pt-1 border-t border-border">
+                <span>Patient pays</span>
+                <span className="font-mono">{money(amountPaid)}</span>
+              </div>
+            </div>
+          )}
 
           <div className="pt-2 border-t border-border flex justify-end gap-2">
             <button

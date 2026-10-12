@@ -3,6 +3,9 @@ import { X, Printer, Stethoscope, CheckCircle2, ShieldCheck, FileText } from 'lu
 import { BrandLogo } from '../common/BrandLogo';
 import { useClinicProfile } from '../../hooks/useClinicProfile';
 import { PrintPortal } from '../common/PrintPortal';
+import { money } from '../../utils/money';
+import { PaymentDetailsBlock } from '../common/payment/PaymentDetailsBlock';
+import { PAYMENT_MODE_LABEL, PaymentDetails, PaymentMode, parsePaymentDetails } from '../common/payment/paymentModes';
 
 export interface InvoiceItem {
   id: string;
@@ -11,6 +14,10 @@ export interface InvoiceItem {
   patientUhid: string;
   itemTitle: string;
   isGstTaxable: boolean;
+  /** Set when sold below list price (package sales). */
+  listPrice?: number | null;
+  discountAmount?: number;
+  discountReason?: string | null;
   taxableValue: number;
   cgstRate: number;
   sgstRate: number;
@@ -19,6 +26,9 @@ export interface InvoiceItem {
   totalAmount: number;
   paymentMethod: string;
   paymentRef?: string;
+  paymentMode?: PaymentMode | null;
+  /** JSON text from the server (or already parsed) — see parsePaymentDetails. */
+  paymentDetails?: string | PaymentDetails | null;
   issuedAt: string;
   reconciled?: boolean;
 }
@@ -90,8 +100,12 @@ export const PrintableInvoiceModal: React.FC<Props> = ({ invoice, onClose }) => 
               <span className="text-xs uppercase font-extrabold tracking-widest text-brand-deep bg-brand/10 border border-brand/20 px-3 py-1 rounded-md inline-block">
                 Tax Invoice
               </span>
-              <div className="text-sm font-mono font-bold text-ink-primary mt-2">{invoice.invoiceNumber}</div>
-              <div className="text-xs text-ink-secondary">Date: {new Date(invoice.issuedAt).toLocaleDateString('en-IN')}</div>
+              <div className="text-xs text-ink-secondary mt-2">
+                Date: <span className="font-mono">{new Date(invoice.issuedAt).toLocaleDateString('en-IN')}</span>
+              </div>
+              <div className="text-xs text-ink-secondary">
+                Invoice No: <span className="text-sm font-mono font-bold text-ink-primary">{invoice.invoiceNumber}</span>
+              </div>
             </div>
           </div>
 
@@ -103,8 +117,10 @@ export const PrintableInvoiceModal: React.FC<Props> = ({ invoice, onClose }) => 
               <div className="font-mono text-brand font-semibold">{invoice.patientUhid}</div>
             </div>
             <div>
-              <span className="text-ink-secondary font-semibold uppercase tracking-wider text-[10px] block">Payment Reference</span>
-              <div className="font-bold text-ink-primary uppercase mt-0.5">{invoice.paymentMethod} Mode</div>
+              <span className="text-ink-secondary font-semibold uppercase tracking-wider text-[10px] block">Payment</span>
+              <div className="font-bold text-ink-primary uppercase mt-0.5">
+                {invoice.paymentMode ? `Paid — ${PAYMENT_MODE_LABEL[invoice.paymentMode]}` : `${invoice.paymentMethod} Mode`}
+              </div>
               {invoice.paymentRef && <div className="text-ink-secondary font-mono">{invoice.paymentRef}</div>}
             </div>
           </div>
@@ -138,6 +154,23 @@ export const PrintableInvoiceModal: React.FC<Props> = ({ invoice, onClose }) => 
           {/* Business Rule 4 GST Calculation Breakdown */}
           <div className="flex justify-end pt-2">
             <div className="w-72 space-y-2 text-xs bg-surface-page p-4 rounded-xl border border-border">
+              {Number(invoice.discountAmount ?? 0) > 0 && (
+                <>
+                  {invoice.listPrice ? (
+                    <div className="flex justify-between text-ink-secondary">
+                      <span>Package Price:</span>
+                      <span className="font-semibold text-ink-primary">{money(invoice.listPrice)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between text-status-success">
+                    <span>Discount:</span>
+                    <span className="font-semibold">− {money(invoice.discountAmount)}</span>
+                  </div>
+                  {invoice.discountReason && (
+                    <div className="text-[10px] text-ink-secondary -mt-1">({invoice.discountReason})</div>
+                  )}
+                </>
+              )}
               <div className="flex justify-between text-ink-secondary">
                 <span>Subtotal (Taxable Value):</span>
                 <span className="font-semibold text-ink-primary">₹{invoice.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
@@ -159,6 +192,17 @@ export const PrintableInvoiceModal: React.FC<Props> = ({ invoice, onClose }) => 
               </div>
             </div>
           </div>
+
+          {/* Invoices from before payment modes existed only know cash/bank. */}
+          {invoice.paymentMode && (
+            <PaymentDetailsBlock
+              status="PAID"
+              mode={invoice.paymentMode}
+              details={parsePaymentDetails(invoice.paymentDetails)}
+              total={invoice.totalAmount}
+              paidAt={invoice.issuedAt}
+            />
+          )}
 
           {/* Footer Note */}
           <div className="pt-6 border-t border-border text-[11px] text-ink-secondary text-center space-y-1">

@@ -4,8 +4,16 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { PrintableInvoiceModal, InvoiceItem } from '../Invoices/PrintableInvoiceModal';
 import { PrintablePatientBill, PatientBill } from './PrintablePatientBill';
-import { Receipt, Printer, Banknote, CreditCard, FileText, Repeat } from 'lucide-react';
+import { Receipt, Printer, FileText, Repeat } from 'lucide-react';
 import { money } from '../../utils/money';
+import { PaymentModeFields } from '../common/payment/PaymentModeFields';
+import {
+  PAYMENT_MODE_LABEL,
+  PaymentDetailsDraft,
+  PaymentMode,
+  missingPaymentDetail,
+  toPaymentDetails,
+} from '../common/payment/paymentModes';
 
 interface QueueEntry {
   id: string;
@@ -16,6 +24,7 @@ interface QueueEntry {
   patient: { id: string; name: string; phone: string };
   doctor?: { name: string };
   careOrders?: { id: string }[];
+  bills?: { kind: 'PATIENT' | 'PHARMACY'; billNumber: string; paymentStatus: 'PAID' | 'UNPAID'; paymentMode?: PaymentMode | null }[];
 }
 
 interface VisitOption {
@@ -44,8 +53,8 @@ export const PaymentsPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [visitId, setVisitId] = useState('');
   const [taxableValue, setTaxableValue] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash');
-  const [paymentRef, setPaymentRef] = useState('');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetailsDraft>({});
   const [submitting, setSubmitting] = useState(false);
 
   const [recent, setRecent] = useState<InvoiceItem[]>([]);
@@ -94,6 +103,11 @@ export const PaymentsPanel: React.FC = () => {
       addToast('error', 'Pick a visit and enter an amount');
       return;
     }
+    const missing = missingPaymentDetail(paymentMode, paymentDetails);
+    if (missing) {
+      addToast('error', missing);
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await apiFetch('/api/invoices', {
@@ -102,8 +116,8 @@ export const PaymentsPanel: React.FC = () => {
         body: JSON.stringify({
           visitId,
           taxableValue: Number(taxableValue),
-          paymentMethod,
-          paymentRef: paymentRef.trim() || undefined,
+          paymentMode,
+          paymentDetails: toPaymentDetails(paymentMode, paymentDetails),
         }),
       });
       const data = await res.json();
@@ -113,7 +127,7 @@ export const PaymentsPanel: React.FC = () => {
       setPrinting(data); // Open the printable receipt straight away.
       setVisitId('');
       setTaxableValue('');
-      setPaymentRef('');
+      setPaymentDetails({});
       load();
     } catch (err: any) {
       addToast('error', err.message || 'Could not record payment');
@@ -122,7 +136,25 @@ export const PaymentsPanel: React.FC = () => {
     }
   };
 
-  const gstPreview = selectedVisit?.isGstTaxable ? Number(taxableValue || 0) * 0.18 : 0;
+  // Show a bill, keeping the list's paid/unpaid badge in step with it.
+  const showBill = (saved: PatientBill) => {
+    setBill(saved);
+    setEncounters((prev) =>
+      prev.map((q) =>
+        q.id !== saved.queueId
+          ? q
+          : {
+              ...q,
+              bills: [
+                ...(q.bills ?? []).filter((b) => b.kind !== saved.kind),
+                { kind: saved.kind, billNumber: saved.billNumber, paymentStatus: saved.paymentStatus, paymentMode: saved.paymentMode },
+              ],
+            },
+      ),
+    );
+  };
+
+  const gstPreview =selectedVisit?.isGstTaxable ? Number(taxableValue || 0) * 0.18 : 0;
 
   return (
     <div className="space-y-5">
@@ -152,51 +184,30 @@ export const PaymentsPanel: React.FC = () => {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                  Amount (₹) <span className="text-status-danger">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="0.01"
-                  value={taxableValue}
-                  onChange={(e) => setTaxableValue(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">Method</label>
-                <div className="flex gap-2">
-                  {(['cash', 'bank'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setPaymentMethod(m)}
-                      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
-                        paymentMethod === m
-                          ? 'bg-brand text-white border-brand shadow-xs'
-                          : 'bg-surface-card text-ink-primary border-border hover:bg-surface-page'
-                      }`}
-                    >
-                      {m === 'cash' ? <Banknote className="w-3.5 h-3.5" /> : <CreditCard className="w-3.5 h-3.5" />}
-                      {m === 'cash' ? 'Cash' : 'Bank'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">Payment Ref</label>
-                <input
-                  type="text"
-                  value={paymentRef}
-                  onChange={(e) => setPaymentRef(e.target.value)}
-                  placeholder="UTR / receipt no."
-                  className={inputClass}
-                />
-              </div>
+            <div className="sm:w-1/3">
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">
+                Amount (₹) <span className="text-status-danger">*</span>
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                step="0.01"
+                value={taxableValue}
+                onChange={(e) => setTaxableValue(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">Payment mode</label>
+              <PaymentModeFields
+                mode={paymentMode}
+                details={paymentDetails}
+                onModeChange={setPaymentMode}
+                onDetailsChange={setPaymentDetails}
+                disabled={submitting}
+              />
             </div>
 
             {selectedVisit && taxableValue && (
@@ -257,13 +268,29 @@ export const PaymentsPanel: React.FC = () => {
                         {` • ${q.careOrders?.length ?? 0} order(s)`}
                       </p>
                     </div>
+                    {(() => {
+                      const b = q.bills?.find((x) => x.kind === 'PATIENT');
+                      if (!b) return null;
+                      const paid = b.paymentStatus === 'PAID';
+                      return (
+                        <span
+                          className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-semibold border shrink-0 ${
+                            paid
+                              ? 'bg-status-success/10 text-status-success border-status-success/20'
+                              : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+                          }`}
+                        >
+                          {paid ? `Paid${b.paymentMode ? ` · ${PAYMENT_MODE_LABEL[b.paymentMode]}` : ''}` : 'Unpaid'}
+                        </span>
+                      );
+                    })()}
                     <button
                       onClick={async () => {
                         setLoadingBillFor(q.id);
                         try {
                           const res = await apiFetch(`/api/queue/${q.id}/bill`);
                           if (!res.ok) throw new Error('Could not build the bill');
-                          setBill(await res.json());
+                          showBill(await res.json());
                         } catch (err: any) {
                           addToast('error', err.message || 'Could not build the bill');
                         } finally {
@@ -297,7 +324,8 @@ export const PaymentsPanel: React.FC = () => {
                         {inv.patientName} <span className="font-mono text-ink-secondary">· {inv.invoiceNumber}</span>
                       </p>
                       <p className="text-[11px] text-ink-secondary">
-                        {inv.itemTitle} • {money(inv.totalAmount)} • {inv.paymentMethod}
+                        {inv.itemTitle} • {money(inv.totalAmount)} •{' '}
+                        {inv.paymentMode ? PAYMENT_MODE_LABEL[inv.paymentMode] : inv.paymentMethod}
                       </p>
                     </div>
                     <button
@@ -316,7 +344,7 @@ export const PaymentsPanel: React.FC = () => {
       )}
 
       <PrintableInvoiceModal invoice={printing} onClose={() => setPrinting(null)} />
-      <PrintablePatientBill bill={bill} onClose={() => setBill(null)} />
+      <PrintablePatientBill bill={bill} onClose={() => setBill(null)} onChange={showBill} />
     </div>
   );
 };

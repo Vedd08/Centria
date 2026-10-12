@@ -32,6 +32,10 @@ export interface PackagePurchaseItem {
   packageName: string;
   purchaseDate: string;
   amountPaid: number;
+  listPrice?: number | null;
+  discountAmount?: number;
+  discountReason?: string | null;
+  discountGivenBy?: string | null;
   sittingsUsed: number;
   sittingsRemaining: number;
 }
@@ -129,6 +133,10 @@ export const PackageList: React.FC = () => {
     }
   };
 
+  const discounted = purchases.filter((p) => Number(p.discountAmount ?? 0) > 0);
+  const discountedCount = discounted.length;
+  const totalDiscount = discounted.reduce((s, p) => s + Number(p.discountAmount), 0);
+
   return (
     <div className="space-y-8">
       
@@ -206,9 +214,16 @@ export const PackageList: React.FC = () => {
 
       {/* Patient Package Purchases Tracker */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-ink-primary tracking-tight flex items-center gap-2">
-          <Layers className="w-4 h-4 text-brand" /> Patient Active Package & Sitting Balances
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-ink-primary tracking-tight flex items-center gap-2">
+            <Layers className="w-4 h-4 text-brand" /> Patient Active Package & Sitting Balances
+          </h3>
+          {totalDiscount > 0 && (
+            <span className="text-[11px] font-semibold px-2 py-1 rounded-md bg-status-warning/10 text-status-warning border border-status-warning/20">
+              Discounts given: {money(totalDiscount)} on {discountedCount} package{discountedCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
 
         {loading ? (
           <LoadingSkeleton rows={4} />
@@ -226,6 +241,7 @@ export const PackageList: React.FC = () => {
                     <th className="py-3.5 px-4">Patient (UHID)</th>
                     <th className="py-3.5 px-4">Package Title</th>
                     <th className="py-3.5 px-4">Amount Paid</th>
+                    <th className="py-3.5 px-4">Discount</th>
                     <th className="py-3.5 px-4">Sitting Usage Progress</th>
                     <th className="py-3.5 px-4 text-right">Status</th>
                   </tr>
@@ -258,6 +274,29 @@ export const PackageList: React.FC = () => {
                         {/* Amount */}
                         <td className="py-3.5 px-4 font-bold text-ink-primary">
                           {money(pur.amountPaid)}
+                        </td>
+
+                        {/* Discount — visible to doctors, reception and accounts alike */}
+                        <td className="py-3.5 px-4 min-w-[140px]">
+                          {Number(pur.discountAmount ?? 0) > 0 ? (
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-status-warning">
+                                − {money(pur.discountAmount)}
+                                {pur.listPrice ? (
+                                  <span className="font-medium text-[10px] ml-1">
+                                    ({Math.round((Number(pur.discountAmount) / Number(pur.listPrice)) * 1000) / 10}%)
+                                  </span>
+                                ) : null}
+                              </div>
+                              {pur.listPrice ? (
+                                <div className="text-[10px] line-through">{money(pur.listPrice)}</div>
+                              ) : null}
+                              {pur.discountReason && <div className="text-[11px] text-ink-primary">{pur.discountReason}</div>}
+                              {pur.discountGivenBy && <div className="text-[10px]">by {pur.discountGivenBy}</div>}
+                            </div>
+                          ) : (
+                            <span className="text-ink-secondary">—</span>
+                          )}
                         </td>
 
                         {/* Sitting Usage Progress Bar */}

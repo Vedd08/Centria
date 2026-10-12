@@ -4,6 +4,7 @@ import { CheckInDto } from './dto/check-in.dto';
 import { AssessQueueDto } from './dto/assess-queue.dto';
 import { UpdateQueueStatusDto } from './dto/update-queue-status.dto';
 import { RequestAdmissionDto } from './dto/request-admission.dto';
+import { UpdateBillPaymentDto } from './dto/update-bill-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -67,6 +68,25 @@ export class QueueController {
   @Get(':id/bill')
   getBill(@CurrentUser() user: any, @Param('id') id: string) {
     return this.queueService.getBill(user.clinicId, id);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'ACCOUNT')
+  @Patch(':id/bill/payment')
+  updateBillPayment(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateBillPaymentDto) {
+    return this.queueService.updateBillPayment(user.clinicId, id, 'PATIENT', dto, user);
+  }
+
+  // OPD patients pay the pharmacist for their medicines on a bill of its own.
+  @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY', 'RECEPTION', 'ACCOUNT')
+  @Get(':id/pharmacy-bill')
+  getPharmacyBill(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.queueService.getPharmacyBill(user.clinicId, id);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY', 'ACCOUNT')
+  @Patch(':id/pharmacy-bill/payment')
+  updatePharmacyBillPayment(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateBillPaymentDto) {
+    return this.queueService.updateBillPayment(user.clinicId, id, 'PHARMACY', dto, user);
   }
 
   // Only a doctor decides OPD vs IPD and records the clinical assessment.

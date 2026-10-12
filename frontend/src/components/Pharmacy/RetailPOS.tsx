@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Search, Plus, Minus, X, Receipt, Banknote, CreditCard, ShoppingBag, PauseCircle, PlayCircle, Pill, Box, AlertTriangle, Printer, User } from 'lucide-react';
+import { Search, Plus, Minus, X, Receipt, ShoppingBag, PauseCircle, Pill, Box, AlertTriangle, Printer, User } from 'lucide-react';
 import { money } from '../Queue/types';
+import { PaymentModeFields } from '../common/payment/PaymentModeFields';
+import { PaymentDetailsDraft, PaymentMode, missingPaymentDetail, toPaymentDetails } from '../common/payment/paymentModes';
 
 interface RetailCartItem {
   medicineId: string;
@@ -18,9 +20,13 @@ interface CartSession {
   items: RetailCartItem[];
   customerName: string;
   customerPhone: string;
-  paymentMethod: 'cash' | 'bank';
-  paymentRef: string;
+  paymentMode: PaymentMode;
+  paymentDetails: PaymentDetailsDraft;
 }
+
+const emptySession = (id: string): CartSession => ({
+  id, items: [], customerName: '', customerPhone: '', paymentMode: 'CASH', paymentDetails: {},
+});
 
 export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }> = ({ onInvoiceGenerated }) => {
   const { apiFetch } = useAuth();
@@ -32,9 +38,7 @@ export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }>
   const [processing, setProcessing] = useState(false);
 
   // Cart Sessions (Hold Cart feature)
-  const [sessions, setSessions] = useState<CartSession[]>([{
-    id: '1', items: [], customerName: '', customerPhone: '', paymentMethod: 'cash', paymentRef: ''
-  }]);
+  const [sessions, setSessions] = useState<CartSession[]>([emptySession('1')]);
   const [activeId, setActiveId] = useState<string>('1');
 
   const activeSession = sessions.find(s => s.id === activeId) || sessions[0];
@@ -153,9 +157,7 @@ export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }>
 
   const holdCart = () => {
     const newId = Date.now().toString();
-    setSessions(prev => [...prev, {
-      id: newId, items: [], customerName: '', customerPhone: '', paymentMethod: 'cash', paymentRef: ''
-    }]);
+    setSessions(prev => [...prev, emptySession(newId)]);
     setActiveId(newId);
     searchInputRef.current?.focus();
   };
@@ -163,9 +165,7 @@ export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }>
   const closeCart = (id: string) => {
     if (sessions.length === 1) {
       // Just clear it
-      updateActiveSession(() => ({
-        id: '1', items: [], customerName: '', customerPhone: '', paymentMethod: 'cash', paymentRef: ''
-      }));
+      updateActiveSession(() => emptySession('1'));
     } else {
       setSessions(prev => prev.filter(s => s.id !== id));
       if (activeId === id) {
@@ -180,14 +180,19 @@ export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }>
       addToast('error', 'Cart is empty');
       return;
     }
+    const missing = missingPaymentDetail(activeSession.paymentMode, activeSession.paymentDetails);
+    if (missing) {
+      addToast('error', missing);
+      return;
+    }
     setProcessing(true);
 
     try {
       const payload = {
         customerName: activeSession.customerName.trim() || undefined,
         customerPhone: activeSession.customerPhone.trim() || undefined,
-        paymentMethod: activeSession.paymentMethod,
-        paymentRef: activeSession.paymentRef.trim() || undefined,
+        paymentMode: activeSession.paymentMode,
+        paymentDetails: toPaymentDetails(activeSession.paymentMode, activeSession.paymentDetails),
         items: activeSession.items.map(c => ({
           medicineId: c.medicineId,
           quantity: c.quantity,
@@ -427,21 +432,14 @@ export const RetailPOS: React.FC<{ onInvoiceGenerated: (invoice: any) => void }>
             <span className="font-mono text-3xl font-extrabold text-brand-deep leading-none">{money(cartTotal)}</span>
           </div>
 
-          <div className="flex gap-2 mb-4">
-            {(['cash', 'bank'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => updateActiveSession(s => ({ ...s, paymentMethod: m }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 font-bold transition-all ${
-                  activeSession.paymentMethod === m
-                    ? 'border-brand bg-brand-soft/20 text-brand-deep'
-                    : 'border-border bg-surface-card text-ink-secondary hover:border-border-hover'
-                }`}
-              >
-                {m === 'cash' ? <Banknote className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
-                {m === 'cash' ? 'CASH' : 'CARD/UPI'}
-              </button>
-            ))}
+          <div className="mb-4 max-h-56 overflow-y-auto custom-scrollbar">
+            <PaymentModeFields
+              mode={activeSession.paymentMode}
+              details={activeSession.paymentDetails}
+              onModeChange={(m) => updateActiveSession(s => ({ ...s, paymentMode: m }))}
+              onDetailsChange={(d) => updateActiveSession(s => ({ ...s, paymentDetails: d }))}
+              disabled={processing}
+            />
           </div>
 
           <button

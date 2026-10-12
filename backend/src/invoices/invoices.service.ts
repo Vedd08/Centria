@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { textContains } from '../common/text-search';
+import { cleanPaymentDetails, serializePaymentDetails, toLedgerMethod } from '../common/payment-details';
 
 interface InvoiceFilters {
   search?: string;
@@ -56,7 +57,17 @@ export class InvoicesService {
    * Splits GST into CGST (9%) + SGST (9%) (intra-state) computed off treatment taxability.
    * If a Visit is linked to an active PackagePurchase, taxableValue is ₹0.00 (already settled at package purchase time).
    */
-  async create(clinicId: string, dto: CreateInvoiceDto & { cgstOverride?: number; sgstOverride?: number }) {
+  async create(
+    clinicId: string,
+    dto: CreateInvoiceDto & {
+      cgstOverride?: number;
+      sgstOverride?: number;
+      /** Set by callers that sold below list price (package sales) — printed on the invoice. */
+      listPrice?: number;
+      discountAmount?: number;
+      discountReason?: string | null;
+    },
+  ) {
     if (!dto.visitId && !dto.packagePurchaseId && !dto.queueId && !dto.retailSaleId) {
       throw new BadRequestException('An invoice must be linked to a Visit, a Package Purchase, a Queue Entry, or a Retail Sale');
     }
@@ -151,6 +162,13 @@ export class InvoicesService {
     }
 
     const totalAmount = Math.round((taxableValue + cgst + sgst) * 100) / 100;
+
+    // A specific mode (cash/online/card/UPI) carries its own printed details; the
+    // ledger still only needs to know whether the money went to the till or the bank.
+    const paymentDetails = dto.paymentMode ? cleanPaymentDetails(dto.paymentMode, dto.paymentDetails) : null;
+    const paymentMethod = dto.paymentMode ? toLedgerMethod(dto.paymentMode) : dto.paymentMethod!;
+    const paymentRef = dto.paymentRef || (paymentDetails?.transactionId as string | undefined);
+
     let retries = 3;
     while (retries > 0) {
       try {
@@ -167,14 +185,19 @@ export class InvoicesService {
             patientUhid,
             itemTitle: isCoveredByPackage ? `${itemTitle} (Package Session Redemption)` : itemTitle,
             isGstTaxable,
+            listPrice: dto.listPrice ?? null,
+            discountAmount: dto.discountAmount ?? 0,
+            discountReason: dto.discountReason ?? null,
             taxableValue,
             cgstRate,
             sgstRate,
             cgst,
             sgst,
             totalAmount,
-            paymentMethod: isCoveredByPackage ? 'Pre-paid Package' : dto.paymentMethod,
-            paymentRef: dto.paymentRef || (isCoveredByPackage ? 'Covered under Package Invoice' : null),
+            paymentMethod: isCoveredByPackage ? 'Pre-paid Package' : paymentMethod,
+            paymentRef: paymentRef || (isCoveredByPackage ? 'Covered under Package Invoice' : null),
+            paymentMode: isCoveredByPackage ? null : (dto.paymentMode ?? null),
+            paymentDetails: isCoveredByPackage ? null : serializePaymentDetails(paymentDetails),
           },
         });
       } catch (error) {

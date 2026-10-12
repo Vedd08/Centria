@@ -4,6 +4,7 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { CreateRetailSaleDto } from './dto/create-retail-sale.dto';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { decrementStock } from '../common/decrement-stock';
+import { cleanPaymentDetails, toLedgerMethod } from '../common/payment-details';
 
 @Injectable()
 export class RetailSalesService {
@@ -16,6 +17,11 @@ export class RetailSalesService {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('A retail sale must contain at least one item');
     }
+    // Check the payment details before any stock moves: the invoice is issued after
+    // the stock transaction commits, too late to reject a missing transaction ID.
+    const paymentDetails = dto.paymentMode ? cleanPaymentDetails(dto.paymentMode, dto.paymentDetails) : null;
+    const paymentMethod = dto.paymentMode ? toLedgerMethod(dto.paymentMode) : dto.paymentMethod!;
+    const paymentRef = dto.paymentRef || (paymentDetails?.transactionId as string | undefined);
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Calculate totals and check existence
@@ -76,8 +82,8 @@ export class RetailSalesService {
           customerName: dto.customerName || 'Walk-in Customer',
           customerPhone: dto.customerPhone || null,
           totalAmount: grandTotal,
-          paymentMethod: dto.paymentMethod,
-          paymentRef: dto.paymentRef || null,
+          paymentMethod,
+          paymentRef: paymentRef || null,
         },
       });
 
@@ -118,8 +124,10 @@ export class RetailSalesService {
         taxableValue: result.taxableValue,
         cgstOverride: result.cgst,
         sgstOverride: result.sgst,
-        paymentMethod: dto.paymentMethod as 'cash' | 'bank',
-        paymentRef: dto.paymentRef,
+        paymentMethod: paymentMethod as 'cash' | 'bank',
+        paymentMode: dto.paymentMode,
+        paymentDetails: dto.paymentDetails,
+        paymentRef,
       });
 
       return invoice;

@@ -79,7 +79,7 @@ export class PackagesService {
     return { message: 'Package type deleted successfully' };
   }
 
-  async purchasePackage(clinicId: string, dto: PurchasePackageDto) {
+  async purchasePackage(clinicId: string, dto: PurchasePackageDto, user?: any) {
     const patient = await this.prisma.patient.findFirst({
       where: { id: dto.patientId, clinicId },
     });
@@ -95,7 +95,16 @@ export class PackagesService {
     }
 
     const todayDate = toLocalDateKey(new Date());
-    const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : pkgType.price;
+    const amountPaid = dto.amountPaid !== undefined ? Math.round(dto.amountPaid * 100) / 100 : Number(pkgType.price);
+
+    // Any shortfall against the package price is a discount, recorded with who gave
+    // it and why, so it is visible on the packages register and the tax invoice.
+    const listPrice = Number(pkgType.price);
+    const discountAmount = Math.max(0, Math.round((listPrice - amountPaid) * 100) / 100);
+    const discount =
+      discountAmount > 0
+        ? { discountAmount, discountReason: dto.discountReason?.trim() || null, discountGivenBy: user?.name ?? null }
+        : { discountAmount: 0, discountReason: null, discountGivenBy: null };
 
     const purchase = await this.prisma.$transaction(async (tx) => {
       // 1. Save PackagePurchase record
@@ -107,6 +116,8 @@ export class PackagesService {
           packageName: pkgType.name,
           purchaseDate: dto.purchaseDate || todayDate,
           amountPaid,
+          listPrice,
+          ...discount,
           totalSittings: pkgType.totalSittings,
           isGstTaxable: pkgType.isGstTaxable,
           sittingGapDays: pkgType.sittingGapDays,
@@ -151,6 +162,7 @@ export class PackagesService {
       taxableValue: Number(amountPaid),
       paymentMethod: dto.paymentMethod || 'bank',
       paymentRef: dto.paymentRef || 'Package Sale Purchase',
+      ...(discountAmount > 0 ? { listPrice, discountAmount, discountReason: discount.discountReason } : {}),
     });
 
     // Fetch the updated purchase since linkVisitToPurchase might have updated sittingsUsed

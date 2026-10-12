@@ -39,7 +39,7 @@ export class PackagesController {
   @Roles('SUPER_ADMIN', 'MASTER', 'RM', 'RECEPTION')
   @Post('purchases')
   purchasePackage(@CurrentUser() user: any, @Body() dto: PurchasePackageDto) {
-    return this.packagesService.purchasePackage(user.clinicId, dto);
+    return this.packagesService.purchasePackage(user.clinicId, dto, user);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'ACCOUNT')

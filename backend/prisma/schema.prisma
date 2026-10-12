@@ -146,6 +146,11 @@ model PackagePurchase {
   packageCode         String? // Short code used on the package register, e.g. "GLT 5gm"
   purchaseDate        String // YYYY-MM-DD
   amountPaid          Decimal
+  /// Catalogue price at the time of sale; amountPaid is what was charged after discount.
+  listPrice           Decimal?
+  discountAmount      Decimal     @default(0.0) // listPrice - amountPaid, never negative
+  discountReason      String?
+  discountGivenBy     String? // Name of the staff member who sold it at a discount
   cashAmount          Decimal     @default(0.0)
   bankAmount          Decimal     @default(0.0)
   paymentRefId        String?
@@ -259,14 +264,20 @@ model Invoice {
   patientUhid         String
   itemTitle           String // Treatment or Package name
   isGstTaxable        Boolean // Driven from TreatmentMaster or Package
+  /// Price before discount — set when the item was sold below list (package sales).
+  listPrice           Decimal?
+  discountAmount      Decimal          @default(0.0)
+  discountReason      String?
   taxableValue        Decimal
   cgstRate            Decimal          @default(9.0) // 9% CGST if taxable, 0 if exempt (Rule 4)
   sgstRate            Decimal          @default(9.0) // 9% SGST if taxable, 0 if exempt (Rule 4)
   cgst                Decimal // Calculated CGST amount
   sgst                Decimal // Calculated SGST amount
   totalAmount         Decimal // taxableValue + cgst + sgst
-  paymentMethod       String // "cash" | "bank"
+  paymentMethod       String // "cash" | "bank" — what the accounts cash/bank split reads
   paymentRef          String? // Transaction ID / UTR / Cash receipt #
+  paymentMode         String? // CASH | ONLINE | CARD | UPI — finer than paymentMethod
+  paymentDetails      String? // JSON: mode-specific details printed on the receipt (SQLite has no Json type)
   reconciled          Boolean          @default(false)
   reconciledAt        DateTime?
   reconciliationNotes String?
@@ -471,6 +482,7 @@ model Clinic {
   doctorSchedules           DoctorSchedule[]
   RetailSale                RetailSale[]
   FollowUpCall              FollowUpCall[]
+  encounterBills            EncounterBill[]
 }
 
 model DoctorSchedule {
@@ -710,6 +722,7 @@ model PatientQueue {
   recommendedPackageType   PackageType? @relation(fields: [recommendedPackageTypeId], references: [id], onDelete: SetNull)
 
   careOrders CareOrder[]
+  bills      EncounterBill[]
 
   clinicId String
   clinic   Clinic @relation(fields: [clinicId], references: [id])
@@ -719,6 +732,32 @@ model PatientQueue {
   @@index([patientId])
   @@index([doctorId])
   @@index([clinicId, admissionRequestedAt])
+}
+
+/// A printed bill for one encounter. Each encounter can carry a reception bill
+/// (PATIENT — consultation, treatment, services) and a separate PHARMACY bill for the
+/// medicines an OPD patient pays the pharmacist for. The number is assigned the first
+/// time the bill is opened, so reprints keep it.
+model EncounterBill {
+  id             String       @id @default(uuid())
+  queueId        String
+  queue          PatientQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  kind           String // PATIENT | PHARMACY
+  billNumber     String // PB-2026-0001 (patient) / PH-2026-0001 (pharmacy)
+  paymentStatus  String       @default("UNPAID") // PAID | UNPAID
+  paymentMode    String? // CASH | ONLINE | CARD | UPI — set once paid
+  /// JSON of the mode-specific details printed on the bill: transaction ID, account,
+  /// card last 4, UPI ID… Stored as text because SQLite (local dev) has no Json type.
+  paymentDetails String?
+  paidAt         DateTime?
+  receivedBy     String? // Name of the staff member who marked it paid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  clinicId       String
+  clinic         Clinic       @relation(fields: [clinicId], references: [id])
+
+  @@unique([queueId, kind])
+  @@unique([clinicId, billNumber])
 }
 
 /// A single thing the doctor ordered for the patient — a medicine, an injection, a

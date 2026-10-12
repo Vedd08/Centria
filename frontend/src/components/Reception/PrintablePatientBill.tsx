@@ -1,9 +1,22 @@
-import React from 'react';
-import { X, Printer } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Printer, Save } from 'lucide-react';
 import { money } from '../../utils/money';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { BrandLogo } from '../common/BrandLogo';
 import { useClinicProfile } from '../../hooks/useClinicProfile';
 import { PrintPortal } from '../common/PrintPortal';
+import { PaymentModeFields } from '../common/payment/PaymentModeFields';
+import { PaymentDetailsBlock } from '../common/payment/PaymentDetailsBlock';
+import {
+  PAYMENT_MODE_LABEL,
+  PaymentDetails,
+  PaymentDetailsDraft,
+  PaymentMode,
+  missingPaymentDetail,
+  toPaymentDetails,
+  toPaymentDraft,
+} from '../common/payment/paymentModes';
 
 export interface BillLine {
   description: string;
@@ -16,12 +29,21 @@ export interface BillLine {
   taxRate?: number;
 }
 
+export type BillPaymentStatus = 'PAID' | 'UNPAID';
+
 export interface PatientBill {
+  /** PATIENT — reception's bill; PHARMACY — the OPD medicines bill from the pharmacy counter. */
+  kind: 'PATIENT' | 'PHARMACY';
   queueId: string;
   tokenNumber: number;
   queueDate: string;
+  billNumber: string;
+  paymentStatus: BillPaymentStatus;
+  paymentMode?: PaymentMode | null;
+  paymentDetails?: PaymentDetails | null;
+  paidAt?: string | null;
+  receivedBy?: string | null;
   careType?: string;
-  diagnosis?: string;
   patient: { name: string; phone: string; uhid: string; address?: string };
   doctor?: { name: string };
   lines: BillLine[];
@@ -46,15 +68,71 @@ const KIND_LABEL: Record<string, string> = {
 interface Props {
   bill: PatientBill | null;
   onClose: () => void;
+  /** Receives the refreshed bill after the payment status is saved. */
+  onChange: (bill: PatientBill) => void;
 }
 
 /**
- * The consolidated bill the patient takes away: the doctor's treatment plus every
- * medicine, injection and service ordered during this encounter, on one sheet.
+ * The bill the patient takes away for one encounter, on one sheet. Reception's
+ * PATIENT bill carries the consultation, treatment and services (plus medicines for
+ * inpatients); the pharmacy counter's PHARMACY bill carries an OPD patient's medicines.
  */
-export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
+export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose, onChange }) => {
   const clinic = useClinicProfile();
+  const { apiFetch } = useAuth();
+  const { addToast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<BillPaymentStatus>('UNPAID');
+  const [mode, setMode] = useState<PaymentMode>('CASH');
+  const [details, setDetails] = useState<PaymentDetailsDraft>({});
+
+  // Start the form from what was last saved whenever a bill is opened or saved.
+  useEffect(() => {
+    if (!bill) return;
+    setStatus(bill.paymentStatus);
+    setMode(bill.paymentMode ?? 'CASH');
+    setDetails(toPaymentDraft(bill.paymentDetails));
+  }, [bill]);
+
   if (!bill) return null;
+
+  const isPharmacy = bill.kind === 'PHARMACY';
+  const title = isPharmacy ? 'Pharmacy Bill' : 'Patient Bill';
+
+  const savePayment = async () => {
+    if (status === 'PAID') {
+      const missing = missingPaymentDetail(mode, details);
+      if (missing) {
+        addToast('error', missing);
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const path = isPharmacy ? 'pharmacy-bill' : 'bill';
+      const res = await apiFetch(`/api/queue/${bill.queueId}/${path}/payment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          status === 'PAID' ? { status, mode, details: toPaymentDetails(mode, details) } : { status },
+        ),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Could not update payment');
+      addToast('success', status === 'PAID' ? `${title} marked paid (${PAYMENT_MODE_LABEL[mode]})` : `${title} marked unpaid`);
+      onChange(data);
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not update payment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isPaid = bill.paymentStatus === 'PAID';
+  const toggleClass = (active: boolean) =>
+    `px-3 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer disabled:opacity-50 ${
+      active ? 'bg-brand text-white border-brand shadow-xs' : 'bg-surface-card text-ink-primary border-border hover:bg-surface-page'
+    }`;
 
   return (
     <PrintPortal>
@@ -63,7 +141,7 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
         {/* Screen-only toolbar */}
         <div className="flex items-center justify-between p-4 border-b border-border print:hidden">
           <span className="text-xs font-semibold text-ink-primary">
-            Patient Bill — Token #{bill.tokenNumber} ({bill.queueDate})
+            {title} — Token #{bill.tokenNumber} ({bill.queueDate})
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -79,6 +157,37 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
           </div>
         </div>
 
+        {/* Screen-only payment controls. Nothing changes on the bill until Save. */}
+        <div className="px-4 py-3 border-b border-border bg-surface-page space-y-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-ink-secondary mr-1">Payment</span>
+            <button type="button" disabled={saving} onClick={() => setStatus('UNPAID')} className={toggleClass(status === 'UNPAID')}>
+              Unpaid
+            </button>
+            <button type="button" disabled={saving} onClick={() => setStatus('PAID')} className={toggleClass(status === 'PAID')}>
+              Paid
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={savePayment}
+              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {saving ? 'Saving...' : 'Save payment'}
+            </button>
+          </div>
+          {status === 'PAID' && (
+            <PaymentModeFields
+              mode={mode}
+              details={details}
+              onModeChange={setMode}
+              onDetailsChange={setDetails}
+              disabled={saving}
+            />
+          )}
+        </div>
+
         <div className="p-8 print:p-6 text-ink-primary">
           <div className="text-center border-b-2 border-ink-primary pb-4 mb-5">
             <h1 className="text-xl font-bold tracking-tight uppercase">{clinic?.name ?? ''}</h1>
@@ -88,7 +197,7 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
                 {[clinic?.phone, clinic?.email].filter(Boolean).join('  ·  ')}
               </p>
             )}
-            <p className="text-xs font-semibold mt-2 tracking-wider">PATIENT BILL</p>
+            <p className="text-xs font-semibold mt-2 tracking-wider uppercase">{title}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-xs mb-5">
@@ -105,6 +214,10 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
                 <span className="text-ink-secondary">UHID: </span>
                 <span className="font-mono">{bill.patient.uhid}</span>
               </div>
+              <div>
+                <span className="text-ink-secondary">Token: </span>
+                <span className="font-mono font-semibold">#{bill.tokenNumber}</span>
+              </div>
             </div>
             <div className="space-y-1 sm:text-right">
               <div>
@@ -112,8 +225,15 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
                 <span className="font-mono">{bill.queueDate}</span>
               </div>
               <div>
-                <span className="text-ink-secondary">Token: </span>
-                <span className="font-mono font-semibold">#{bill.tokenNumber}</span>
+                <span className="text-ink-secondary">Invoice No: </span>
+                <span className="font-mono font-semibold">{bill.billNumber}</span>
+              </div>
+              <div>
+                <span className="text-ink-secondary">Payment: </span>
+                <span className={`font-semibold ${isPaid ? 'text-status-success' : 'text-status-danger'}`}>
+                  {isPaid ? 'PAID' : 'UNPAID'}
+                </span>
+                {isPaid && bill.paymentMode && <span> ({PAYMENT_MODE_LABEL[bill.paymentMode]})</span>}
               </div>
               {bill.careType && (
                 <div>
@@ -130,13 +250,6 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
             </div>
           </div>
 
-          {bill.diagnosis && (
-            <p className="text-xs mb-4">
-              <span className="text-ink-secondary">Diagnosis: </span>
-              {bill.diagnosis}
-            </p>
-          )}
-
           <table className="w-full text-xs border-collapse mb-4">
             <thead>
               <tr className="border-y border-ink-primary/30">
@@ -151,8 +264,8 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
             <tbody>
               {bill.lines.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-ink-secondary">
-                    Nothing billed for this encounter yet.
+                  <td colSpan={6} className="py-6 text-center text-ink-secondary">
+                    {isPharmacy ? 'No medicines ordered for this encounter.' : 'Nothing billed for this encounter yet.'}
                   </td>
                 </tr>
               ) : (
@@ -206,6 +319,17 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose }) => {
                 <span className="font-mono text-brand-deep">{money(bill.totalAmount)}</span>
               </div>
             </div>
+          </div>
+
+          <div className="mt-5">
+            <PaymentDetailsBlock
+              status={bill.paymentStatus}
+              mode={bill.paymentMode}
+              details={bill.paymentDetails}
+              total={bill.totalAmount}
+              paidAt={bill.paidAt}
+              receivedBy={bill.receivedBy}
+            />
           </div>
 
           <div className="mt-8 pt-4 border-t border-border text-[10px] text-ink-secondary flex flex-col items-center gap-1.5">

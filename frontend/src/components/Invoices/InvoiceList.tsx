@@ -130,6 +130,8 @@ export const InvoiceList: React.FC = () => {
               { key: 'patientName', label: 'Patient Name' },
               { key: 'patientUhid', label: 'UHID' },
               { key: 'itemTitle', label: 'Item' },
+              { key: 'discountAmount', label: 'Discount' },
+              { key: 'discountReason', label: 'Discount Reason' },
               { key: 'taxableValue', label: 'Taxable' },
               { key: 'totalAmount', label: 'Total' },
               { key: 'paymentMethod', label: 'Payment' },
@@ -229,6 +231,12 @@ export const InvoiceList: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       <div className="text-ink-primary">{inv.itemTitle}</div>
+                      {Number(inv.discountAmount ?? 0) > 0 && (
+                        <div className="text-[10px] font-semibold text-status-warning" title={inv.discountReason || undefined}>
+                          Discount ₹{Number(inv.discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {inv.discountReason ? ` · ${inv.discountReason}` : ''}
+                        </div>
+                      )}
                       <span className={`text-[10px] font-bold ${inv.isGstTaxable ? 'text-amber-700' : 'text-emerald-700'}`}>
                         {inv.isGstTaxable ? 'GST Taxable' : 'GST Exempt'}
                       </span>
