@@ -31,9 +31,18 @@ export async function receiveStock(clinicId: string, dto: any, user: any, tx: an
 
   // 2. Process each medicine item
   for (const item of dto.items) {
-    const medicine = await tx.medicine.findFirst({ where: { id: item.medicineId, clinicId } });
+    const medicine = item.newMedicine
+      ? await findOrCreateMedicine(clinicId, item.newMedicine, tx)
+      : await tx.medicine.findFirst({ where: { id: item.medicineId, clinicId } });
     if (!medicine) {
       throw new NotFoundException(`Medicine ID ${item.medicineId} not found`);
+    }
+    item.medicineId = medicine.id;
+
+    // Put-away: record which rack this stock went on.
+    const shelf = typeof item.shelf === 'string' ? item.shelf.trim() : '';
+    if (shelf && shelf !== medicine.shelf) {
+      await tx.medicine.update({ where: { id: medicine.id }, data: { shelf } });
     }
 
     // Add Batch
@@ -71,4 +80,30 @@ export async function receiveStock(clinicId: string, dto: any, user: any, tx: an
   }
 
   return { id: purchaseId };
+}
+
+/**
+ * A refill line for a medicine not yet in the catalogue. Names are unique per clinic,
+ * so a name that already exists (say, typed twice or added since the page loaded)
+ * reuses that medicine instead of failing the whole bill.
+ */
+async function findOrCreateMedicine(
+  clinicId: string,
+  input: { name: string; unit: string; unitPrice?: number; reorderPoint?: number },
+  tx: any,
+) {
+  const name = input.name.trim();
+  const existing = await tx.medicine.findFirst({ where: { clinicId, name } });
+  if (existing) return existing;
+
+  return tx.medicine.create({
+    data: {
+      clinicId,
+      name,
+      unit: input.unit.trim(),
+      unitPrice: input.unitPrice ?? 0,
+      reorderPoint: input.reorderPoint ?? 10,
+      stockQty: 0, // The refill below books the arriving quantity.
+    },
+  });
 }
