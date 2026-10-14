@@ -751,6 +751,10 @@ model EncounterBill {
   paymentDetails String?
   paidAt         DateTime?
   receivedBy     String? // Name of the staff member who marked it paid
+  /// Bill total when it was marked paid — anything added afterwards shows as balance due.
+  paidAmount     Decimal?
+  /// The Invoice row (same number as the bill) that puts this payment in Accounts.
+  invoiceId      String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   clinicId       String

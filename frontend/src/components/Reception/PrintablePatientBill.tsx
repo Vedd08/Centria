@@ -55,10 +55,17 @@ export interface PatientBill {
   cgst: number;
   sgst: number;
   totalAmount: number;
+  /** What was collected when the bill was marked paid (0 while unpaid). */
+  paidAmount?: number;
+  /** Charges added after payment that are still owed. */
+  balanceDue?: number;
+  /** Pharmacy bill only: ordered medicines not yet handed over — listed, not charged. */
+  pendingLines?: BillLine[];
 }
 
 
 const KIND_LABEL: Record<string, string> = {
+  CONSULTATION: 'Consultation',
   TREATMENT: 'Treatment',
   MEDICINE: 'Medicine',
   INJECTION: 'Injection',
@@ -167,6 +174,17 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose, onChange 
             <button type="button" disabled={saving} onClick={() => setStatus('PAID')} className={toggleClass(status === 'PAID')}>
               Paid
             </button>
+            <span className="text-xs text-ink-secondary ml-2">
+              {isPaid && (bill.balanceDue ?? 0) > 0 ? (
+                <>
+                  Paid {money(bill.paidAmount)} · <span className="font-semibold text-status-danger">balance {money(bill.balanceDue)}</span> — Save again to collect
+                </>
+              ) : isPaid ? (
+                <>Collected <span className="font-semibold text-status-success">{money(bill.paidAmount)}</span></>
+              ) : (
+                <>To collect <span className="font-semibold text-ink-primary">{money(bill.totalAmount)}</span></>
+              )}
+            </span>
             <button
               type="button"
               disabled={saving}
@@ -318,8 +336,34 @@ export const PrintablePatientBill: React.FC<Props> = ({ bill, onClose, onChange 
                 <span>TOTAL</span>
                 <span className="font-mono text-brand-deep">{money(bill.totalAmount)}</span>
               </div>
+              {isPaid && (bill.balanceDue ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between text-ink-secondary">
+                    <span>Paid</span>
+                    <span className="font-mono">{money(bill.paidAmount)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-status-danger">
+                    <span>Balance due</span>
+                    <span className="font-mono">{money(bill.balanceDue)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
+
+          {(bill.pendingLines?.length ?? 0) > 0 && (
+            <div className="mt-4 p-3 rounded-md border border-dashed border-ink-primary/30 text-xs">
+              <p className="font-semibold mb-1.5">Prescribed but not yet dispensed — not charged</p>
+              {bill.pendingLines!.map((l, i) => (
+                <div key={i} className="flex justify-between text-ink-secondary">
+                  <span>
+                    {l.description} × {l.quantity}
+                  </span>
+                  <span className="font-mono">{money(l.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mt-5">
             <PaymentDetailsBlock

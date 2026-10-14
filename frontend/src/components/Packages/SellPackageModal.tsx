@@ -5,6 +5,9 @@ import { Tag } from 'lucide-react';
 import { Patient } from '../Patients/PatientList';
 import { PackageTypeItem } from './PackageList';
 import { money } from '../../utils/money';
+import { PaymentModeFields } from '../common/payment/PaymentModeFields';
+import { PaymentDetailsDraft, PaymentMode, missingPaymentDetail, toPaymentDetails } from '../common/payment/paymentModes';
+import { PrintableInvoiceModal, InvoiceItem } from '../Invoices/PrintableInvoiceModal';
 
 interface SellPackageModalProps {
   isOpen: boolean;
@@ -35,6 +38,10 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   const [discountMode, setDiscountMode] = useState<'AMOUNT' | 'PERCENT'>('AMOUNT');
   const [discountInput, setDiscountInput] = useState('');
   const [discountReason, setDiscountReason] = useState('');
+  const [payMode, setPayMode] = useState<PaymentMode>('CASH');
+  const [payDetails, setPayDetails] = useState<PaymentDetailsDraft>({});
+  /** The package invoice, shown for printing once the sale goes through. */
+  const [receipt, setReceipt] = useState<InvoiceItem | null>(null);
   const [selling, setSelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +51,9 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
       setDiscountMode('AMOUNT');
       setDiscountInput('');
       setDiscountReason('');
+      setPayMode('CASH');
+      setPayDetails({});
+      setReceipt(null);
       fetchData();
       if (initialPatientId) setSelectedPatientId(initialPatientId);
       if (initialPackageTypeId) setSelectedPackageTypeId(initialPackageTypeId);
@@ -137,6 +147,11 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   const handleSellSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatientId || !selectedPackageTypeId) return;
+    const missing = missingPaymentDetail(payMode, payDetails);
+    if (missing) {
+      setError(missing);
+      return;
+    }
 
     setSelling(true);
     setError(null);
@@ -151,17 +166,21 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
           amountPaid: Number(amountPaid),
           discountReason: discountAmount > 0 ? discountReason.trim() || undefined : undefined,
           linkToQueueId: linkToQueueId || undefined,
+          paymentMode: payMode,
+          paymentDetails: toPaymentDetails(payMode, payDetails),
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to complete package sale');
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to complete package sale');
 
       addToast('success', discountAmount > 0 ? `Package sold with ${money(discountAmount)} discount` : 'Package sold successfully');
       setDiscountInput('');
       setDiscountReason('');
       onSuccess();
-      onClose();
+      // Hand reception the tax invoice to print; closing it closes the sale window.
+      if (data.invoice) setReceipt(data.invoice);
+      else onClose();
     } catch (err: any) {
       setError(err.message || 'Error selling package');
     } finally {
@@ -171,9 +190,21 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
 
   if (!isOpen) return null;
 
+  if (receipt) {
+    return (
+      <PrintableInvoiceModal
+        invoice={receipt}
+        onClose={() => {
+          setReceipt(null);
+          onClose();
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-surface-card rounded-[10px] border border-border shadow-xl max-w-md w-full p-6 space-y-5 mx-2 sm:mx-0 my-4 sm:my-8">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-surface-card rounded-[10px] border border-border shadow-xl max-w-lg w-full p-6 space-y-5 mx-2 sm:mx-0 my-4 sm:my-8">
         <div className="flex items-center justify-between pb-3 border-b border-border">
           <h3 className="text-base font-bold text-ink-primary flex items-center gap-2">
             <Tag className="w-4 h-4 text-brand" /> Sell Package to Patient
@@ -322,6 +353,13 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
               </div>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">
+              Payment mode <span className="text-status-danger">*</span>
+            </label>
+            <PaymentModeFields mode={payMode} details={payDetails} onModeChange={setPayMode} onDetailsChange={setPayDetails} disabled={selling} />
+          </div>
 
           <div className="pt-2 border-t border-border flex justify-end gap-2">
             <button

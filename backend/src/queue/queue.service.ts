@@ -7,7 +7,7 @@ import { AssessQueueDto } from './dto/assess-queue.dto';
 import { UpdateQueueStatusDto } from './dto/update-queue-status.dto';
 import { RequestAdmissionDto } from './dto/request-admission.dto';
 import { UpdateBillPaymentDto } from './dto/update-bill-payment.dto';
-import { cleanPaymentDetails, parsePaymentDetails, serializePaymentDetails } from '../common/payment-details';
+import { PaymentMode, cleanPaymentDetails, parsePaymentDetails, serializePaymentDetails, toLedgerMethod } from '../common/payment-details';
 import { toLocalDateKey } from '../common/date.helper';
 import { textContains } from '../common/text-search';
 
@@ -40,7 +40,7 @@ const QUEUE_INCLUDE = {
   doctor: { select: { id: true, name: true, role: true } },
   checkedInBy: { select: { id: true, name: true, role: true } },
   admissionRequestedBy: { select: { id: true, name: true, role: true } },
-  visit: { include: { treatment: true } },
+  visit: { include: { treatment: true, packagePurchase: { select: { packageName: true, sittingsUsed: true, totalSittings: true } } } },
   admission: { include: { bed: { include: { ward: true } } } },
   careOrders: {
     include: {
@@ -52,7 +52,7 @@ const QUEUE_INCLUDE = {
     orderBy: { createdAt: 'asc' },
   },
   recommendedPackageType: true,
-  bills: { select: { kind: true, billNumber: true, paymentStatus: true, paymentMode: true } },
+  bills: { select: { kind: true, billNumber: true, paymentStatus: true, paymentMode: true, paidAmount: true } },
 } as const;
 
 const today = () => toLocalDateKey(new Date());
@@ -408,12 +408,16 @@ export class QueueService {
 
     if (entry.visit && Number(entry.visit.treatmentPrice ?? 0) > 0) {
       const price = Number(entry.visit.treatmentPrice);
+      // A package sitting was paid for when the package was sold — show it, charge nothing.
+      const pkg = entry.visit.packagePurchase;
       lines.push({
-        description: entry.visit.treatmentName || 'Treatment',
+        description: pkg
+          ? `${entry.visit.treatmentName} — package sitting (${pkg.packageName}, ${pkg.sittingsUsed}/${pkg.totalSittings} used)`
+          : entry.visit.treatmentName || 'Treatment',
         kind: 'TREATMENT',
         quantity: 1,
-        unitPrice: price,
-        amount: price,
+        unitPrice: pkg ? 0 : price,
+        amount: pkg ? 0 : price,
         taxable: entry.visit.isGstTaxable,
         hsnCode: entry.visit.treatment?.hsnCode ?? undefined,
         taxRate: entry.visit.treatment?.taxRate ? Number(entry.visit.treatment.taxRate) : undefined,
@@ -448,11 +452,13 @@ export class QueueService {
       );
     }
 
-    const lines = entry.careOrders
-      .filter((o) => o.status !== 'CANCELLED' && PHARMACY_ORDER_TYPES.includes(o.orderType))
-      .map(orderLine);
+    // Only what was handed over is charged. Items still waiting (or short on stock) are
+    // listed separately so the pharmacist and patient can see them, but cost nothing yet.
+    const medicines = entry.careOrders.filter((o) => o.status !== 'CANCELLED' && PHARMACY_ORDER_TYPES.includes(o.orderType));
+    const lines = medicines.filter((o) => o.dispensedAt).map(orderLine);
+    const pendingLines = medicines.filter((o) => !o.dispensedAt).map(orderLine);
 
-    return this.composeBill(clinicId, entry, 'PHARMACY', lines);
+    return this.composeBill(clinicId, entry, 'PHARMACY', lines, pendingLines);
   }
 
   /** Totals, invoice number and payment state shared by the patient and pharmacy bills. */
@@ -461,6 +467,7 @@ export class QueueService {
     entry: Awaited<ReturnType<QueueService['findOne']>>,
     kind: BillKind,
     lines: BillLine[],
+    pendingLines: BillLine[] = [],
   ) {
     // Money is settled in paise, so every figure that reaches a bill is rounded to two
     // decimals — matching InvoicesService. Left raw, 9% of a price carrying paise
@@ -485,6 +492,8 @@ export class QueueService {
     const sgst = round2(totalSgst);
 
     const bill = await this.ensureBillRecord(clinicId, entry.id, kind);
+    const totalAmount = round2(subTotal + cgst + sgst);
+    const paidAmount = bill.paymentStatus === 'PAID' ? Number(bill.paidAmount ?? totalAmount) : 0;
 
     return {
       kind,
@@ -506,7 +515,11 @@ export class QueueService {
       exemptValue,
       cgst,
       sgst,
-      totalAmount: round2(subTotal + cgst + sgst),
+      totalAmount,
+      paidAmount,
+      // Orders added after the bill was paid are still owed.
+      balanceDue: round2(Math.max(0, totalAmount - paidAmount)),
+      pendingLines,
     };
   }
 
@@ -547,21 +560,84 @@ export class QueueService {
    */
   async updateBillPayment(clinicId: string, id: string, kind: BillKind, dto: UpdateBillPaymentDto, user: any) {
     const load = () => (kind === 'PHARMACY' ? this.getPharmacyBill(clinicId, id) : this.getBill(clinicId, id));
-    const { queueId } = await load(); // Checks access and makes sure the bill record exists.
+    const bill = await load(); // Checks access and makes sure the bill record exists.
+    const where = { queueId_kind: { queueId: bill.queueId, kind } };
+    const record = await this.prisma.encounterBill.findUniqueOrThrow({ where });
 
-    const data: Prisma.EncounterBillUpdateInput =
-      dto.status === 'PAID'
-        ? {
-            paymentStatus: 'PAID',
-            paymentMode: dto.mode,
-            paymentDetails: serializePaymentDetails(cleanPaymentDetails(dto.mode!, dto.details)),
-            paidAt: new Date(),
-            receivedBy: user?.name ?? null,
-          }
-        : { paymentStatus: 'UNPAID', paymentMode: null, paymentDetails: null, paidAt: null, receivedBy: null };
+    await this.prisma.$transaction(async (tx) => {
+      if (dto.status !== 'PAID') {
+        // Back to unpaid: the payment didn't happen, so its invoice goes too.
+        if (record.invoiceId) await tx.invoice.deleteMany({ where: { id: record.invoiceId, clinicId } });
+        await tx.encounterBill.update({
+          where,
+          data: { paymentStatus: 'UNPAID', paymentMode: null, paymentDetails: null, paidAt: null, receivedBy: null, paidAmount: null, invoiceId: null },
+        });
+        return;
+      }
 
-    await this.prisma.encounterBill.update({ where: { queueId_kind: { queueId, kind } }, data });
+      const details = cleanPaymentDetails(dto.mode!, dto.details);
+      // The payment becomes a GST invoice carrying the bill's own number, so Accounts,
+      // the invoice register and the bill the patient holds all agree.
+      const invoiceId = await this.upsertBillInvoice(tx, clinicId, bill, record.invoiceId, dto.mode!, details);
+      await tx.encounterBill.update({
+        where,
+        data: {
+          paymentStatus: 'PAID',
+          paymentMode: dto.mode,
+          paymentDetails: serializePaymentDetails(details),
+          paidAt: new Date(),
+          receivedBy: user?.name ?? null,
+          paidAmount: bill.totalAmount,
+          invoiceId,
+        },
+      });
+    }, TRANSACTION_OPTIONS);
+
     return load();
+  }
+
+  /** Creates or refreshes the invoice behind a paid bill. Nothing to invoice on a ₹0 bill. */
+  private async upsertBillInvoice(
+    tx: Prisma.TransactionClient,
+    clinicId: string,
+    bill: Awaited<ReturnType<QueueService['getBill']>>,
+    existingId: string | null,
+    mode: PaymentMode,
+    details: Record<string, string | number> | null,
+  ): Promise<string | null> {
+    if (bill.totalAmount <= 0) {
+      if (existingId) await tx.invoice.deleteMany({ where: { id: existingId, clinicId } });
+      return null;
+    }
+    const names = bill.lines.map((l) => l.description.split(' — ')[0]);
+    const itemTitle = `${bill.kind === 'PHARMACY' ? 'Pharmacy bill' : 'Patient bill'}: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3} more` : ''}`;
+    const tax = bill.cgst + bill.sgst;
+    const effectiveRate = bill.taxableValue > 0 ? round2((tax / bill.taxableValue) * 100) : 0;
+    const data = {
+      patientName: bill.patient.name,
+      patientUhid: bill.patient.uhid,
+      itemTitle,
+      isGstTaxable: bill.taxableValue > 0,
+      taxableValue: bill.subTotal,
+      cgstRate: effectiveRate / 2,
+      sgstRate: effectiveRate / 2,
+      cgst: bill.cgst,
+      sgst: bill.sgst,
+      totalAmount: bill.totalAmount,
+      paymentMethod: toLedgerMethod(mode),
+      paymentMode: mode,
+      paymentDetails: serializePaymentDetails(details),
+      paymentRef: (details?.transactionId as string | undefined) ?? null,
+      issuedAt: new Date(),
+    };
+    if (existingId) {
+      const updated = await tx.invoice.updateMany({ where: { id: existingId, clinicId }, data });
+      if (updated.count) return existingId;
+    }
+    // Patient bills hang off the visit, which also stops Collect Payment billing it twice.
+    const visitId = bill.kind === 'PATIENT' ? (await tx.patientQueue.findUnique({ where: { id: bill.queueId }, select: { visitId: true } }))?.visitId ?? null : null;
+    const created = await tx.invoice.create({ data: { ...data, clinicId, invoiceNumber: bill.billNumber, visitId } });
+    return created.id;
   }
 
   /**

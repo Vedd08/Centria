@@ -62,7 +62,9 @@ export class AccountsService {
     const invoiceTotal = sum(invoices);
     const invoiceCash = sum(invoices.filter((i) => i.paymentMethod === 'cash'));
     const invoiceBank = invoiceTotal - invoiceCash;
-    const invoiceGst = invoices.reduce((a, r) => a + Number(r.cgst) + Number(r.sgst), 0);
+    // Summed in paise and rounded once, so totals never print as 72001.20000000001.
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const invoiceGst = r2(invoices.reduce((a, r) => a + Number(r.cgst) + Number(r.sgst), 0));
 
     const visitCash = rev.visitCash;
     const visitBank = rev.visitBank;
@@ -78,8 +80,9 @@ export class AccountsService {
     const byDoctorsCount = performedOrders.filter((o) => o.performedBy?.role === 'DOCTOR' || o.performedBy?.role === 'MASTER').length;
 
     const purchaseTotal = Math.round(Number(purchases._sum.totalValue ?? 0) * 100) / 100;
-    const inputGst =
-      Number(purchases._sum.igst ?? 0) + Number(purchases._sum.cgst ?? 0) + Number(purchases._sum.sgst ?? 0);
+    const inputGst = r2(
+      Number(purchases._sum.igst ?? 0) + Number(purchases._sum.cgst ?? 0) + Number(purchases._sum.sgst ?? 0),
+    );
 
     // Day-book takings are the settled record of money received; invoices and care
     // orders are shown alongside so accounts can see what each desk generated.
@@ -118,8 +121,8 @@ export class AccountsService {
         inputGst,
         purchaseCount: purchases._count._all,
       },
-      net: collected - purchaseTotal,
-      gst: { outputGst: invoiceGst, inputGst, netGstPayable: invoiceGst - inputGst },
+      net: r2(collected - purchaseTotal),
+      gst: { outputGst: invoiceGst, inputGst, netGstPayable: r2(invoiceGst - inputGst) },
     };
   }
 

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePackageTypeDto } from './dto/create-package-type.dto';
 import { PurchasePackageDto } from './dto/purchase-package.dto';
 import { InvoicesService } from '../invoices/invoices.service';
+import { cleanPaymentDetails } from '../common/payment-details';
 
 @Injectable()
 export class PackagesService {
@@ -106,6 +107,10 @@ export class PackagesService {
         ? { discountAmount, discountReason: dto.discountReason?.trim() || null, discountGivenBy: user?.name ?? null }
         : { discountAmount: 0, discountReason: null, discountGivenBy: null };
 
+    // Check payment details before anything is saved: the invoice is written after the
+    // sale commits, too late to reject a UPI payment with no transaction ID.
+    const paymentDetails = dto.paymentMode ? cleanPaymentDetails(dto.paymentMode, dto.paymentDetails) : null;
+
     const purchase = await this.prisma.$transaction(async (tx) => {
       // 1. Save PackagePurchase record
       const created = await tx.packagePurchase.create({
@@ -145,9 +150,11 @@ export class PackagesService {
             data: { recommendedPackageTypeId: null }
           });
 
-          // Link the visit if one exists (the doctor already assessed)
-          if (queueEntry.visitId) {
-            await this.linkVisitToPurchase(clinicId, queueEntry.visitId, created.id, patient.id, tx);
+          // Count today's visit as sitting 1 only when today's treatment *is* this
+          // package's treatment. A consultation that merely recommended the package
+          // is not a sitting — linking it zeroed the consultation and used up a session.
+          if (queueEntry.visit && pkgType.treatmentId && queueEntry.visit.treatmentId === pkgType.treatmentId) {
+            await this.linkVisitToPurchase(clinicId, queueEntry.visit.id, created.id, patient.id, tx);
           }
         }
       }
@@ -157,22 +164,26 @@ export class PackagesService {
 
     // 3. AUTOMATIC TAX INVOICE GENERATION AT PACKAGE SALE TIME:
     // Package purchase is the GST tax point (taxableValue + 9% CGST + 9% SGST)
-    await this.invoicesService.create(clinicId, {
+    const invoice = await this.invoicesService.create(clinicId, {
       packagePurchaseId: purchase.id,
       taxableValue: Number(amountPaid),
-      paymentMethod: dto.paymentMethod || 'bank',
-      paymentRef: dto.paymentRef || 'Package Sale Purchase',
+      ...(dto.paymentMode
+        ? { paymentMode: dto.paymentMode, paymentDetails: paymentDetails ?? undefined }
+        : { paymentMethod: dto.paymentMethod || 'bank' }),
+      paymentRef: dto.paymentRef || (paymentDetails?.transactionId as string | undefined) || 'Package Sale Purchase',
       ...(discountAmount > 0 ? { listPrice, discountAmount, discountReason: discount.discountReason } : {}),
     });
 
-    // Fetch the updated purchase since linkVisitToPurchase might have updated sittingsUsed
-    return this.prisma.packagePurchase.findUnique({
+    // Fetch the updated purchase since linkVisitToPurchase might have updated sittingsUsed.
+    // The invoice comes back too so reception can print the receipt straight away.
+    const saved = await this.prisma.packagePurchase.findUnique({
       where: { id: purchase.id },
       include: {
         patient: true,
         packageType: true,
       }
     });
+    return { ...saved, invoice };
   }
 
   async findAllPurchases(clinicId: string, patientId?: string) {

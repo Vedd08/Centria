@@ -92,9 +92,19 @@ export class InvoicesService {
 
       const visit = await this.prisma.visit.findFirst({
         where: { id: dto.visitId, clinicId },
-        include: { patient: true, treatment: true, packagePurchase: true },
+        include: { patient: true, treatment: true, packagePurchase: true, queueEntry: { select: { tokenNumber: true, bills: { select: { kind: true, billNumber: true } } } } },
       });
       if (!visit) throw new NotFoundException(`Visit ID ${dto.visitId} not found`);
+
+      // A visit that came through the queue is paid on its itemised Patient Bill
+      // (consultation, treatment, services). Billing it here as well charged it twice,
+      // or as ₹0 when the visit was a package sitting.
+      if (visit.queueEntry) {
+        const pb = visit.queueEntry.bills.find((b) => b.kind === 'PATIENT');
+        throw new ConflictException(
+          `This visit was checked in through the queue (token ${visit.queueEntry.tokenNumber}). Take payment on its Patient Bill${pb ? ` ${pb.billNumber}` : ''} under "Today's patient bills".`,
+        );
+      }
 
       patientName = visit.patient.name;
       patientUhid = visit.patient.uhid;
