@@ -50,7 +50,7 @@ export const AppointmentsPanel: React.FC = () => {
   const [search, setSearch] = useState('');
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [selected, setSelected] = useState<PatientOption | null>(null);
-  const [doctors, setDoctors] = useState<{ id: string; name: string }[]>([]);
+  const [doctors, setDoctors] = useState<{ id: string; name: string; departmentId?: string | null }[]>([]);
   const [doctorId, setDoctorId] = useState('');
   
   // Date selection
@@ -212,6 +212,38 @@ export const AppointmentsPanel: React.FC = () => {
       addToast('error', err.message || 'Could not book appointment');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /**
+   * The patient has walked in for their booking: put them in today's queue for the
+   * booked doctor, then mark the appointment. Marking alone left them invisible to
+   * the doctor. "Already in today's queue" is fine — they were checked in another way.
+   */
+  const markArrived = async (a: Appointment) => {
+    try {
+      const doctor = doctors.find((d) => d.id === a.doctor?.id);
+      const res = await apiFetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: a.patient.id,
+          doctorId: a.doctor?.id,
+          departmentId: doctor?.departmentId || undefined,
+          complaint: a.reasonForVisit || undefined,
+        }),
+      });
+      if (!res.ok && res.status !== 409) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Could not check the patient in');
+      }
+      await setStatus(a.id, 'Checked-In');
+      if (res.ok) {
+        const entry = await res.json();
+        addToast('success', `${a.patient.name} checked in — token ${entry.tokenNumber}`);
+      }
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not check the patient in');
     }
   };
 
@@ -428,7 +460,7 @@ export const AppointmentsPanel: React.FC = () => {
                   <StatusBadge label={a.status} variant={statusVariant(a.status)} />
                   {a.status === 'Scheduled' && (
                     <>
-                      <button onClick={() => setStatus(a.id, 'Checked-In')} className="px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded cursor-pointer">
+                      <button onClick={() => markArrived(a)} title="Check in to today's queue" className="px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded cursor-pointer">
                         Arrived
                       </button>
                       <button onClick={() => setStatus(a.id, 'No-Show')} className="px-2.5 py-1 text-[11px] font-medium text-status-danger bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 rounded cursor-pointer">

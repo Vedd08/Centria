@@ -1,6 +1,7 @@
 import { toLocalDateKey } from '../common/date.helper';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { receiveStock } from '../common/stock-receiver';
+import { deductFromBatches } from '../common/decrement-stock';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
@@ -138,6 +139,10 @@ export class MedicinesService {
         where: { id, clinicId },
         select: { stockQty: true },
       });
+
+      // A stock-out (write-off, return, count correction) leaves the batches too, so
+      // batch totals never claim more than is on the shelf.
+      if (dto.delta < 0) await deductFromBatches(tx, id, -dto.delta);
 
       // Record stock movement for audit trail
       await tx.stockMovement.create({

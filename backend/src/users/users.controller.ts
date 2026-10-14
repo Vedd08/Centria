@@ -78,7 +78,8 @@ export class UpdateUserDto {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT')
+  // Nurses and staff need the doctor list too — e.g. picking the attending doctor on admission.
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT', 'NURSE', 'STAFF')
   @Get()
   findAll(
     @CurrentUser() user: any,
@@ -91,7 +92,7 @@ export class UsersController {
     return this.usersService.findAll(user.clinicId, role, search, limit ? parseInt(limit, 10) : undefined);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT')
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT', 'NURSE', 'STAFF')
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.usersService.findOne(user.clinicId, id);

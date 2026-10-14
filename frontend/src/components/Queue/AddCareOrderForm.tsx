@@ -75,8 +75,22 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
     setQuantity('1');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Not a <form>: this sits inside the doctor's assessment form, and a nested form never
+  // submits — clicking "Add Order" silently did nothing. Validation is done here instead.
+  const handleSubmit = async () => {
+    if (submitting) return;
+    if (isStockBacked && !medicineId) {
+      addToast('error', 'Select a medicine from pharmacy stock');
+      return;
+    }
+    if (orderType !== 'TREATMENT' && !isStockBacked && !description.trim()) {
+      addToast('error', 'Describe what should be done');
+      return;
+    }
+    if (orderType === 'TREATMENT' && !treatmentId && !description.trim()) {
+      addToast('error', 'Select a treatment or describe it');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await apiFetch('/api/care-orders', {
@@ -111,6 +125,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   if (!open) {
     return (
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer"
       >
@@ -121,7 +136,16 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-surface-page p-4 rounded-lg border border-border space-y-3 w-full">
+    <div
+      className="bg-surface-page p-4 rounded-lg border border-border space-y-3 w-full"
+      onKeyDown={(e) => {
+        // Enter in a field adds the order instead of submitting the surrounding assessment.
+        if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-primary">New care order</span>
         <button
@@ -152,7 +176,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
             <label className="block text-xs font-semibold text-ink-secondary mb-1">
               Medicine <span className="text-status-danger">*</span>
             </label>
-            <select required value={medicineId} onChange={(e) => setMedicineId(e.target.value)} className={inputClass}>
+            <select value={medicineId} onChange={(e) => setMedicineId(e.target.value)} className={inputClass}>
               <option value="">Select from pharmacy stock</option>
               {medicines.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -254,13 +278,14 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           Cancel
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={submitting}
           className="px-3.5 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
         >
           {submitting ? 'Adding...' : 'Add Order'}
         </button>
       </div>
-    </form>
+    </div>
   );
 };

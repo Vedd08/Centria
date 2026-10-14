@@ -33,13 +33,29 @@ export async function decrementStock(
     select: { stockQty: true },
   });
 
-  // 2. FIFO Batch deduction
+  const batchDeductions = await deductFromBatches(tx, medicine.id, quantity);
+  return { newQty: updated.stockQty, batchDeductions };
+}
+
+/**
+ * Takes `quantity` out of a medicine's batches, earliest expiry first.
+ *
+ * Not all stock has a batch: opening stock entered with a new medicine and manual
+ * "+" adjustments raise stockQty only. stockQty is the source of truth (the caller has
+ * already claimed it), so whatever the batches can't cover is taken from that
+ * unbatched stock instead of failing the dispense.
+ */
+export async function deductFromBatches(
+  tx: Prisma.TransactionClient,
+  medicineId: string,
+  quantity: number,
+): Promise<BatchDeduction[]> {
   let remainingToDeduct = quantity;
   const batchDeductions: BatchDeduction[] = [];
 
   // Get all batches with available qty
   const availableBatches = await tx.medicineBatch.findMany({
-    where: { medicineId: medicine.id, currentQty: { gt: 0 } },
+    where: { medicineId, currentQty: { gt: 0 } },
   });
 
   // FEFO: known expiries first (earliest first), unknown expiries last
@@ -70,9 +86,6 @@ export async function decrementStock(
     remainingToDeduct -= deductQty;
   }
 
-  if (remainingToDeduct > 0) {
-    throw new Error(`Invariant violation: stockQty allowed deduction of ${quantity}, but batches fell short by ${remainingToDeduct}. Ledger is inconsistent.`);
-  }
-
-  return { newQty: updated.stockQty, batchDeductions };
+  // Any remainder came from unbatched stock — nothing to trace it to.
+  return batchDeductions;
 }
