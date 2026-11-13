@@ -45,8 +45,9 @@ export const LoginPage: React.FC = () => {
     { role: 'Owner', email: 'admin@clinic.com', pass: 'master123' },
     { role: 'Doctor', email: 'doctor@clinic.com', pass: 'doctor123' },
     { role: 'Reception', email: 'reception@clinic.com', pass: 'reception123' },
-    { role: 'Nurse', email: 'nurse@clinic.com', pass: 'nurse123' },
-    { role: 'Staff', email: 'staff@clinic.com', pass: 'staff123' },
+    // Nurse and Staff are one role, so they share one login. (staff@clinic.com
+    // still signs in, as the same Nurse / Staff role.)
+    { role: 'Nurse / Staff', email: 'nurse@clinic.com', pass: 'nurse123' },
     { role: 'Pharmacy', email: 'pharmacy@clinic.com', pass: 'pharmacy123' },
     { role: 'Accounts', email: 'account@clinic.com', pass: 'account123' },
     { role: 'RM', email: 'rm@clinic.com', pass: 'rm123' },
