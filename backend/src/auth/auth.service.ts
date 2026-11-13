@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { normalizeRole } from '../common/roles';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -28,7 +29,7 @@ export class AuthService {
     const payload = {
       sub: user.id,
       email: user.email,
-      role: user.role,
+      role: normalizeRole(user.role),
       name: user.name,
       clinicId: user.clinicId,
     };
@@ -41,7 +42,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: normalizeRole(user.role),
         clinicId: user.clinicId,
       },
     };

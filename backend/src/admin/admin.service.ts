@@ -2,10 +2,11 @@ import { toLocalDateKey } from '../common/date.helper';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeRevenue, getRevenueLedgerRows } from '../common/revenue';
+import { normalizeRole, NURSE_STAFF_ROLES } from '../common/roles';
 
 const STOCK_BACKED = ['MEDICINE', 'INJECTION'];
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
-const FLOOR_ROLES = ['NURSE', 'STAFF'];
+const FLOOR_ROLES = NURSE_STAFF_ROLES;
 
 const monthsAgo = (n: number) => {
   const d = new Date();
@@ -43,7 +44,12 @@ export class AdminService {
       visitsIpd: visits.find((v) => v.visitType === 'IPD')?._count._all ?? 0,
       currentlyAdmitted: admissions,
       queueToday,
-      staffByRole: Object.fromEntries(users.map((u) => [u.role, u._count._all])),
+      // Older STAFF accounts are counted with NURSE — it is one role now.
+      staffByRole: users.reduce<Record<string, number>>((acc, u) => {
+        const role = normalizeRole(u.role);
+        acc[role] = (acc[role] ?? 0) + u._count._all;
+        return acc;
+      }, {}),
       lifetimeRevenue: revenueTotals.total,
       invoiceTotal: Number(invoices._sum.totalAmount ?? 0),
       invoiceCount: invoices._count._all,
@@ -167,9 +173,9 @@ export class AdminService {
           id: person.id,
           name: person.name,
           email: person.email,
-          role: person.role,
-          // NURSE works the ward, STAFF works outpatients.
-          scope: person.role === 'NURSE' ? 'IPD' : 'OPD',
+          role: normalizeRole(person.role),
+          // Nurse / Staff covers both the ward and outpatients.
+          scope: 'OPD & IPD',
           assignedDoctor: person.assignedDoctor?.name ?? null,
           ordersPerformed: performed.length,
           medicinesGiven: medicinesGiven.length,

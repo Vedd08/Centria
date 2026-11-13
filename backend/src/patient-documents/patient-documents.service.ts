@@ -21,9 +21,6 @@ export class PatientDocumentsService {
     if (dto.visitId && dto.admissionId) {
       throw new BadRequestException('A document can be linked to a visit or an admission, not both');
     }
-    if (requestingUser.role === 'NURSE' && dto.visitId) {
-      throw new ForbiddenException('Nurses can only attach documents to IPD admissions, not OPD visits');
-    }
 
     const patient = await this.prisma.patient.findFirst({ where: { id: dto.patientId, clinicId } });
     if (!patient) {
@@ -73,10 +70,6 @@ export class PatientDocumentsService {
     if (filters.visitId) where.visitId = filters.visitId;
     if (filters.admissionId) where.admissionId = filters.admissionId;
 
-    // NURSE is IPD-only — OPD (visit-linked) documents are excluded from their reads.
-    if (requestingUser.role === 'NURSE') {
-      where.visitId = null;
-    }
 
     return this.prisma.patientDocument.findMany({
       where,

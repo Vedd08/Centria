@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UpdateUserDto } from './users.controller';
 import { textContains } from '../common/text-search';
+import { normalizeRole } from '../common/roles';
 
 /** Never select passwordHash — this list feeds client-side staff dropdowns. */
 const STAFF_FIELDS = {
@@ -70,7 +71,7 @@ export class UsersService {
         email: dto.email.toLowerCase().trim(),
         passwordHash,
         name: dto.name.trim(),
-        role: dto.role,
+        role: normalizeRole(dto.role),
         assignedDoctorId: dto.assignedDoctorId || null,
         departmentId: dto.departmentId || null,
       },
@@ -96,7 +97,7 @@ export class UsersService {
     const data: any = {};
     if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
     if (dto.name !== undefined) data.name = dto.name.trim();
-    if (dto.role !== undefined) data.role = dto.role;
+    if (dto.role !== undefined) data.role = normalizeRole(dto.role);
     if (dto.password !== undefined) {
       data.passwordHash = await bcrypt.hash(dto.password, 10);
     }

@@ -33,7 +33,6 @@ interface Summary {
   receipts: { invoiceTotal: number; invoiceCash: number; invoiceBank: number; invoiceGst: number; invoiceCount: number };
   wardAndService: {
     byNurse: number;
-    byStaff: number;
     raisedOrderCount: number;
     performedOrderCount: number;
     performedByDoctorsCount: number;
@@ -270,8 +269,7 @@ export const AccountsDashboard: React.FC = () => {
               </h3>
               <div className="space-y-2.5 flex-1">
                 {[
-                  ['Performed by nurse', summary.wardAndService.byNurse],
-                  ['Performed by staff', summary.wardAndService.byStaff],
+                  ['Performed by nurse / staff', summary.wardAndService.byNurse],
                 ].map(([label, val]) => (
                   <div key={label as string} className="flex justify-between text-xs">
                     <span className="text-ink-secondary">{label}</span>

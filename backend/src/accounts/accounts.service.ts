@@ -69,11 +69,9 @@ export class AccountsService {
     const packageCash = rev.packageCash;
     const packageBank = rev.packageBank;
 
+    // One Nurse / Staff role; older STAFF accounts count with it.
     const byNurse = performedOrders
-      .filter((o) => o.performedBy?.role === 'NURSE')
-      .reduce((a, o) => a + Number(o.totalPrice), 0);
-    const byStaff = performedOrders
-      .filter((o) => o.performedBy?.role === 'STAFF')
+      .filter((o) => o.performedBy?.role === 'NURSE' || o.performedBy?.role === 'STAFF')
       .reduce((a, o) => a + Number(o.totalPrice), 0);
     const byDoctorsCount = performedOrders.filter((o) => o.performedBy?.role === 'DOCTOR' || o.performedBy?.role === 'MASTER').length;
 
@@ -107,7 +105,6 @@ export class AccountsService {
       },
       wardAndService: {
         byNurse,
-        byStaff,
         raisedOrderCount: raisedOrders,
         performedOrderCount: performedOrders.length,
         performedByDoctorsCount: byDoctorsCount,

@@ -9,14 +9,6 @@ import { PerformCareOrderDto } from './dto/perform-care-order.dto';
 /** Order types the pharmacy dispenses against physical stock. */
 const STOCK_BACKED = ['MEDICINE', 'INJECTION'];
 
-/**
- * Ward nurses look after inpatients; service staff look after outpatients. Roles not
- * listed here (doctors, admins, pharmacy) see both.
- */
-const CARE_TYPE_BY_ROLE: Record<string, string | undefined> = {
-  NURSE: 'IPD',
-  STAFF: 'OPD',
-};
 
 const ORDER_INCLUDE = {
   medicine: true,
@@ -108,12 +100,8 @@ export class CareOrdersService {
     if (filters.status) where.status = { in: filters.status.split(',').map((s) => s.trim()) };
     if (filters.date) where.queue = { queueDate: filters.date };
 
-    // The ward and the outpatient desk are staffed separately: nurses work IPD,
-    // service staff work OPD. Scope their worklists so neither sees the other's.
-    const careTypeForRole = CARE_TYPE_BY_ROLE[requestingUser?.role];
-    if (careTypeForRole) {
-      where.queue = { ...(where.queue as object), careType: careTypeForRole };
-    }
+    // Nurse / Staff is one role covering both OPD and IPD, so worklists are not
+    // narrowed by role.
     if (filters.pendingDispense) {
       // The pharmacy worklist: stock-backed items not yet handed over.
       where.orderType = { in: STOCK_BACKED };

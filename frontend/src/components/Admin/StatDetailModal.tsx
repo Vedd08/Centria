@@ -272,8 +272,7 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     filters: ['tabs'],
     tabs: [
       { label: 'Doctors', value: 'DOCTOR' },
-      { label: 'Nurses', value: 'NURSE' },
-      { label: 'Staff', value: 'STAFF' },
+      { label: 'Nurses / Staff', value: 'NURSE' },
       { label: 'Reception', value: 'RECEPTION' },
       { label: 'Admins', value: 'MASTER' },
     ],
@@ -281,10 +280,12 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     columns: [
       { key: 'name', label: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
       { key: 'email', label: 'Email', render: (r) => r.email },
-      { key: 'role', label: 'Role', render: (r) => <StatusBadge label={r.role} variant="accent" /> },
+      { key: 'role', label: 'Role', render: (r) => <StatusBadge label={r.role === 'NURSE' || r.role === 'STAFF' ? 'NURSE / STAFF' : r.role} variant="accent" /> },
     ],
     fetchPage: async (apiFetch, params, extraState) => {
-      const role = params.tab || extraState || 'DOCTOR';
+      const tab = params.tab || extraState || 'DOCTOR';
+      // Nurse / Staff is one role; older accounts may still be stored as STAFF.
+      const role = tab === 'NURSE' || tab === 'STAFF' ? 'NURSE,STAFF' : tab;
       const res = await apiFetch(`/api/users?role=${role}`);
       const data = await res.json();
       return { rows: data.slice((params.page - 1) * params.pageSize, params.page * params.pageSize), total: data.length };

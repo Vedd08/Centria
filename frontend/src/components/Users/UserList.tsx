@@ -18,7 +18,11 @@ interface UserItem {
 /** Roles that carry out a doctor's orders, so they can be linked to one. */
 const DOCTOR_LINKED_ROLES = ['NURSE', 'STAFF'];
 
-const ROLE_OPTIONS = ['SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT', 'NURSE', 'STAFF'] as const;
+// Nurse and Staff are one role now; it is stored as NURSE.
+const ROLE_OPTIONS = ['SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT', 'NURSE'] as const;
+
+/** How a role reads on screen. Older STAFF accounts show as the merged role. */
+const roleLabel = (r: string) => (r === 'NURSE' || r === 'STAFF' ? 'NURSE / STAFF' : r);
 
 const inputClass = 'w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand';
 
@@ -75,7 +79,7 @@ export const UserList: React.FC = () => {
       setName(user.name);
       setEmail(user.email);
       setPassword('');
-      setRole(user.role);
+      setRole(user.role === 'STAFF' ? 'NURSE' : user.role);
       setAssignedDoctorId(user.assignedDoctorId || '');
     } else {
       setEditingUser(null);
@@ -197,7 +201,7 @@ export const UserList: React.FC = () => {
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-soft text-brand-deep text-[11px] font-semibold">
                         <Shield className="w-3 h-3" />
-                        {u.role}
+                        {roleLabel(u.role)}
                       </span>
                       {u.assignedDoctor && (
                         <span className="block text-[10px] text-ink-secondary mt-1">
@@ -302,7 +306,7 @@ export const UserList: React.FC = () => {
                 <label className="block text-xs font-medium text-ink-secondary mb-1">Role</label>
                 <select value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
                   {ROLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>{roleLabel(r)}</option>
                   ))}
                 </select>
               </div>

@@ -11,14 +11,6 @@ import { textContains } from '../common/text-search';
 
 const DOCTOR_ROLES = ['DOCTOR', 'MASTER', 'SUPER_ADMIN'];
 
-/**
- * Ward nurses look after inpatients; service staff look after outpatients. Roles not
- * listed here (doctors, reception, admins) see the whole board.
- */
-const CARE_TYPE_BY_ROLE: Record<string, string | undefined> = {
-  NURSE: 'IPD',
-  STAFF: 'OPD',
-};
 
 const QUEUE_INCLUDE = {
   patient: {
@@ -160,8 +152,8 @@ export class QueueService {
     if (filters.doctorId) where.doctorId = filters.doctorId;
     if (filters.departmentId) where.departmentId = filters.departmentId;
 
-    const careTypeForRole = CARE_TYPE_BY_ROLE[requestingUser?.role];
-    if (careTypeForRole) where.careType = careTypeForRole;
+    // Nurse / Staff is one role covering both OPD and IPD, so the board is never
+    // narrowed by role any more.
 
     if (filters.search) {
       const term = filters.search.trim();

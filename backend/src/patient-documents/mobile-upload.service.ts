@@ -44,9 +44,6 @@ export class MobileUploadService {
     if (dto.admissionId && dto.visitId) {
       throw new BadRequestException('A document can be linked to a visit or an admission, not both');
     }
-    if (user.role === 'NURSE' && dto.visitId) {
-      throw new ForbiddenException('Nurses can only attach documents to IPD admissions, not OPD visits');
-    }
     const patient = await this.prisma.patient.findFirst({ where: { id: dto.patientId, clinicId }, select: { id: true } });
     if (!patient) throw new NotFoundException('Patient not found in this clinic');
 

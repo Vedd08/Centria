@@ -6,6 +6,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeRole } from '../common/roles';
 import * as bcrypt from 'bcrypt';
 
 class ChangePasswordDto {
@@ -43,10 +44,11 @@ export class AuthController {
   @Get('me')
   async getProfile(@Request() req: any) {
     if (!req.user?.id) return req.user;
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: req.user.id },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
+    return user ? { ...user, role: normalizeRole(user.role) } : user;
   }
 
   @UseGuards(JwtAuthGuard)

@@ -357,7 +357,7 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, onSelectTab }) => {
             >
               {user.name}
             </button>
-            <div className="eyebrow text-shell-muted leading-tight">{user.role}</div>
+            <div className="eyebrow text-shell-muted leading-tight">{user.role === 'NURSE' || user.role === 'STAFF' ? 'NURSE / STAFF' : user.role}</div>
           </div>
           <button
             onClick={logout}

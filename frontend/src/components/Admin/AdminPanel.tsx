@@ -28,7 +28,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'pharmacy', label: 'Pharmacy Records', icon: Pill },
   { key: 'patients', label: 'Patient Records', icon: Users },
   { key: 'doctors', label: 'Doctor Records', icon: Stethoscope },
-  { key: 'staff', label: 'Staff & Nurse Records', icon: UserCog },
+  { key: 'staff', label: 'Nurse / Staff Records', icon: UserCog },
 ];
 
 
@@ -197,7 +197,7 @@ export const AdminPanel: React.FC = () => {
                   onClick={(e) => openDetail(e, 'team', role, `${role} role accounts`, String(count))}
                   className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-surface-page hover:bg-surface-page/80 border border-border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:border-brand transition-colors"
                 >
-                  <span className="font-medium">{role}</span>
+                  <span className="font-medium">{role === 'NURSE' ? 'NURSE / STAFF' : role}</span>
                   <span className="font-mono text-ink-secondary">{count}</span>
                 </button>
               ))}
@@ -418,8 +418,8 @@ export const AdminPanel: React.FC = () => {
         <div className="bg-surface-card rounded-[10px] border border-border shadow-xs overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border">
             <div>
-              <h3 className="text-sm font-semibold">Staff &amp; nurse records</h3>
-              <p className="text-[11px] text-ink-secondary mt-0.5">Nurses cover IPD, service staff cover OPD.</p>
+              <h3 className="text-sm font-semibold">Nurse / staff records</h3>
+              <p className="text-[11px] text-ink-secondary mt-0.5">One Nurse / Staff role covering both OPD and IPD.</p>
             </div>
             <button
               onClick={() =>
@@ -465,7 +465,7 @@ export const AdminPanel: React.FC = () => {
                         <p className="text-[11px] text-ink-secondary">{s.email}</p>
                       </td>
                       <td className="py-2.5 px-4">
-                        <StatusBadge label={`${s.role} · ${s.scope}`} variant={s.scope === 'IPD' ? 'warning' : 'accent'} />
+                        <StatusBadge label={`NURSE / STAFF · ${s.scope}`} variant="accent" />
                       </td>
                       <td className="py-2.5 px-4 text-ink-secondary">{s.assignedDoctor || '—'}</td>
                       <td className="py-2.5 px-4 text-right font-mono">{s.ordersPerformed}</td>
