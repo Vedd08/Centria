@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, ArrowRight, ShieldAlert, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { BrandLogo } from './common/BrandLogo';
+
+/** How long a sign-in may take before we explain that the server is starting up. */
+const SLOW_SIGN_IN_MS = 4000;
 
 export const LoginPage: React.FC = () => {
   const { login, apiFetch } = useAuth();
@@ -12,6 +15,27 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
+  const [slowSignIn, setSlowSignIn] = useState(false);
+
+  // The API host sleeps when idle and takes ~30s to start again. Wake it as soon as
+  // the page opens so it boots while the user is typing, not after they press Sign in.
+  // /health also touches the database, so that connection is warm too.
+  useEffect(() => {
+    fetch('/api/health').catch(() => {
+      /* Best effort — the sign-in request will surface any real outage. */
+    });
+  }, []);
+
+  // If a sign-in is still waiting after a few seconds, the server is almost certainly
+  // waking up — say so, rather than leaving a spinner that looks hung.
+  useEffect(() => {
+    if (!loading) {
+      setSlowSignIn(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlowSignIn(true), SLOW_SIGN_IN_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const showDemoAccounts =
     import.meta.env.VITE_ALLOW_DEMO_SEED !== 'false' &&
@@ -194,6 +218,12 @@ export const LoginPage: React.FC = () => {
                 </>
               )}
             </button>
+
+            {slowSignIn && (
+              <p role="status" className="text-xs text-ink-secondary text-center leading-relaxed">
+                The server is waking up after being idle. This can take up to a minute — please keep this page open.
+              </p>
+            )}
           </form>
 
           {/* Demo accounts stay available but tucked away — they are scaffolding,
