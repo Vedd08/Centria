@@ -79,7 +79,7 @@ export class PackagesService {
     return { message: 'Package type deleted successfully' };
   }
 
-  async purchasePackage(clinicId: string, dto: PurchasePackageDto) {
+  async purchasePackage(clinicId: string, dto: PurchasePackageDto, user?: { id: string; name?: string }) {
     const patient = await this.prisma.patient.findFirst({
       where: { id: dto.patientId, clinicId },
     });
@@ -95,7 +95,30 @@ export class PackagesService {
     }
 
     const todayDate = toLocalDateKey(new Date());
-    const amountPaid = dto.amountPaid !== undefined ? dto.amountPaid : pkgType.price;
+
+    // Every rupee below the list price is a discount that accounts must see, with
+    // who gave it and why. A discount can be sent explicitly; an amount below the
+    // list price (older screens) is recorded as a discount too, never silently.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const listPrice = Number(pkgType.price);
+    let discountAmount: number;
+    let amountPaid: number;
+    if (dto.discount !== undefined) {
+      discountAmount = round2(Number(dto.discount));
+      amountPaid = round2(listPrice - discountAmount);
+    } else {
+      amountPaid = round2(dto.amountPaid !== undefined ? Number(dto.amountPaid) : listPrice);
+      discountAmount = round2(Math.max(0, listPrice - amountPaid));
+    }
+    if (discountAmount > listPrice) {
+      throw new BadRequestException(`Discount cannot be more than the package price (₹${listPrice})`);
+    }
+    let discountReason = dto.discountReason?.trim() || null;
+    if (discountAmount > 0 && !discountReason) {
+      if (dto.discount !== undefined) throw new BadRequestException('Enter a reason for the discount');
+      discountReason = 'Price lowered at sale';
+    }
+    const hasDiscount = discountAmount > 0;
 
     const purchase = await this.prisma.$transaction(async (tx) => {
       // 1. Save PackagePurchase record
@@ -107,6 +130,11 @@ export class PackagesService {
           packageName: pkgType.name,
           purchaseDate: dto.purchaseDate || todayDate,
           amountPaid,
+          listPrice,
+          discountAmount,
+          discountReason: hasDiscount ? discountReason : null,
+          discountById: hasDiscount ? user?.id ?? null : null,
+          discountGivenBy: hasDiscount ? user?.name ?? null : null,
           totalSittings: pkgType.totalSittings,
           isGstTaxable: pkgType.isGstTaxable,
           sittingGapDays: pkgType.sittingGapDays,

@@ -59,6 +59,7 @@ model User {
   dispensedCareOrders            CareOrder[]            @relation("DispensedCareOrders")
   PackageType                    PackageType[]
   FollowUpCall                   FollowUpCall[]
+  packageDiscounts               PackagePurchase[]      @relation("PackageDiscounts")
 }
 
 model Patient {
@@ -146,6 +147,16 @@ model PackagePurchase {
   packageCode         String? // Short code used on the package register, e.g. "GLT 5gm"
   purchaseDate        String // YYYY-MM-DD
   amountPaid          Decimal
+  /// Package price at the time of sale, before any discount.
+  listPrice           Decimal?
+  /// Discount given on the list price (₹). amountPaid = listPrice - discountAmount.
+  discountAmount      Decimal     @default(0.0)
+  discountReason      String?
+  /// Name of whoever gave the discount, kept even if their account is removed later.
+  discountGivenBy     String?
+  /// The staff member who gave the discount — shown to accounts.
+  discountById        String?
+  discountBy          User?       @relation("PackageDiscounts", fields: [discountById], references: [id])
   cashAmount          Decimal     @default(0.0)
   bankAmount          Decimal     @default(0.0)
   paymentRefId        String?

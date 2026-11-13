@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class PurchasePackageDto {
   @IsString()
@@ -13,6 +13,18 @@ export class PurchasePackageDto {
   @IsNumber()
   @Min(0)
   amountPaid?: number;
+
+  /** Discount in ₹ off the package's list price. The amount charged is list − discount. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0, { message: 'Discount cannot be negative' })
+  discount?: number;
+
+  /** Why the discount was given — required whenever there is one. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  discountReason?: string;
 
   @IsOptional()
   @IsString()

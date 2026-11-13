@@ -13,6 +13,7 @@ import {
   Landmark,
   Download,
   RefreshCw,
+  BadgePercent,
 } from 'lucide-react';
 import { money } from '../../utils/money';
 import { fmtDate } from '../../utils/date';
@@ -40,6 +41,23 @@ interface Summary {
   expenses: { purchaseTotal: number; purchaseTaxable: number; inputGst: number; purchaseCount: number };
   net: number;
   gst: { outputGst: number; inputGst: number; netGstPayable: number };
+  discounts?: {
+    total: number;
+    count: number;
+    byPerson: { name: string; total: number; count: number }[];
+    rows: {
+      id: string;
+      date: string;
+      patientName: string;
+      patientUhid: string;
+      packageName: string;
+      listPrice: number;
+      discount: number;
+      amountPaid: number;
+      givenBy: string;
+      reason: string;
+    }[];
+  };
 }
 
 interface LedgerEntry {
@@ -303,6 +321,92 @@ export const AccountsDashboard: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* Package discounts — who gave them, how much and why. */}
+          {summary.discounts && (
+            <div className="bg-surface-card rounded-[10px] border border-border shadow-xs overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border">
+                <div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <BadgePercent className="w-4 h-4 text-brand" /> Discounts Given
+                  </h3>
+                  <p className="text-[11px] text-ink-secondary mt-0.5">
+                    {summary.discounts.count} package sale{summary.discounts.count === 1 ? '' : 's'} with a discount ·{' '}
+                    <span className="font-semibold text-status-danger">{money(summary.discounts.total)}</span> given in this period
+                  </p>
+                </div>
+                {summary.discounts.count > 0 && (
+                  <button
+                    onClick={() =>
+                      exportToCsv('package-discounts', summary.discounts!.rows, [
+                        { key: 'date', label: 'Date' },
+                        { key: 'patientName', label: 'Patient' },
+                        { key: 'patientUhid', label: 'UHID' },
+                        { key: 'packageName', label: 'Package' },
+                        { key: 'listPrice', label: 'List Price' },
+                        { key: 'discount', label: 'Discount' },
+                        { key: 'amountPaid', label: 'Charged' },
+                        { key: 'givenBy', label: 'Given By' },
+                        { key: 'reason', label: 'Reason' },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export
+                  </button>
+                )}
+              </div>
+
+              {summary.discounts.count === 0 ? (
+                <p className="p-6 text-center text-xs text-ink-secondary">No discounts given in this period.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2 p-4 border-b border-border">
+                    {summary.discounts.byPerson.map((pp) => (
+                      <span key={pp.name} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-surface-page border border-border text-xs">
+                        <span className="font-medium">{pp.name}</span>
+                        <span className="font-mono text-status-danger">{money(pp.total)}</span>
+                        <span className="text-ink-secondary">({pp.count})</span>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="sticky top-0 bg-surface-page">
+                        <tr className="border-b border-border text-ink-secondary font-medium">
+                          <th className="py-2.5 px-4">Date</th>
+                          <th className="py-2.5 px-4">Patient</th>
+                          <th className="py-2.5 px-4">Package</th>
+                          <th className="py-2.5 px-4 text-right">Price</th>
+                          <th className="py-2.5 px-4 text-right">Discount</th>
+                          <th className="py-2.5 px-4 text-right">Charged</th>
+                          <th className="py-2.5 px-4">Given by</th>
+                          <th className="py-2.5 px-4">Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {summary.discounts.rows.map((d) => (
+                          <tr key={d.id} className="hover:bg-surface-page/60">
+                            <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{fmtDate(d.date)}</td>
+                            <td className="py-2.5 px-4">
+                              <span className="font-medium">{d.patientName}</span>
+                              <span className="block text-[10px] text-ink-secondary font-mono">{d.patientUhid}</span>
+                            </td>
+                            <td className="py-2.5 px-4 max-w-[200px] truncate" title={d.packageName}>{d.packageName}</td>
+                            <td className="py-2.5 px-4 text-right font-mono text-ink-secondary">{money(d.listPrice)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-semibold text-status-danger">−{money(d.discount)}</td>
+                            <td className="py-2.5 px-4 text-right font-mono">{money(d.amountPaid)}</td>
+                            <td className="py-2.5 px-4 whitespace-nowrap">{d.givenBy}</td>
+                            <td className="py-2.5 px-4 max-w-[220px] truncate text-ink-secondary" title={d.reason}>{d.reason || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="bg-surface-card rounded-[10px] border border-border shadow-xs overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border">

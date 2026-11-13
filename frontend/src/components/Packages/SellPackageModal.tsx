@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Tag } from 'lucide-react';
+import { Tag, BadgePercent } from 'lucide-react';
+import { money } from '../../utils/money';
 import { Patient } from '../Patients/PatientList';
 import { PackageTypeItem } from './PackageList';
 
@@ -22,7 +23,7 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   initialPackageTypeId = '',
   linkToQueueId = '',
 }) => {
-  const { apiFetch } = useAuth();
+  const { apiFetch, user } = useAuth();
   const { addToast } = useToast();
 
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -30,7 +31,9 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
   const [selectedPackageTypeId, setSelectedPackageTypeId] = useState(initialPackageTypeId);
-  const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount');
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
   const [selling, setSelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,10 +56,6 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
       
       if (dataTypes.length > 0 && !initialPackageTypeId) {
         setSelectedPackageTypeId(dataTypes[0].id);
-        setAmountPaid(dataTypes[0].price);
-      } else if (initialPackageTypeId) {
-        const found = dataTypes.find((t: any) => t.id === initialPackageTypeId);
-        if (found) setAmountPaid(found.price);
       }
 
       if (initialPatientId) {
@@ -96,13 +95,29 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
 
   const handlePackageTypeSelect = (typeId: string) => {
     setSelectedPackageTypeId(typeId);
-    const found = packageTypes.find((t) => t.id === typeId);
-    if (found) setAmountPaid(found.price);
   };
+
+  // List price comes from the package; the discount is taken off it, so the amount
+  // charged can't drift from what accounts sees as list − discount.
+  const listPrice = Number(packageTypes.find((t) => t.id === selectedPackageTypeId)?.price ?? 0);
+  const rawDiscount = Number(discountInput) || 0;
+  const discount = Math.round(
+    Math.min(listPrice, Math.max(0, discountMode === 'percent' ? (listPrice * rawDiscount) / 100 : rawDiscount)) * 100,
+  ) / 100;
+  const finalAmount = Math.round((listPrice - discount) * 100) / 100;
+  const discountTooBig = discountMode === 'percent' ? rawDiscount > 100 : rawDiscount > listPrice;
 
   const handleSellSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatientId || !selectedPackageTypeId) return;
+    if (discountTooBig) {
+      setError('Discount cannot be more than the package price');
+      return;
+    }
+    if (discount > 0 && !discountReason.trim()) {
+      setError('Enter a reason for the discount');
+      return;
+    }
 
     setSelling(true);
     setError(null);
@@ -114,7 +129,8 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
         body: JSON.stringify({
           patientId: selectedPatientId,
           packageTypeId: selectedPackageTypeId,
-          amountPaid: Number(amountPaid),
+          discount,
+          discountReason: discount > 0 ? discountReason.trim() : undefined,
           linkToQueueId: linkToQueueId || undefined,
         }),
       });
@@ -122,7 +138,9 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to complete package sale');
 
-      addToast('success', 'Package sold successfully');
+      addToast('success', discount > 0 ? `Package sold with ${money(discount)} discount` : 'Package sold successfully');
+      setDiscountInput('');
+      setDiscountReason('');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -209,19 +227,72 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-ink-secondary mb-1">
-              Amount Paid (₹) <span className="text-status-danger">*</span>
-            </label>
-            <input
-              type="number"
-              required
-              min={0}
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card font-bold"
-            />
+          <div className="flex justify-between text-xs">
+            <span className="text-ink-secondary">Package price</span>
+            <span className="font-mono font-semibold">{money(listPrice)}</span>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1 flex items-center gap-1.5">
+              <BadgePercent className="w-3.5 h-3.5" /> Discount <span className="font-normal text-ink-secondary/70">(optional)</span>
+            </label>
+            <div className="flex gap-2">
+              <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+                {(['amount', 'percent'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDiscountMode(m)}
+                    className={`px-3 py-2 text-xs font-semibold cursor-pointer ${
+                      discountMode === m ? 'bg-brand text-white' : 'bg-surface-card text-ink-secondary hover:bg-surface-page'
+                    }`}
+                  >
+                    {m === 'amount' ? '₹' : '%'}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min={0}
+                max={discountMode === 'percent' ? 100 : listPrice}
+                step="0.01"
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                placeholder={discountMode === 'percent' ? 'e.g. 10' : 'e.g. 2000'}
+                className={`w-full px-3 py-2 rounded-md border text-xs focus:ring-1 focus:ring-brand bg-surface-card ${
+                  discountTooBig ? 'border-status-danger' : 'border-border'
+                }`}
+              />
+            </div>
+            {discountTooBig && <p className="text-[11px] text-status-danger mt-1">Discount cannot be more than the package price.</p>}
+          </div>
+
+          {discount > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">
+                Reason for discount <span className="text-status-danger">*</span>
+              </label>
+              <input
+                type="text"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                placeholder="e.g. Regular patient, festival offer, doctor approved"
+                className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
+              />
+              <p className="text-[10px] text-ink-secondary mt-1">
+                Recorded in Accounts as given by <span className="font-semibold text-ink-primary">{user?.name || 'you'}</span>.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center text-sm border-t border-border pt-3">
+            <span className="font-semibold">Amount to collect</span>
+            <span className="font-mono font-bold text-brand-deep">
+              {money(finalAmount)}
+              {discount > 0 && <span className="ml-2 text-[11px] font-normal text-status-success">({money(discount)} off)</span>}
+            </span>
+          </div>
+          <p className="text-[10px] text-ink-secondary -mt-2">GST, if the package is taxable, is added on the receipt.</p>
 
           <div className="pt-2 border-t border-border flex justify-end gap-2">
             <button
@@ -233,7 +304,7 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={selling}
+              disabled={selling || discountTooBig}
               className="px-4 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
             >
               {selling ? 'Issuing...' : 'Issue Package & Create Sittings'}

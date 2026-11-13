@@ -79,6 +79,8 @@ export class AccountsService {
     const inputGst =
       Number(purchases._sum.igst ?? 0) + Number(purchases._sum.cgst ?? 0) + Number(purchases._sum.sgst ?? 0);
 
+    const discounts = await this.getDiscounts(clinicId, fromDate, toDate);
+
     // Day-book takings are the settled record of money received; invoices and care
     // orders are shown alongside so accounts can see what each desk generated.
     const collected = rev.total; // Uses the properly de-duplicated revenue total
@@ -117,6 +119,58 @@ export class AccountsService {
       },
       net: collected - purchaseTotal,
       gst: { outputGst: invoiceGst, inputGst, netGstPayable: invoiceGst - inputGst },
+      discounts,
+    };
+  }
+
+  /**
+   * Package discounts given in the period: who gave each one, how much, and why,
+   * plus a total per person so accounts can keep an eye on it.
+   */
+  private async getDiscounts(clinicId: string, fromDate: string, toDate: string) {
+    const rows = await this.prisma.packagePurchase.findMany({
+      where: { clinicId, discountAmount: { gt: 0 }, purchaseDate: { gte: fromDate, lte: toDate } },
+      select: {
+        id: true,
+        purchaseDate: true,
+        packageName: true,
+        listPrice: true,
+        discountAmount: true,
+        amountPaid: true,
+        discountReason: true,
+        discountGivenBy: true,
+        discountBy: { select: { name: true } },
+        patient: { select: { name: true, uhid: true } },
+      },
+      orderBy: [{ purchaseDate: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const list = rows.map((r) => ({
+      id: r.id,
+      date: r.purchaseDate,
+      patientName: r.patient?.name ?? '',
+      patientUhid: r.patient?.uhid ?? '',
+      packageName: r.packageName,
+      listPrice: Number(r.listPrice ?? Number(r.amountPaid) + Number(r.discountAmount)),
+      discount: Number(r.discountAmount),
+      amountPaid: Number(r.amountPaid),
+      givenBy: r.discountBy?.name ?? r.discountGivenBy ?? 'Unknown',
+      reason: r.discountReason ?? '',
+    }));
+
+    const byPersonMap = new Map<string, { name: string; total: number; count: number }>();
+    for (const d of list) {
+      const cur = byPersonMap.get(d.givenBy) ?? { name: d.givenBy, total: 0, count: 0 };
+      cur.total += d.discount;
+      cur.count += 1;
+      byPersonMap.set(d.givenBy, cur);
+    }
+
+    return {
+      total: list.reduce((a, d) => a + d.discount, 0),
+      count: list.length,
+      byPerson: Array.from(byPersonMap.values()).sort((a, b) => b.total - a.total),
+      rows: list,
     };
   }
 
