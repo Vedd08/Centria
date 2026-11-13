@@ -12,7 +12,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class TreatmentsController {
   constructor(private readonly treatmentsService: TreatmentsService) {}
 
-  @Roles('SUPER_ADMIN', 'MASTER')
+  // Doctors add a procedure to the catalogue from the consultation screen when the
+  // one they are doing is not listed yet. Editing and deleting stay admin-only.
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Post()
   create(@CurrentUser() user: any, @Body() createTreatmentDto: CreateTreatmentDto) {
     return this.treatmentsService.create(user.clinicId, createTreatmentDto);

@@ -471,6 +471,27 @@ model Clinic {
   doctorSchedules           DoctorSchedule[]
   RetailSale                RetailSale[]
   FollowUpCall              FollowUpCall[]
+  referringDoctors          ReferringDoctor[]
+}
+
+/// An outside doctor who sends patients to the clinic. Reception picks from this
+/// list at registration so the same doctor is not spelled five different ways
+/// (which would split their referral commission). Patient.referringDoctor still
+/// stores the name, so existing records and commission rules keep working.
+model ReferringDoctor {
+  id         String   @id @default(uuid())
+  name       String
+  phone      String?
+  hospital   String? // Their own clinic / hospital
+  speciality String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id])
+
+  @@unique([clinicId, name])
 }
 
 model DoctorSchedule {

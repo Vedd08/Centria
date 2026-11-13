@@ -7,10 +7,12 @@ interface CollapsibleStepProps {
   summary?: React.ReactNode;
   children: React.ReactNode;
   defaultExpanded?: boolean;
+  /** Overrides where the open/closed state is remembered (defaults to one key per step number). */
+  storageKey?: string;
 }
 
-export const CollapsibleStep: React.FC<CollapsibleStepProps> = ({ step, title, summary, children, defaultExpanded = true }) => {
-  const storageKey = `assessment-step-${step}-expanded`;
+export const CollapsibleStep: React.FC<CollapsibleStepProps> = ({ step, title, summary, children, defaultExpanded = true, storageKey: customKey }) => {
+  const storageKey = customKey || `assessment-step-${step}-expanded`;
   const [expanded, setExpanded] = useState(() => {
     try {
       const saved = localStorage.getItem(storageKey);

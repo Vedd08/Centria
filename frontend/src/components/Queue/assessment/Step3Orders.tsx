@@ -8,24 +8,19 @@ interface Step3OrdersProps extends CareOrdersListProps {
   onOrderAdded: () => void;
 }
 
+/**
+ * Medicines and procedures for this encounter. Orders hang off the queue entry, not
+ * the saved assessment, so the doctor can prescribe before pressing Save.
+ */
 export const Step3Orders: React.FC<Step3OrdersProps> = ({
-  queueId, isAssessed, onOrderAdded, ...careOrdersProps
+  queueId, isAssessed: _isAssessed, onOrderAdded, ...careOrdersProps
 }) => {
   return (
     <div className="space-y-4">
-      <CareOrdersList 
-        {...careOrdersProps} 
-        headerActions={
-          isAssessed ? (
-            <AddCareOrderForm queueId={queueId} onOrderAdded={onOrderAdded} />
-          ) : null
-        }
+      <CareOrdersList
+        {...careOrdersProps}
+        headerActions={<AddCareOrderForm queueId={queueId} onOrderAdded={onOrderAdded} />}
       />
-      {!isAssessed && (
-        <div className="text-xs text-ink-secondary py-6 text-center bg-surface-page rounded-lg border border-border">
-          Save the assessment above before adding orders.
-        </div>
-      )}
     </div>
   );
 };

@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { money } from '../../utils/money';
+import { fmtDate } from '../../utils/date';
 
 interface Summary {
   period: { from: string; to: string };
@@ -335,7 +336,7 @@ export const AccountsDashboard: React.FC = () => {
                     <tbody className="divide-y divide-border/60">
                       {ledger.map((e, i) => (
                         <tr key={i} className="hover:bg-surface-page/60">
-                          <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{e.date}</td>
+                          <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{fmtDate(e.date)}</td>
                           <td className="py-2.5 px-4">
                             <span
                               className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium border ${

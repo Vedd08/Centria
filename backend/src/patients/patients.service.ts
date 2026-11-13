@@ -98,8 +98,10 @@ export class PatientsService {
 
   /**
    * Lifetime value, mirroring the clinic's spreadsheet formula:
-   *   OPD(cash+bank) + IPD(cash+bank) + Packages(cash+bank)
-   * Returned alongside the OPD/IPD split so the patient header can show the breakdown.
+   *   OPD(cash+bank) + IPD(cash+bank) + Packages(cash+bank) + Receipts
+   * Visits and packages that already have a receipt are counted once, through the
+   * receipt. Every part is returned so the patient header can show where the total
+   * comes from — a receipt raised at the billing desk has no OPD/IPD visit behind it.
    */
   async getLifetimeValue(clinicId: string, id: string) {
     const patient = await this.findOne(clinicId, id); // Ensure existence and clinic ownership
@@ -120,7 +122,8 @@ export class PatientsService {
 
     const invoiceTotals = await this.prisma.invoice.aggregate({
       where: { patientUhid: patient.uhid, clinicId },
-      _sum: { totalAmount: true }
+      _sum: { totalAmount: true },
+      _count: { _all: true },
     });
 
     const sumFor = (type: string) => {
@@ -140,6 +143,7 @@ export class PatientsService {
       ipdValue,
       packageValue,
       invoiceValue,
+      invoices: invoiceTotals._count._all,
       opdVisits: countFor('OPD'),
       ipdVisits: countFor('IPD'),
       packages: packageTotals._count._all,

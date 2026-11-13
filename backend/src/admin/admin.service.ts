@@ -68,7 +68,7 @@ export class AdminService {
 
     return Promise.all(
       doctors.map(async (doc) => {
-        const [visitAgg, distinctPatients, feeAgg, templates, admissions] = await Promise.all([
+        const [visitAgg, distinctPatients, feeAgg, templates, procedureVisits, procedureOrders] = await Promise.all([
           this.prisma.visit.aggregate({
             where: { clinicId, doctorId: doc.id, date: { gte: fromDate, lte: toDate } },
             _sum: { cashAmount: true, bankAmount: true },
@@ -85,8 +85,29 @@ export class AdminService {
             _count: { _all: true },
           }),
           this.prisma.prescriptionTemplate.count({ where: { clinicId, doctorId: doc.id } }),
-          this.prisma.admission.count({ where: { clinicId, doctorId: doc.id } }),
+          // A procedure is either the treatment logged on the day-book visit, or a
+          // procedure line the doctor ordered during the consultation.
+          this.prisma.visit.count({
+            where: { clinicId, doctorId: doc.id, treatmentId: { not: null }, date: { gte: fromDate, lte: toDate } },
+          }),
+          this.prisma.careOrder.findMany({
+            where: {
+              clinicId,
+              orderedById: doc.id,
+              orderType: 'TREATMENT',
+              status: { not: 'CANCELLED' },
+              queue: { queueDate: { gte: fromDate, lte: toDate } },
+            },
+            select: { treatmentId: true, queue: { select: { visit: { select: { treatmentId: true, doctorId: true } } } } },
+          }),
         ]);
+
+        // Don't count the same procedure twice when the doctor both logged it on the
+        // visit and added it as an order line in the same encounter.
+        const extraOrders = procedureOrders.filter((o) => {
+          const v = o.queue?.visit;
+          return !(v && v.doctorId === doc.id && v.treatmentId && v.treatmentId === o.treatmentId);
+        }).length;
 
         return {
           id: doc.id,
@@ -99,7 +120,7 @@ export class AdminService {
           consultationFees: Number(feeAgg._sum.consultationFee ?? 0),
           encounters: feeAgg._count._all,
           templates,
-          admissions,
+          procedures: procedureVisits + extraOrders,
         };
       }),
     );
@@ -232,6 +253,65 @@ export class AdminService {
         by: m.performedBy?.name ?? null,
         at: m.createdAt,
       })),
+    };
+  }
+
+  /** What the pharmacy handed out in the period — the rows behind the "Dispensed" figure. */
+  async getDispensedList(clinicId: string, from?: string, to?: string, page = '1', pageSize = '15') {
+    const fromDate = from || monthsAgo(12);
+    const toDate = to || today();
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const size = Math.min(200, Math.max(1, parseInt(pageSize, 10) || 15));
+
+    const where = {
+      clinicId,
+      dispensedAt: { not: null },
+      queue: { queueDate: { gte: fromDate, lte: toDate } },
+    };
+
+    const [rows, total, sums] = await Promise.all([
+      this.prisma.careOrder.findMany({
+        where,
+        select: {
+          id: true,
+          description: true,
+          quantity: true,
+          unitPrice: true,
+          totalPrice: true,
+          dispensedAt: true,
+          medicine: { select: { name: true, unit: true } },
+          patient: { select: { name: true, uhid: true } },
+          dispensedBy: { select: { name: true } },
+        },
+        orderBy: { dispensedAt: 'desc' },
+        skip: (p - 1) * size,
+        take: size,
+      }),
+      this.prisma.careOrder.count({ where }),
+      this.prisma.careOrder.aggregate({ where, _sum: { totalPrice: true, quantity: true } }),
+    ]);
+
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        dispensedAt: r.dispensedAt,
+        item: r.medicine?.name ?? r.description,
+        unit: r.medicine?.unit ?? '',
+        quantity: r.quantity,
+        unitPrice: Number(r.unitPrice),
+        totalPrice: Number(r.totalPrice),
+        patientName: r.patient?.name ?? '',
+        patientUhid: r.patient?.uhid ?? '',
+        dispensedBy: r.dispensedBy?.name ?? null,
+      })),
+      total,
+      page: p,
+      pageSize: size,
+      summary: {
+        units: sums._sum.quantity ?? 0,
+        value: Number(sums._sum.totalPrice ?? 0),
+        period: { from: fromDate, to: toDate },
+      },
     };
   }
 

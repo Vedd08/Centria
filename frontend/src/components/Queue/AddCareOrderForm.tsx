@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Plus, X } from 'lucide-react';
+import { Pill, Stethoscope, X } from 'lucide-react';
 import { ORDER_TYPE_LABEL } from './types';
+import { QuickAddProcedure } from '../Treatments/QuickAddProcedure';
+
+/** Sentinel select value for adding a procedure to the catalogue. */
+const NEW_PROCEDURE = '__new__';
 
 interface MedicineOption {
   id: string;
@@ -45,6 +49,13 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   const [instructions, setInstructions] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [submitting, setSubmitting] = useState(false);
+  const [addingProcedure, setAddingProcedure] = useState(false);
+
+  const openAs = (type: string) => {
+    setOrderType(type);
+    setAddingProcedure(false);
+    setOpen(true);
+  };
 
   const isStockBacked = orderType === 'MEDICINE' || orderType === 'INJECTION';
 
@@ -110,20 +121,33 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer"
-      >
-        <Plus className="w-3.5 h-3.5" />
-        <span>Add Order</span>
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => openAs('MEDICINE')}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer"
+        >
+          <Pill className="w-3.5 h-3.5" />
+          <span>Add Medicine</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openAs('TREATMENT')}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-brand-deep bg-brand-soft hover:bg-brand/15 border border-brand/30 rounded-md transition-colors cursor-pointer"
+        >
+          <Stethoscope className="w-3.5 h-3.5" />
+          <span>Add Procedure</span>
+        </button>
+      </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="bg-surface-page p-4 rounded-lg border border-border space-y-3 w-full">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-ink-primary">New care order</span>
+        <span className="text-xs font-semibold text-ink-primary">
+          {isStockBacked ? 'Add medicine' : orderType === 'TREATMENT' ? 'Add procedure' : 'Add order'}
+        </span>
         <button
           type="button"
           onClick={() => setOpen(false)}
@@ -163,14 +187,26 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           </div>
         ) : orderType === 'TREATMENT' ? (
           <div>
-            <label className="block text-xs font-semibold text-ink-secondary mb-1">Treatment</label>
-            <select value={treatmentId} onChange={(e) => setTreatmentId(e.target.value)} className={inputClass}>
-              <option value="">Select treatment (or describe below)</option>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">Procedure</label>
+            <select
+              value={addingProcedure ? NEW_PROCEDURE : treatmentId}
+              onChange={(e) => {
+                if (e.target.value === NEW_PROCEDURE) {
+                  setAddingProcedure(true);
+                  return;
+                }
+                setAddingProcedure(false);
+                setTreatmentId(e.target.value);
+              }}
+              className={inputClass}
+            >
+              <option value="">Select procedure</option>
               {treatments.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
               ))}
+              <option value={NEW_PROCEDURE}>+ Add a new procedure…</option>
             </select>
           </div>
         ) : (
@@ -188,6 +224,17 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           </div>
         )}
       </div>
+
+      {orderType === 'TREATMENT' && addingProcedure && (
+        <QuickAddProcedure
+          onCancel={() => setAddingProcedure(false)}
+          onCreated={(t) => {
+            setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
+            setTreatmentId(t.id);
+            setAddingProcedure(false);
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>

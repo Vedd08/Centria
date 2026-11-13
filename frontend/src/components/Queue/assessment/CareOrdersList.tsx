@@ -120,7 +120,7 @@ export const CareOrdersList: React.FC<CareOrdersListProps> = ({
 
       {orders.length === 0 ? (
         <div className="text-ink-secondary text-xs py-8 text-center bg-surface-page rounded-lg border border-border">
-          No orders yet for this patient.
+          No medicines or procedures added yet.
         </div>
       ) : (
         <>

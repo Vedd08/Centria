@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { FileStack, Plus, X, Trash2, Edit3, Pill } from 'lucide-react';
+import { FileStack, Plus, X, Trash2, Edit3, Pill, Stethoscope } from 'lucide-react';
 import { BulletListEditor } from '../common/BulletListEditor';
+import { QuickAddProcedure } from '../Treatments/QuickAddProcedure';
 
 interface TemplateItem {
   orderType: string;
@@ -52,6 +53,19 @@ const emptyItem = (): TemplateItem => ({
   instructions: '',
 });
 
+const emptyProcedure = (): TemplateItem => ({
+  orderType: 'TREATMENT',
+  description: '',
+  quantity: 1,
+  dosage: '',
+  frequency: '',
+  route: '',
+  instructions: '',
+});
+
+/** Sentinel select value for "add a new procedure to the catalogue". */
+const NEW_PROCEDURE = '__new__';
+
 /**
  * A doctor's personal library of prescriptions for conditions they treat often.
  * Applying one during an encounter fills the diagnosis, advice and orders in one go.
@@ -77,6 +91,7 @@ export const PrescriptionTemplates: React.FC = () => {
   const [patientNotes, setPatientNotes] = useState('');
   const [staffNotes, setStaffNotes] = useState('');
   const [items, setItems] = useState<TemplateItem[]>([emptyItem()]);
+  const [addingProcedureFor, setAddingProcedureFor] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -129,7 +144,7 @@ export const PrescriptionTemplates: React.FC = () => {
             treatmentId: i.treatmentId || undefined,
             description: i.description,
             dosage: i.dosage || '',
-            route: i.route || 'Oral',
+            route: i.route || (i.orderType === 'TREATMENT' ? '' : 'Oral'),
             frequency: i.frequency || '',
             instructions: i.instructions || '',
             quantity: i.quantity,
@@ -314,19 +329,29 @@ export const PrescriptionTemplates: React.FC = () => {
             </div>
           </div>
 
+          {/* ---- Medicines ---- */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-ink-secondary">Medicines / Procedures</label>
+              <label className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
+                <Pill className="w-3.5 h-3.5 text-brand" /> Medicines
+              </label>
               <button
                 type="button"
                 onClick={() => setItems((p) => [...p, emptyItem()])}
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded cursor-pointer"
               >
-                <Plus className="w-3 h-3" /> Add line
+                <Plus className="w-3 h-3" /> Add medicine
               </button>
             </div>
 
+            {items.every((it) => it.orderType === 'TREATMENT') && (
+              <p className="text-[11px] text-ink-secondary bg-surface-page border border-border rounded-lg p-3 text-center">
+                No medicines in this template.
+              </p>
+            )}
+
             {items.map((item, idx) => {
+              if (item.orderType === 'TREATMENT') return null;
               const isStock = ['MEDICINE', 'INJECTION'].includes(item.orderType);
               const isUnlinked = isStock && !item.medicineId && !item.notStocked && item.description.trim().length > 0;
               const isIntentionallyNotStocked = isStock && !item.medicineId && item.notStocked && item.description.trim().length > 0;
@@ -343,8 +368,8 @@ export const PrescriptionTemplates: React.FC = () => {
                         <span>⚠️</span> "{item.description}" is not in the pharmacy catalogue.
                       </div>
                       <div className="flex items-center gap-2">
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => updateItem(idx, { notStocked: true })}
                           className="px-2 py-1 bg-surface-card border border-border rounded hover:bg-surface-page font-medium text-ink-primary whitespace-nowrap cursor-pointer"
                         >
@@ -358,7 +383,6 @@ export const PrescriptionTemplates: React.FC = () => {
                     <select value={item.orderType} onChange={(e) => updateItem(idx, { orderType: e.target.value })} className={inputClass}>
                       <option value="MEDICINE">Medicine</option>
                       <option value="INJECTION">Injection</option>
-                      <option value="TREATMENT">Treatment</option>
                       <option value="OTHER">Other (Prescription only)</option>
                     </select>
 
@@ -375,25 +399,12 @@ export const PrescriptionTemplates: React.FC = () => {
                           </option>
                         ))}
                       </select>
-                    ) : item.orderType === 'TREATMENT' ? (
-                      <select
-                        value={item.treatmentId || ''}
-                        onChange={(e) => updateItem(idx, { treatmentId: e.target.value, description: treatments.find(t => t.id === e.target.value)?.name || item.description })}
-                        className={`${inputClass} col-span-2`}
-                      >
-                        <option value="">Select from treatments</option>
-                        {treatments.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
                     ) : (
                       <input
                         type="text"
                         value={item.description}
                         onChange={(e) => updateItem(idx, { description: e.target.value })}
-                        placeholder="Describe the procedure/medicine"
+                        placeholder="Medicine name (bought outside)"
                         className={`${inputClass} col-span-2`}
                       />
                     )}
@@ -430,6 +441,93 @@ export const PrescriptionTemplates: React.FC = () => {
                     </select>
                     <input type="text" value={item.instructions} onChange={(e) => updateItem(idx, { instructions: e.target.value })} placeholder="Instructions" className={inputClass} />
                   </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ---- Procedures recommended for this condition ---- */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink-secondary flex items-center gap-1.5">
+                <Stethoscope className="w-3.5 h-3.5 text-brand" /> Recommended procedures
+              </label>
+              <button
+                type="button"
+                onClick={() => setItems((p) => [...p, emptyProcedure()])}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded cursor-pointer"
+              >
+                <Plus className="w-3 h-3" /> Add procedure
+              </button>
+            </div>
+
+            {!items.some((it) => it.orderType === 'TREATMENT') && (
+              <p className="text-[11px] text-ink-secondary bg-surface-page border border-border rounded-lg p-3 text-center">
+                No procedures yet. Add the ones you usually recommend for this condition (e.g. chemical peel, laser sitting).
+              </p>
+            )}
+
+            {items.map((item, idx) => {
+              if (item.orderType !== 'TREATMENT') return null;
+              return (
+                <div key={idx} className="bg-surface-page p-3 rounded-lg border border-border space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <select
+                      value={item.treatmentId || ''}
+                      onChange={(e) => {
+                        if (e.target.value === NEW_PROCEDURE) {
+                          setAddingProcedureFor(idx);
+                          return;
+                        }
+                        updateItem(idx, { treatmentId: e.target.value, description: treatments.find(t => t.id === e.target.value)?.name || item.description });
+                      }}
+                      className={`${inputClass} col-span-2 sm:col-span-3`}
+                    >
+                      <option value="">Select procedure</option>
+                      {treatments.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                      <option value={NEW_PROCEDURE}>+ Add a new procedure…</option>
+                    </select>
+                    <div className="flex gap-2 col-span-2 sm:col-span-1">
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
+                        placeholder="Sittings"
+                        title="Number of sittings"
+                        className={inputClass}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}
+                        className="p-2 rounded-md text-status-danger bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 cursor-pointer shrink-0"
+                        title="Remove procedure"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {addingProcedureFor === idx && (
+                    <QuickAddProcedure
+                      onCancel={() => setAddingProcedureFor(null)}
+                      onCreated={(t) => {
+                        setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)));
+                        updateItem(idx, { treatmentId: t.id, description: t.name });
+                        setAddingProcedureFor(null);
+                      }}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    value={item.instructions}
+                    onChange={(e) => updateItem(idx, { instructions: e.target.value })}
+                    placeholder="Notes for this procedure (e.g. every 3 weeks, patch test first)"
+                    className={inputClass}
+                  />
                 </div>
               );
             })}
@@ -486,12 +584,17 @@ export const PrescriptionTemplates: React.FC = () => {
                 <ul className="text-[11px] text-ink-secondary space-y-0.5 pt-1 border-t border-border">
                   {t.items.map((i) => (
                     <li key={i.id} className="flex items-center gap-1.5">
-                      <Pill className="w-3 h-3 text-brand shrink-0" />
+                      {i.orderType === 'TREATMENT' ? (
+                        <Stethoscope className="w-3 h-3 text-status-success shrink-0" />
+                      ) : (
+                        <Pill className="w-3 h-3 text-brand shrink-0" />
+                      )}
                       <span>
+                        {i.orderType === 'TREATMENT' && <span className="font-medium text-ink-primary">Procedure: </span>}
                         {i.description}
                         {i.dosage && ` · ${i.dosage}`}
                         {i.frequency && ` · ${i.frequency}`}
-                        {` · x${i.quantity}`}
+                        {i.orderType === 'TREATMENT' ? ` · ${i.quantity} sitting${i.quantity === 1 ? '' : 's'}` : ` · x${i.quantity}`}
                       </span>
                     </li>
                   ))}

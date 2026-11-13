@@ -735,17 +735,21 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
              />
           </CollapsibleStep>
           
-          <CollapsibleStep step={2} title="Treatment & package">
+          <CollapsibleStep step={2} title="Procedure">
              <Step2Treatment
                careType={careType} setCareType={setCareType}
                treatmentId={treatmentId} setTreatmentId={setTreatmentId} treatments={treatments}
+               onTreatmentCreated={(t) => setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)))}
                setUsePackagePurchaseId={setUsePackagePurchaseId} patientPurchases={patientPurchases} usePackagePurchaseId={usePackagePurchaseId}
                setRecommendedPackageTypeId={setRecommendedPackageTypeId} recommendedPackageTypeId={recommendedPackageTypeId} packageTypes={packageTypes}
+               onPackageCreated={(pkg) => setPackageTypes((prev) => [...prev, pkg])}
                setNextAppointmentDate={setNextAppointmentDate}
              />
           </CollapsibleStep>
-          
-          <CollapsibleStep step={3} title="Orders">
+
+          {/* Expanded by default and under its own key: the old "Orders" step was
+              often left collapsed, which hid the only place to prescribe medicine. */}
+          <CollapsibleStep step={3} title="Medicines & procedures" storageKey="assessment-step-medicines-expanded">
              <Step3Orders
                queueId={entry.id} isAssessed={isAssessed} onOrderAdded={onChanged}
                {...careOrdersProps}

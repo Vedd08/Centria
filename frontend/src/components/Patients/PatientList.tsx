@@ -5,6 +5,7 @@ import { PatientRegistrationModal } from './PatientRegistrationModal';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { PatientHistoryPanel } from '../PatientHistory/PatientHistoryPanel';
 import { exportToCsv } from '../../utils/exportToCsv';
+import { fmtDate } from '../../utils/date';
 import { Search, UserPlus, Eye, Edit3, Trash2, Download } from 'lucide-react';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { Pagination } from '../common/Pagination';
@@ -193,7 +194,7 @@ export const PatientList: React.FC = () => {
                     <td className="py-3 px-4 font-medium text-ink-primary">{patient.name}</td>
                     <td className="py-3 px-4 font-mono text-ink-secondary">{patient.phone}</td>
                     <td className="py-3 px-4 text-ink-secondary font-mono">
-                      {patient.gender} {patient.dob ? `(${patient.dob})` : ''}
+                      {patient.gender} {patient.dob ? `(${fmtDate(patient.dob)})` : ''}
                     </td>
                     <td className="py-3 px-4 text-ink-secondary">{patient.referringDoctor || 'Self Walk-in'}</td>
                     <td className="py-3 px-4">

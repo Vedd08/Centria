@@ -100,7 +100,7 @@ export const queueStatusVariant = (status: string): 'success' | 'warning' | 'dan
 export const ORDER_TYPE_LABEL: Record<string, string> = {
   MEDICINE: 'Medicine',
   INJECTION: 'Injection',
-  TREATMENT: 'Treatment',
+  TREATMENT: 'Procedure',
   OTHER: 'Other',
 };
 

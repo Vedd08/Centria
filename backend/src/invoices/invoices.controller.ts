@@ -27,10 +27,11 @@ export class InvoicesController {
     @Query('reconciled') reconciled?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('patientUhid') patientUhid?: string,
   ) {
     return this.invoicesService.findAll(
       user.clinicId,
-      { search, from, to, reconciled },
+      { search, from, to, reconciled, patientUhid },
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
     );

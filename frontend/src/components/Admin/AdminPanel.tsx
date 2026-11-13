@@ -18,6 +18,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { money } from '../../utils/money';
+import { fmtDate } from '../../utils/date';
 
 type Tab = 'overview' | 'accounts' | 'pharmacy' | 'patients' | 'doctors' | 'staff';
 
@@ -70,15 +71,30 @@ export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState<Set<Tab>>(new Set());
   
-  const [activeDetail, setActiveDetail] = useState<{ kind: DetailKind; extraState?: string; subLabel: string; totalValue: string; triggerElement?: HTMLElement | null } | null>(null);
+  const [activeDetail, setActiveDetail] = useState<{
+    kind: DetailKind;
+    extraState?: string;
+    subLabel: string;
+    totalValue: string;
+    triggerElement?: HTMLElement | null;
+    range?: { from: string; to: string };
+  } | null>(null);
 
-  const openDetail = (e: React.MouseEvent<HTMLButtonElement>, kind: DetailKind, extraState?: string, customSubLabel?: string, customTotalValue?: string) => {
+  const openDetail = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    kind: DetailKind,
+    extraState?: string,
+    customSubLabel?: string,
+    customTotalValue?: string,
+    range?: { from: string; to: string },
+  ) => {
      setActiveDetail({
         kind,
         extraState,
         triggerElement: e.currentTarget as HTMLElement,
         subLabel: customSubLabel || '',
-        totalValue: customTotalValue || ''
+        totalValue: customTotalValue || '',
+        range,
      });
   };
 
@@ -201,17 +217,44 @@ export const AdminPanel: React.FC = () => {
               saying so avoids confusion with the all-time figures on Overview. */}
           <p className="text-[11px] text-ink-secondary">
             Stock is current. Purchases and dispensing cover{' '}
-            <span className="font-mono">{pharmacy.period.from}</span> to{' '}
-            <span className="font-mono">{pharmacy.period.to}</span>.
+            <span className="font-mono">{fmtDate(pharmacy.period.from)}</span> to{' '}
+            <span className="font-mono">{fmtDate(pharmacy.period.to)}</span>. Tap a figure to see the details.
           </p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Stock Value" value={money(pharmacy.stock.stockValue)} sub={`${pharmacy.stock.itemCount} items`} />
-            <Stat label="Low Stock" value={String(pharmacy.stock.lowStock.length)} sub="Need reordering" />
-            <Stat label="Purchases" value={money(pharmacy.purchases.total)} sub={`${pharmacy.purchases.count} bills`} />
+            <Stat
+              label="Stock Value"
+              value={money(pharmacy.stock.stockValue)}
+              sub={`${pharmacy.stock.itemCount} items`}
+              onClick={(e) => openDetail(e, 'stock', undefined, `${pharmacy.stock.itemCount} items in stock`, money(pharmacy.stock.stockValue))}
+            />
+            <Stat
+              label="Low Stock"
+              value={String(pharmacy.stock.lowStock.length)}
+              sub="Need reordering"
+              onClick={(e) => openDetail(e, 'lowStock', undefined, 'At or below reorder point', String(pharmacy.stock.lowStock.length))}
+            />
+            <Stat
+              label="Purchases"
+              value={money(pharmacy.purchases.total)}
+              sub={`${pharmacy.purchases.count} bills`}
+              onClick={(e) =>
+                openDetail(e, 'purchases', undefined, `${pharmacy.purchases.count} bills`, money(pharmacy.purchases.total), pharmacy.period)
+              }
+            />
             <Stat
               label="Dispensed"
               value={money(pharmacy.dispensing.valueDispensed)}
               sub={`${pharmacy.dispensing.unitsDispensed} units`}
+              onClick={(e) =>
+                openDetail(
+                  e,
+                  'dispensed',
+                  undefined,
+                  `${pharmacy.dispensing.unitsDispensed} units dispensed`,
+                  money(pharmacy.dispensing.valueDispensed),
+                  pharmacy.period,
+                )
+              }
             />
           </div>
 
@@ -252,7 +295,7 @@ export const AdminPanel: React.FC = () => {
                 <tbody className="divide-y divide-border/60">
                   {pharmacy.purchases.recent.map((p: any) => (
                     <tr key={p.id} className="hover:bg-surface-page/60">
-                      <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{p.invoiceDate}</td>
+                      <td className="py-2.5 px-4 font-mono text-ink-secondary whitespace-nowrap">{fmtDate(p.invoiceDate)}</td>
                       <td className="py-2.5 px-4">{p.vendorName}</td>
                       <td className="py-2.5 px-4 font-mono text-ink-secondary">{p.invoiceNumber}</td>
                       <td className="py-2.5 px-4 max-w-[220px] truncate" title={p.itemDescription}>
@@ -318,8 +361,8 @@ export const AdminPanel: React.FC = () => {
                   { key: 'patientsSeen', label: 'Patients Seen' },
                   { key: 'revenue', label: 'Revenue' },
                   { key: 'consultationFees', label: 'Consultation Fees' },
-                  { key: 'admissions', label: 'Admissions' },
-                  { key: 'templates', label: 'Templates' },
+                  { key: 'procedures', label: 'Procedures' },
+                  { key: 'templates', label: 'Rx Templates' },
                 ])
               }
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded cursor-pointer"
@@ -337,8 +380,15 @@ export const AdminPanel: React.FC = () => {
                   <th className="py-2.5 px-4 text-right">Patients</th>
                   <th className="py-2.5 px-4 text-right">Revenue</th>
                   <th className="py-2.5 px-4 text-right">Consult Fees</th>
-                  <th className="py-2.5 px-4 text-right">Admissions</th>
-                  <th className="py-2.5 px-4 text-right">Templates</th>
+                  <th className="py-2.5 px-4 text-right" title="Procedures done or ordered by this doctor in the last 12 months">
+                    Procedures
+                  </th>
+                  <th
+                    className="py-2.5 px-4 text-right"
+                    title="Saved prescription templates — a doctor's one-click prescriptions for conditions they treat often"
+                  >
+                    Rx Templates
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -353,7 +403,7 @@ export const AdminPanel: React.FC = () => {
                     <td className="py-2.5 px-4 text-right font-mono">{d.patientsSeen}</td>
                     <td className="py-2.5 px-4 text-right font-mono">{money(d.revenue)}</td>
                     <td className="py-2.5 px-4 text-right font-mono">{money(d.consultationFees)}</td>
-                    <td className="py-2.5 px-4 text-right font-mono">{d.admissions}</td>
+                    <td className="py-2.5 px-4 text-right font-mono">{d.procedures}</td>
                     <td className="py-2.5 px-4 text-right font-mono">{d.templates}</td>
                   </tr>
                 ))}
@@ -439,6 +489,7 @@ export const AdminPanel: React.FC = () => {
           extraState={activeDetail.extraState}
           subLabel={activeDetail.subLabel}
           totalValue={activeDetail.totalValue}
+          initialRange={activeDetail.range}
           onClose={() => setActiveDetail(null)}
           triggerElement={activeDetail.triggerElement}
         />

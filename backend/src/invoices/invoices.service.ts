@@ -9,6 +9,8 @@ interface InvoiceFilters {
   from?: string;
   to?: string;
   reconciled?: string;
+  /** Exact match — one patient's receipts, e.g. for their history panel. */
+  patientUhid?: string;
 }
 
 @Injectable()
@@ -208,6 +210,8 @@ export class InvoicesService {
         if (filters.from) (where.issuedAt as any).gte = new Date(filters.from);
         if (filters.to) (where.issuedAt as any).lte = new Date(filters.to + 'T23:59:59.999Z');
       }
+
+      if (filters.patientUhid) where.patientUhid = filters.patientUhid;
 
       if (filters.reconciled === 'true') where.reconciled = true;
       else if (filters.reconciled === 'false') where.reconciled = false;

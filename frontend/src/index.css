@@ -201,6 +201,19 @@ input[type='time'] {
   body.printing #root {
     display: none !important;
   }
+
+  /* body carries `min-h-screen` (100vh). On a tablet the screen is taller than the
+     printable area of an A4 sheet, so that minimum height alone spilled onto a
+     second, blank page. Let the document decide the height when printing. */
+  html,
+  body {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+}
+
+@page {
+  margin: 12mm;
 }
 
 /* React Big Calendar Mobile Overrides */

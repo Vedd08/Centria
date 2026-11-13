@@ -4,8 +4,9 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { DocumentsTab } from './DocumentsTab';
-import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet, Activity, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet, Activity, ArrowUp, ArrowDown, ArrowRight, Receipt } from 'lucide-react';
 import { money } from '../../utils/money';
+import { fmtDate, fmtDateTime } from '../../utils/date';
 
 export interface HistoryPatient {
   id: string;
@@ -40,6 +41,9 @@ interface LifetimeValue {
   opdValue: number;
   ipdValue: number;
   packageValue: number;
+  /** Receipts raised at billing — can exist with no OPD/IPD visit behind them. */
+  invoiceValue?: number;
+  invoices?: number;
   opdVisits: number;
   ipdVisits: number;
   packages: number;
@@ -55,6 +59,15 @@ interface PrescriptionSummary {
   items: { medicine: { name: string }; dosage: string; frequency: string; duration: string }[];
 }
 
+interface ReceiptSummary {
+  id: string;
+  invoiceNumber: string;
+  itemTitle: string;
+  totalAmount: number;
+  paymentMethod: string;
+  issuedAt: string;
+}
+
 interface AdmissionSummary {
   id: string;
   admissionDate: string;
@@ -65,12 +78,13 @@ interface AdmissionSummary {
   bed?: { bedNumber: string; ward?: { name: string } };
 }
 
-type TabKey = 'overview' | 'opd' | 'ipd' | 'progress' | 'prescriptions' | 'documents' | 'admissions';
+type TabKey = 'overview' | 'opd' | 'ipd' | 'bills' | 'progress' | 'prescriptions' | 'documents' | 'admissions';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'overview', label: 'Overview', icon: User },
   { key: 'opd', label: 'OPD History', icon: Stethoscope },
   { key: 'ipd', label: 'IPD History', icon: Clock },
+  { key: 'bills', label: 'Bills & Receipts', icon: Receipt },
   { key: 'progress', label: 'Progress', icon: Activity },
   { key: 'prescriptions', label: 'Prescriptions', icon: Pill },
   { key: 'documents', label: 'Documents & Images', icon: FileText },
@@ -99,6 +113,8 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
   const [admissionsLoading, setAdmissionsLoading] = useState(false);
   const [progressTimeline, setProgressTimeline] = useState<any[]>([]);
   const [progressLoading, setProgressLoading] = useState(false);
+  const [receipts, setReceipts] = useState<ReceiptSummary[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
   const [ltv, setLtv] = useState<LifetimeValue | null>(null);
 
   // Lifetime value mirrors the clinic's spreadsheet headline figure, so it loads
@@ -144,6 +160,12 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
           const res = await apiFetch(`/api/admissions?patientId=${patient.id}`);
           const result = await res.json();
           setAdmissions(Array.isArray(result) ? result : result.data || []);
+        } else if (activeTab === 'bills') {
+          setReceiptsLoading(true);
+          const res = await apiFetch(`/api/invoices?patientUhid=${encodeURIComponent(patient.uhid)}&pageSize=100`);
+          if (!res.ok) throw new Error("Couldn't load this patient's bills");
+          const result = await res.json();
+          setReceipts(Array.isArray(result) ? result : result.data || []);
         } else if (activeTab === 'progress') {
           setProgressLoading(true);
           const res = await apiFetch(`/api/patients/${patient.id}/progress`);
@@ -157,6 +179,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
         setPrescriptionsLoading(false);
         setAdmissionsLoading(false);
         setProgressLoading(false);
+        setReceiptsLoading(false);
       }
     };
 
@@ -166,6 +189,21 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
 
   return (
     <div className="space-y-4">
+      {/* Allergies sit above everything else so no one prescribes past them. */}
+      {patient.allergyNotes ? (
+        <div role="alert" className="p-3 bg-status-danger/10 border border-status-danger/30 rounded-lg flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-status-danger shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <span className="font-semibold text-status-danger block">Allergy &amp; Sensitivity</span>
+            <p className="text-status-danger whitespace-pre-wrap">{patient.allergyNotes}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="px-3 py-2 bg-surface-page border border-border rounded-lg text-[11px] text-ink-secondary">
+          No known allergies recorded.
+        </div>
+      )}
+
       {ltv && (
         <div className="bg-brand-soft/60 border border-brand/20 rounded-lg p-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex items-center gap-2">
@@ -187,6 +225,16 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
             <span>
               Packages <span className="font-semibold text-ink-primary">{money(ltv.packageValue)}</span> ({ltv.packages})
             </span>
+            {(ltv.invoiceValue ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('bills')}
+                className="underline decoration-dotted underline-offset-2 hover:text-ink-primary cursor-pointer"
+                title="Receipts raised at billing — see Bills & Receipts"
+              >
+                Receipts <span className="font-semibold text-ink-primary">{money(ltv.invoiceValue ?? 0)}</span> ({ltv.invoices ?? 0})
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -221,7 +269,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
             <div>
               <span className="text-ink-secondary font-medium block">Gender & DOB</span>
               <span className="font-mono text-ink-primary">
-                {patient.gender} {patient.dob ? `(${patient.dob})` : ''}
+                {patient.gender} {patient.dob ? `(${fmtDate(patient.dob)})` : ''}
               </span>
             </div>
             <div>
@@ -251,20 +299,31 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
             </div>
           )}
 
-          {patient.allergyNotes ? (
-            <div className="p-3 bg-status-danger/10 border border-status-danger/20 rounded-lg space-y-1">
-              <span className="font-medium text-status-danger flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4" /> Allergy & Sensitivity Notes
-              </span>
-              <p className="text-status-danger text-xs">{patient.allergyNotes}</p>
-            </div>
-          ) : (
-            <div className="p-3 bg-surface-page border border-border rounded-lg text-ink-secondary">
-              No allergy notes recorded.
-            </div>
-          )}
         </div>
       )}
+
+      {activeTab === 'bills' &&
+        (receiptsLoading ? (
+          <LoadingSkeleton rows={2} />
+        ) : receipts.length === 0 ? (
+          <div className="text-ink-secondary text-xs py-8 text-center bg-surface-page rounded-lg border border-border">
+            No receipts issued to this patient.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {receipts.map((r) => (
+              <div key={r.id} className="bg-surface-page p-3 rounded-lg border border-border flex items-start justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-medium text-ink-primary">{r.itemTitle}</span>
+                  <span className="block text-[11px] text-ink-secondary mt-0.5 font-mono">
+                    {r.invoiceNumber} · {fmtDate(r.issuedAt)} · <span className="capitalize">{r.paymentMethod}</span>
+                  </span>
+                </div>
+                <span className="font-mono font-semibold text-ink-primary whitespace-nowrap">{money(r.totalAmount)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
 
       {(activeTab === 'opd' || activeTab === 'ipd') &&
         (() => {
@@ -294,7 +353,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-ink-secondary">
-                    <span className="font-mono">{visit.date}</span>
+                    <span className="font-mono">{fmtDate(visit.date)}</span>
                     {visit.doctor && <span>Dr. {visit.doctor.name}</span>}
                     {(visit.cashAmount > 0 || visit.bankAmount > 0) && (
                       <span className="font-mono">
@@ -323,7 +382,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
               <div key={rx.id} className="bg-surface-page p-3 rounded-lg border border-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-ink-secondary text-[11px]">
-                    {new Date(rx.createdAt).toLocaleDateString()} {rx.doctor && `• Dr. ${rx.doctor.name}`}
+                    {fmtDate(rx.createdAt)} {rx.doctor && `• Dr. ${rx.doctor.name}`}
                   </span>
                   <StatusBadge label={rx.status} variant={rx.status === 'Dispensed' ? 'success' : 'warning'} />
                 </div>
@@ -361,8 +420,8 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
                 </div>
                 <p className="text-ink-secondary">{adm.reasonForAdmission}</p>
                 <p className="text-[11px] text-ink-secondary/70">
-                  Admitted {new Date(adm.admissionDate).toLocaleDateString()}
-                  {adm.dischargeDate && ` • Discharged ${new Date(adm.dischargeDate).toLocaleDateString()}`}
+                  Admitted {fmtDate(adm.admissionDate)}
+                  {adm.dischargeDate && ` • Discharged ${fmtDate(adm.dischargeDate)}`}
                   {adm.doctor && ` • Dr. ${adm.doctor.name}`}
                 </p>
               </div>
@@ -409,7 +468,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-lg border border-border bg-surface-card shadow-xs">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-ink-secondary uppercase tracking-wider">{item.type}</span>
-                    <span className="text-[10px] text-ink-secondary/70">{new Date(item.date).toLocaleString()}</span>
+                    <span className="text-[10px] text-ink-secondary/70">{fmtDateTime(item.date)}</span>
                   </div>
                   {item.status && (
                     <div className="mb-2">

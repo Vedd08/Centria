@@ -31,6 +31,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { RmModule } from './rm/rm.module';
 import { RetailSalesModule } from './retail-sales/retail-sales.module';
 import { FollowUpsModule } from './follow-ups/follow-ups.module';
+import { ReferringDoctorsModule } from './referring-doctors/referring-doctors.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { FollowUpsModule } from './follow-ups/follow-ups.module';
     RmModule,
     RetailSalesModule,
     FollowUpsModule,
+    ReferringDoctorsModule,
   ],
 })
 export class AppModule {}

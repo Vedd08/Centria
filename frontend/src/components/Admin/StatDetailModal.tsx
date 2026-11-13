@@ -6,6 +6,7 @@ import { Pagination } from '../common/Pagination';
 import { StatusBadge } from '../common/StatusBadge';
 import { exportToCsv } from '../../utils/exportToCsv';
 import { money } from '../../utils/money';
+import { fmtDate, fmtDateTime } from '../../utils/date';
 import { PatientHistoryPanel } from '../PatientHistory/PatientHistoryPanel';
 import { AdmissionDetail } from '../IPD/AdmissionDetail';
 import { PrintableInvoiceModal } from '../Invoices/PrintableInvoiceModal';
@@ -19,6 +20,7 @@ export type DetailKind =
   | 'stock'
   | 'lowStock'
   | 'receipts'
+  | 'dispensed'
   | 'team';
 
 type ColumnDef = {
@@ -56,8 +58,8 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     columns: [
       { key: 'name', label: 'Name', render: (r) => <div className="font-medium">{r.name}<br /><span className="text-[11px] text-ink-secondary">{r.uhid}</span></div> },
       { key: 'phone', label: 'Phone', render: (r) => <span className="font-mono">{r.phone}</span> },
-      { key: 'demographics', label: 'Age/Gender', render: (r) => `${r.gender} · ${r.dob || '—'}` },
-      { key: 'createdAt', label: 'Registered On', render: (r) => new Date(r.createdAt).toLocaleDateString() },
+      { key: 'demographics', label: 'Age/Gender', render: (r) => `${r.gender} · ${fmtDate(r.dob)}` },
+      { key: 'createdAt', label: 'Registered On', render: (r) => <span className="font-mono">{fmtDate(r.createdAt)}</span> },
     ],
     onRowClick: (row, trigger) => trigger(<PatientHistoryPanel patient={row} />),
     fetchPage: async (apiFetch, params) => {
@@ -84,7 +86,7 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     ],
     defaultTab: 'all',
     columns: [
-      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{r.date || new Date(r.admissionDate).toISOString().split('T')[0]}</span> },
+      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{fmtDate(r.date || r.admissionDate)}</span> },
       { key: 'patient', label: 'Patient', render: (r) => <div className="font-medium">{r.patient?.name}<br/><span className="text-[11px] text-ink-secondary">{r.patient?.uhid}</span></div> },
       { key: 'doctor', label: 'Doctor', render: (r) => r.doctor?.name || r.operator },
       { key: 'type', label: 'Type', render: (r) => <StatusBadge label={r.status === 'ADMITTED' ? 'Admission' : r.visitType} variant={r.status === 'ADMITTED' ? 'warning' : 'accent'} /> },
@@ -117,7 +119,7 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     csvName: 'revenue',
     filters: ['dateRange'],
     columns: [
-      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{r.date}</span> },
+      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{fmtDate(r.date)}</span> },
       { key: 'patient', label: 'Patient', render: (r) => <span className="font-medium">{r.patient}</span> },
       { key: 'source', label: 'Source', render: (r) => <span className="capitalize text-ink-secondary">{r.source}</span> },
       { key: 'method', label: 'Method', render: (r) => <span className="capitalize">{r.method}</span> },
@@ -135,9 +137,9 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
   purchases: {
     title: 'Stock Purchases',
     csvName: 'purchases',
-    filters: ['search'],
+    filters: ['search', 'dateRange'],
     columns: [
-      { key: 'date', label: 'Bill Date', render: (r) => <span className="font-mono">{r.invoiceDate}</span> },
+      { key: 'date', label: 'Bill Date', render: (r) => <span className="font-mono">{fmtDate(r.invoiceDate)}</span> },
       { key: 'supplier', label: 'Supplier', render: (r) => r.vendorName },
       { key: 'billNo', label: 'Bill No', render: (r) => <span className="font-mono">{r.invoiceNumber}</span> },
       { key: 'items', label: 'Items', render: (r) => r.itemDescription },
@@ -151,6 +153,9 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
         const q = params.search.toLowerCase();
         data = data.filter((d: any) => d.vendorName.toLowerCase().includes(q) || d.invoiceNumber.toLowerCase().includes(q));
       }
+      // invoiceDate is a YYYY-MM-DD string, so plain string comparison orders it correctly.
+      if (params.from) data = data.filter((d: any) => d.invoiceDate >= params.from);
+      if (params.to) data = data.filter((d: any) => d.invoiceDate <= params.to);
       return { rows: data.slice((params.page - 1) * params.pageSize, params.page * params.pageSize), total: data.length };
     },
   },
@@ -160,7 +165,7 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     columns: [
       { key: 'patient', label: 'Patient', render: (r) => <div className="font-medium">{r.patient?.name}<br/><span className="text-[11px] text-ink-secondary">{r.patient?.uhid}</span></div> },
       { key: 'wardBed', label: 'Ward / Bed', render: (r) => `${r.bed?.ward?.name} / ${r.bed?.bedNumber}` },
-      { key: 'admittedOn', label: 'Admitted On', render: (r) => new Date(r.admissionDate).toLocaleString() },
+      { key: 'admittedOn', label: 'Admitted On', render: (r) => fmtDateTime(r.admissionDate) },
       { key: 'doctor', label: 'Doctor', render: (r) => r.doctor?.name },
       { key: 'condition', label: 'Condition', render: (r) => r.reasonForAdmission },
     ],
@@ -211,7 +216,7 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
     filters: ['dateRange'],
     columns: [
       { key: 'no', label: 'Receipt No', render: (r) => <span className="font-mono">{r.invoiceNumber}</span> },
-      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{new Date(r.issuedAt).toISOString().split('T')[0]}</span> },
+      { key: 'date', label: 'Date', render: (r) => <span className="font-mono">{fmtDate(r.issuedAt)}</span> },
       { key: 'patient', label: 'Patient', render: (r) => <span className="font-medium">{r.patientName}</span> },
       { key: 'taxable', label: 'Taxable', align: 'right', render: (r) => <span className="font-mono">{money(r.taxableValue)}</span> },
       { key: 'gst', label: 'GST', align: 'right', render: (r) => <span className="font-mono">{money(Number(r.cgst) + Number(r.sgst))}</span> },
@@ -226,6 +231,39 @@ const DETAIL_CONFIG: Record<string, DetailConfig> = {
       const res = await apiFetch(url);
       const data = await res.json();
       return { rows: data.data, total: data.total };
+    },
+  },
+  dispensed: {
+    title: 'Pharmacy Dispensed',
+    csvName: 'dispensed',
+    filters: ['dateRange'],
+    columns: [
+      { key: 'dispensedAt', label: 'Date', render: (r) => <span className="font-mono">{fmtDate(r.dispensedAt)}</span> },
+      { key: 'item', label: 'Medicine', render: (r) => <span className="font-medium">{r.item}</span> },
+      {
+        key: 'patientName',
+        label: 'Patient',
+        render: (r) => (
+          <div>
+            {r.patientName}
+            <br />
+            <span className="text-[11px] text-ink-secondary">{r.patientUhid}</span>
+          </div>
+        ),
+      },
+      { key: 'quantity', label: 'Qty', align: 'right', render: (r) => <span className="font-mono">{r.quantity} {r.unit}</span> },
+      { key: 'unitPrice', label: 'Rate', align: 'right', render: (r) => <span className="font-mono">{money(r.unitPrice)}</span> },
+      { key: 'totalPrice', label: 'Value', align: 'right', render: (r) => <span className="font-mono font-medium">{money(r.totalPrice)}</span> },
+      { key: 'dispensedBy', label: 'By', render: (r) => <span className="text-ink-secondary">{r.dispensedBy || '—'}</span> },
+    ],
+    fetchPage: async (apiFetch, params) => {
+      let url = `/api/admin/dispensed?page=${params.page}&pageSize=${params.pageSize}`;
+      if (params.from) url += `&from=${params.from}`;
+      if (params.to) url += `&to=${params.to}`;
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error('Failed to load dispensed items');
+      const data = await res.json();
+      return { rows: data.data, total: data.total, summary: data.summary };
     },
   },
   team: {
@@ -259,9 +297,11 @@ export const StatDetailModal: React.FC<{
   extraState?: string;
   subLabel: string;
   totalValue: string;
+  /** Pre-fills the date filter, e.g. the Pharmacy tab's reporting window. */
+  initialRange?: { from: string; to: string };
   onClose: () => void;
   triggerElement?: HTMLElement | null;
-}> = ({ kind, extraState, subLabel, totalValue, onClose, triggerElement }) => {
+}> = ({ kind, extraState, subLabel, totalValue, initialRange, onClose, triggerElement }) => {
   const { apiFetch } = useAuth();
   const { addToast } = useToast();
   const modalRef = useRef<HTMLDivElement>(null);
@@ -279,8 +319,8 @@ export const StatDetailModal: React.FC<{
   
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(initialRange?.from || '');
+  const [to, setTo] = useState(initialRange?.to || '');
   const [tab, setTab] = useState(extraState || config.defaultTab || '');
 
   const [activeComponent, setActiveComponent] = useState<ReactNode>(null);
@@ -412,6 +452,16 @@ export const StatDetailModal: React.FC<{
             <div><span className="text-ink-secondary">Cash:</span> <span className="font-mono font-medium">{money(summary.cash)}</span></div>
             <div><span className="text-ink-secondary">Bank:</span> <span className="font-mono font-medium">{money(summary.bank)}</span></div>
             <div><span className="text-ink-secondary">Total:</span> <span className="font-mono font-medium">{money(summary.total)}</span></div>
+          </div>
+        )}
+
+        {summary && kind === 'dispensed' && (
+          <div className="bg-brand/5 p-4 border-b border-brand/10 flex flex-wrap gap-6 text-sm">
+            <div><span className="text-ink-secondary">Units:</span> <span className="font-mono font-medium">{summary.units}</span></div>
+            <div><span className="text-ink-secondary">Value:</span> <span className="font-mono font-medium">{money(summary.value)}</span></div>
+            <div className="text-ink-secondary">
+              {fmtDate(summary.period?.from)} to {fmtDate(summary.period?.to)}
+            </div>
           </div>
         )}
 

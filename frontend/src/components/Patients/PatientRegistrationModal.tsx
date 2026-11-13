@@ -15,6 +15,22 @@ interface Props {
   showCheckInOption?: boolean;
 }
 
+const plainInput =
+  'w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand focus:border-brand bg-surface-card text-ink-primary';
+
+/** Sentinel select value for "register a new referring doctor". */
+const NEW_DOCTOR = '__new__';
+
+interface ReferringDoctorOption {
+  id: string;
+  name: string;
+  phone?: string | null;
+  hospital?: string | null;
+  speciality?: string | null;
+}
+
+const emptyDoctor = { name: '', phone: '', hospital: '', speciality: '' };
+
 const inputClass = (fieldError: string | null) =>
   `w-full pl-9 pr-3 py-2 rounded-md border text-xs focus:ring-1 focus:ring-brand focus:border-brand bg-surface-card text-ink-primary transition-colors ${
     fieldError
@@ -47,6 +63,11 @@ export const PatientRegistrationModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [refDoctors, setRefDoctors] = useState<ReferringDoctorOption[]>([]);
+  const [showNewDoctor, setShowNewDoctor] = useState(false);
+  const [newDoctor, setNewDoctor] = useState(emptyDoctor);
+  const [newDoctorError, setNewDoctorError] = useState<string | null>(null);
+  const [savingDoctor, setSavingDoctor] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -72,10 +93,82 @@ export const PatientRegistrationModal: React.FC<Props> = ({
       setHowHeardAboutUs('Instagram');
     }
     setCheckInAfter(false);
+    setShowNewDoctor(false);
+    setNewDoctor(emptyDoctor);
+    setNewDoctorError(null);
     setTouched({});
     setDirty(false);
     setError(null);
   }, [editPatient, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/referring-doctors');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setRefDoctors(Array.isArray(data) ? data : data.data || []);
+      } catch {
+        // Non-fatal: reception can still register the doctor inline.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const handleReferringDoctorChange = (value: string) => {
+    if (value === NEW_DOCTOR) {
+      setShowNewDoctor(true);
+      setNewDoctorError(null);
+      return;
+    }
+    setShowNewDoctor(false);
+    setReferringDoctor(value);
+    if (value) setHowHeardAboutUs('Doctor Referral');
+    setDirty(true);
+  };
+
+  const registerDoctor = async () => {
+    const doctorName = newDoctor.name.trim();
+    if (!doctorName) {
+      setNewDoctorError("Enter the doctor's name");
+      return;
+    }
+    setSavingDoctor(true);
+    setNewDoctorError(null);
+    try {
+      const res = await apiFetch('/api/referring-doctors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: doctorName,
+          phone: newDoctor.phone.trim() || undefined,
+          hospital: newDoctor.hospital.trim() || undefined,
+          speciality: newDoctor.speciality.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = Array.isArray(data.message) ? data.message.join(', ') : data.message;
+        throw new Error(msg || 'Could not register the doctor');
+      }
+      setRefDoctors((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setReferringDoctor(data.name);
+      setHowHeardAboutUs('Doctor Referral');
+      setDirty(true);
+      setShowNewDoctor(false);
+      setNewDoctor(emptyDoctor);
+      addToast('success', `${data.name} registered as a referring doctor`);
+    } catch (err: any) {
+      setNewDoctorError(err.message || 'Could not register the doctor');
+    } finally {
+      setSavingDoctor(false);
+    }
+  };
 
   const markDirty = (setter: React.Dispatch<React.SetStateAction<string>>, _value: string) => {
     setter(_value);
@@ -356,21 +449,96 @@ export const PatientRegistrationModal: React.FC<Props> = ({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-              {/* Referring Doctor (Free Text) */}
-              <div>
+              {/* Referring Doctor: picked from the registered list so names stay consistent */}
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-ink-secondary mb-1">
-                  Referring Doctor (Free Text)
+                  Referring Doctor
                 </label>
                 <div className="relative">
-                  <Stethoscope className="w-4 h-4 text-ink-secondary/60 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={referringDoctor}
-                    onChange={(e) => markDirty(setReferringDoctor, e.target.value)}
-                    placeholder="e.g. Dr. Mehta / Self Walk-in"
-                    className="w-full pl-9 pr-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand focus:border-brand bg-surface-card"
-                  />
+                  <Stethoscope className="w-4 h-4 text-ink-secondary/60 absolute left-3 top-2.5 pointer-events-none" />
+                  <select
+                    value={showNewDoctor ? NEW_DOCTOR : referringDoctor}
+                    onChange={(e) => handleReferringDoctorChange(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand focus:border-brand bg-surface-card text-ink-primary"
+                  >
+                    <option value="">Self / Walk-in (no referring doctor)</option>
+                    {referringDoctor && !refDoctors.some((d) => d.name === referringDoctor) && (
+                      <option value={referringDoctor}>{referringDoctor} (not in list)</option>
+                    )}
+                    {refDoctors.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name}
+                        {d.hospital ? ` — ${d.hospital}` : ''}
+                        {d.speciality ? ` (${d.speciality})` : ''}
+                      </option>
+                    ))}
+                    <option value={NEW_DOCTOR}>+ Register a new referring doctor…</option>
+                  </select>
                 </div>
+
+                {showNewDoctor && (
+                  <div className="mt-2 p-3 rounded-lg border border-brand/30 bg-brand-soft/50 space-y-2.5">
+                    <p className="text-[11px] font-semibold text-brand-deep">New referring doctor</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newDoctor.name}
+                        onChange={(e) => setNewDoctor((d) => ({ ...d, name: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            registerDoctor();
+                          }
+                        }}
+                        placeholder="Doctor's name * (e.g. Dr. Mehta)"
+                        className={plainInput}
+                      />
+                      <input
+                        type="tel"
+                        value={newDoctor.phone}
+                        onChange={(e) => setNewDoctor((d) => ({ ...d, phone: e.target.value }))}
+                        placeholder="Phone"
+                        className={plainInput}
+                      />
+                      <input
+                        type="text"
+                        value={newDoctor.hospital}
+                        onChange={(e) => setNewDoctor((d) => ({ ...d, hospital: e.target.value }))}
+                        placeholder="Clinic / hospital"
+                        className={plainInput}
+                      />
+                      <input
+                        type="text"
+                        value={newDoctor.speciality}
+                        onChange={(e) => setNewDoctor((d) => ({ ...d, speciality: e.target.value }))}
+                        placeholder="Speciality (e.g. GP, Dermatologist)"
+                        className={plainInput}
+                      />
+                    </div>
+                    {newDoctorError && <p className="text-[11px] text-status-danger">{newDoctorError}</p>}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNewDoctor(false);
+                          setNewDoctorError(null);
+                        }}
+                        className="px-3 py-1.5 text-[11px] font-medium text-ink-secondary hover:text-ink-primary rounded-md cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={registerDoctor}
+                        disabled={savingDoctor}
+                        className="px-3 py-1.5 text-[11px] font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
+                      >
+                        {savingDoctor ? 'Registering...' : 'Register doctor'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Referral Source */}
