@@ -54,13 +54,19 @@ export const AppointmentsPanel: React.FC = () => {
   const [doctorId, setDoctorId] = useState('');
   
   // Date selection
-  const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
+  // Local calendar date — toISOString() is UTC, which in IST is still "yesterday"
+  // until 5:30 am and hid the morning's appointments.
+  const [viewDate, setViewDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [showNext7Days, setShowNext7Days] = useState(false);
   
   // Booking state
   const [time, setTime] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [arrivingId, setArrivingId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -212,6 +218,28 @@ export const AppointmentsPanel: React.FC = () => {
       addToast('error', err.message || 'Could not book appointment');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /** Arrival checks the patient into today's queue, not just the appointment status. */
+  const markArrived = async (a: Appointment) => {
+    setArrivingId(a.id);
+    try {
+      const res = await apiFetch(`/api/appointments/${a.id}/arrive`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not check the patient in');
+      const token = data.queueEntry?.tokenNumber;
+      addToast(
+        'success',
+        token
+          ? `${a.patient?.name} is in the queue for Dr. ${a.doctor?.name} — token ${token}`
+          : `${a.patient?.name} checked in`,
+      );
+      fetchAppointments();
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not check the patient in');
+    } finally {
+      setArrivingId(null);
     }
   };
 
@@ -426,10 +454,26 @@ export const AppointmentsPanel: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge label={a.status} variant={statusVariant(a.status)} />
+                  {/* Appointments marked Checked-In before arrival queued the patient
+                      can still be sent to the queue; repeating it is harmless. */}
+                  {a.status === 'Checked-In' && (
+                    <button
+                      onClick={() => markArrived(a)}
+                      disabled={arrivingId === a.id}
+                      className="px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded cursor-pointer disabled:opacity-50"
+                      title="Make sure this patient is in today's queue"
+                    >
+                      {arrivingId === a.id ? 'Sending...' : 'Send to queue'}
+                    </button>
+                  )}
                   {a.status === 'Scheduled' && (
                     <>
-                      <button onClick={() => setStatus(a.id, 'Checked-In')} className="px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded cursor-pointer">
-                        Arrived
+                      <button
+                        onClick={() => markArrived(a)}
+                        disabled={arrivingId === a.id}
+                        className="px-2.5 py-1 text-[11px] font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded cursor-pointer disabled:opacity-50"
+                      >
+                        {arrivingId === a.id ? 'Checking in...' : 'Arrived'}
                       </button>
                       <button onClick={() => setStatus(a.id, 'No-Show')} className="px-2.5 py-1 text-[11px] font-medium text-status-danger bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 rounded cursor-pointer">
                         No-Show

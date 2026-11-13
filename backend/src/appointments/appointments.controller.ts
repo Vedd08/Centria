@@ -72,6 +72,13 @@ export class AppointmentsController {
     return this.appointmentsService.findOne(id, user.clinicId);
   }
 
+  /** Patient has arrived: mark Checked-In and add them to today's queue. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM')
+  @Post(':id/arrive')
+  arrive(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.appointmentsService.arrive(id, user.clinicId, user);
+  }
+
   @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateAppointmentDto: UpdateAppointmentDto, @CurrentUser() user: any) {

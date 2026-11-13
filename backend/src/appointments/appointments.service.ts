@@ -3,10 +3,79 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
+import { QueueService } from '../queue/queue.service';
+import { toLocalDateKey } from '../common/date.helper';
+
+/** Queue states that mean the patient is still in today's queue. */
+const ACTIVE_QUEUE_STATUSES = ['WAITING', 'WITH_DOCTOR', 'AWAITING_SERVICE', 'IN_SERVICE'];
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly queueService: QueueService,
+  ) {}
+
+  /**
+   * The patient has arrived for their appointment: mark it Checked-In and put them in
+   * today's queue for the booked doctor, so they appear on the doctor's queue and at
+   * reception. Marking the status alone used to leave them out of the queue
+   * altogether. Safe to repeat — if they are already queued, that entry is returned.
+   */
+  async arrive(id: string, clinicId: string, user: any) {
+    const appointment = await this.findOne(id, clinicId);
+    if (appointment.status === 'Cancelled') {
+      throw new BadRequestException('This appointment was cancelled — book a new one or check the patient in as a walk-in');
+    }
+    if (appointment.status === 'Completed') {
+      throw new BadRequestException('This appointment is already completed');
+    }
+
+    const doctor = await this.prisma.user.findFirst({
+      where: { id: appointment.doctorId, clinicId },
+      select: { departmentId: true },
+    });
+
+    const time = appointment.startTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const complaint = appointment.reasonForVisit?.trim() || `Appointment at ${time}`;
+
+    let queueEntry: any;
+    try {
+      queueEntry = await this.queueService.checkIn(
+        clinicId,
+        {
+          patientId: appointment.patientId,
+          doctorId: appointment.doctorId,
+          departmentId: doctor?.departmentId ?? undefined,
+          complaint,
+        },
+        user,
+      );
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
+      // Already in today's queue (e.g. reception checked them in by hand) — use that.
+      queueEntry = await this.prisma.patientQueue.findFirst({
+        where: {
+          clinicId,
+          patientId: appointment.patientId,
+          queueDate: toLocalDateKey(new Date()),
+          status: { in: ACTIVE_QUEUE_STATUSES },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const updated =
+      appointment.status === 'Checked-In'
+        ? appointment
+        : await this.prisma.appointment.update({
+            where: { id },
+            data: { status: 'Checked-In' },
+            include: { patient: true, doctor: { select: { id: true, name: true, email: true } } },
+          });
+
+    return { appointment: updated, queueEntry };
+  }
 
   public buildSlotKey(doctorId: string, startTime: Date): string {
     return `${doctorId}|${startTime.toISOString()}`;

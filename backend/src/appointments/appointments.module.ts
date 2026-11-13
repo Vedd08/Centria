@@ -3,9 +3,10 @@ import { AppointmentsService } from './appointments.service';
 import { AppointmentsController } from './appointments.controller';
 
 import { PrismaModule } from '../prisma/prisma.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, QueueModule],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],
 })
