@@ -10,7 +10,7 @@ import { QueueDetail } from './QueueDetail';
 import { SellPackageModal } from '../Packages/SellPackageModal';
 import { BookedAppointments } from './BookedAppointments';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
-import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package } from 'lucide-react';
+import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package, Tag } from 'lucide-react';
 
 /** Local calendar date. toISOString() is UTC, which in IST is still yesterday until 5:30 am. */
 const todayStr = () => {
@@ -278,20 +278,41 @@ export const QueueBoard: React.FC = () => {
         const pitches = entries.filter((e) => e.recommendedPackageTypeId && e.recommendedPackageType);
         if (pitches.length === 0) return null;
         return (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-[10px] border border-status-warning/40 bg-status-warning/10 text-xs">
-            <span className="relative flex h-3 w-3 shrink-0">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-status-danger opacity-75 animate-ping" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-status-danger" />
-            </span>
-            <Package className="w-4 h-4 text-status-warning shrink-0" />
-            <p className="text-ink-primary">
-              <span className="font-semibold">
-                {pitches.length} patient{pitches.length === 1 ? '' : 's'} with a package recommended by the doctor
+          <div className="px-4 py-3 rounded-[10px] border border-status-warning/40 bg-status-warning/10 text-xs space-y-2.5">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-status-danger opacity-75 animate-ping" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-status-danger" />
               </span>
-              {' — '}
-              {canSell ? 'offer it before they leave.' : 'mention it to the patient and let reception know.'}{' '}
-              <span className="text-ink-secondary">{pitches.map((e) => e.patient?.name).join(', ')}</span>
-            </p>
+              <Package className="w-4 h-4 text-status-warning shrink-0" />
+              <p className="text-ink-primary">
+                <span className="font-semibold">
+                  {pitches.length} patient{pitches.length === 1 ? '' : 's'} with a package recommended by the doctor
+                </span>
+                {' — '}
+                {canSell ? 'offer it before they leave.' : 'mention it to the patient and let reception know.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 pl-6">
+              {pitches.map((e) =>
+                canSell ? (
+                  <button
+                    key={e.id}
+                    onClick={() => setSellingPackageFor(e)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand hover:bg-brand-deep text-white font-semibold shadow-xs cursor-pointer"
+                    title={`Sell ${e.recommendedPackageType?.name} to ${e.patient?.name}`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Sell to {e.patient?.name}
+                    <span className="font-normal text-white/80">· {e.recommendedPackageType?.name}</span>
+                  </button>
+                ) : (
+                  <span key={e.id} className="px-2.5 py-1 rounded-md bg-surface-card border border-border text-ink-primary">
+                    {e.patient?.name} · {e.recommendedPackageType?.name}
+                  </span>
+                ),
+              )}
+            </div>
           </div>
         );
       })()}
@@ -404,9 +425,9 @@ export const QueueBoard: React.FC = () => {
                             {canSell ? (
                               <button
                                 onClick={() => setSellingPackageFor(e)}
-                                className="self-end px-2 py-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-deep rounded cursor-pointer"
+                                className="self-end inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer"
                               >
-                                Sell Package
+                                <Tag className="w-3.5 h-3.5" /> Sell Package
                               </button>
                             ) : (
                               <span className="text-[10px] text-ink-secondary">Mention it to the patient — reception will sell it.</span>
