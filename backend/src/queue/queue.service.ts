@@ -488,7 +488,29 @@ export class QueueService {
       nextAppointmentDate: entry.nextAppointmentDate,
       medicines,
       procedures,
+      recommendedPackage: await this.packageForPrescription(clinicId, entry),
     };
+  }
+
+  /**
+   * The package the doctor recommended, printed so the patient knows what was
+   * advised. Price is deliberately left out — reception discusses that. Selling the
+   * package clears the recommendation, so after a sale it comes from the package
+   * the visit was linked to instead.
+   */
+  private async packageForPrescription(
+    clinicId: string,
+    entry: { recommendedPackageType?: { name: string; totalSittings: number; sittingGapDays: number | null } | null; visit?: { packagePurchaseId?: string | null } | null },
+  ) {
+    let pkg = entry.recommendedPackageType ?? null;
+    if (!pkg && entry.visit?.packagePurchaseId) {
+      const purchase = await this.prisma.packagePurchase.findFirst({
+        where: { id: entry.visit.packagePurchaseId, clinicId },
+        select: { packageType: { select: { name: true, totalSittings: true, sittingGapDays: true } } },
+      });
+      pkg = purchase?.packageType ?? null;
+    }
+    return pkg ? { name: pkg.name, totalSittings: pkg.totalSittings, sittingGapDays: pkg.sittingGapDays } : null;
   }
 
   /** Counts for the day, so each desk can see what is waiting on them. */

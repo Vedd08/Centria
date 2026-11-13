@@ -25,6 +25,8 @@ export interface PrescriptionData {
     quantity: number;
   }[];
   procedures: { description: string; instructions?: string }[];
+  /** Package the doctor recommended — never carries a price. */
+  recommendedPackage?: { name: string; totalSittings?: number; sittingGapDays?: number | null } | null;
 }
 
 interface Props {
@@ -171,6 +173,29 @@ export const PrintablePrescription: React.FC<Props> = ({ prescription, onClose }
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {p.recommendedPackage && (
+            <div className="mb-5 text-xs">
+              <p className="font-semibold mb-1.5">Recommended treatment package</p>
+              <p className="flex gap-2">
+                <span className="text-ink-secondary">•</span>
+                <span>
+                  {p.recommendedPackage.name}
+                  {/* Add the sittings only when the name doesn't already say them. */}
+                  {!!p.recommendedPackage.totalSittings && !/sitting/i.test(p.recommendedPackage.name) && (
+                    <span className="text-ink-secondary">
+                      {' '}
+                      — {p.recommendedPackage.totalSittings} sitting{p.recommendedPackage.totalSittings === 1 ? '' : 's'}
+                    </span>
+                  )}
+                  {!!p.recommendedPackage.sittingGapDays && (
+                    <span className="text-ink-secondary">, every {p.recommendedPackage.sittingGapDays} days</span>
+                  )}
+                </span>
+              </p>
+              <p className="text-[10px] text-ink-secondary mt-1">Please ask at reception for details.</p>
             </div>
           )}
 
