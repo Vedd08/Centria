@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { AuthenticatedImage } from '../common/AuthenticatedImage';
-import { FileText, ImagePlus, Upload, X } from 'lucide-react';
+import { FileText, ImagePlus, Upload, X, Camera, Smartphone, CheckCircle2, RefreshCw } from 'lucide-react';
+import { compressImage, photoTitle } from '../../utils/compressImage';
+import { fmtDate } from '../../utils/date';
 
 interface DocumentItem {
   id: string;
@@ -47,20 +50,98 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ patientId, admission
   const [file, setFile] = useState<File | null>(null);
 
   const canUpload = hasRole('DOCTOR', 'NURSE', 'RECEPTION');
+  // Phones and tablets get the camera button; laptops/desktops get the QR code to
+  // hand the job to a phone. A touch-screen laptop still has a fine pointer → QR.
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const [capturing, setCapturing] = useState(false);
 
-  const fetchDocuments = async () => {
-    setLoading(true);
+  const [qr, setQr] = useState<{ image: string; expiresAt: number } | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrBaseline, setQrBaseline] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  const fetchDocuments = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const params = new URLSearchParams({ patientId });
       const res = await apiFetch(`/api/patient-documents?${params}`);
       if (!res.ok) throw new Error('Failed to load documents');
-      setDocuments(await res.json());
+      const data: DocumentItem[] = await res.json();
+      setDocuments(data);
+      return data;
     } catch (err: any) {
-      addToast('error', err.message || 'Failed to load documents');
+      if (!opts?.silent) addToast('error', err.message || 'Failed to load documents');
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   };
+
+  /** Phone/tablet camera: the photo uploads the moment it is taken. */
+  const uploadCapturedPhoto = async (picked: File | undefined) => {
+    if (!picked) return;
+    setCapturing(true);
+    try {
+      const photo = await compressImage(picked);
+      const formData = new FormData();
+      formData.append('file', photo);
+      formData.append('patientId', patientId);
+      formData.append('category', 'SCAN_IMAGE');
+      formData.append('title', photoTitle());
+      if (admissionId) formData.append('admissionId', admissionId);
+      else if (visitId) formData.append('visitId', visitId);
+      const res = await apiFetch('/api/patient-documents', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(err.message || 'Upload failed');
+      }
+      addToast('success', 'Photo uploaded');
+      fetchDocuments({ silent: true });
+    } catch (err: any) {
+      addToast('error', err.message || 'Upload failed');
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  /** Laptop: show a QR code that opens a camera page on a phone for this patient. */
+  const openQr = async () => {
+    setQrOpen(true);
+    setQrLoading(true);
+    try {
+      const res = await apiFetch('/api/patient-documents/upload-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientId, admissionId, visitId: admissionId ? undefined : visitId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not create the QR code');
+      const url = `${window.location.origin}/?upload=${encodeURIComponent(data.token)}`;
+      const image = await QRCode.toDataURL(url, { width: 260, margin: 1 });
+      setQr({ image, expiresAt: new Date(data.expiresAt).getTime() });
+      setQrBaseline(documents.length);
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not create the QR code');
+      setQrOpen(false);
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  // While the QR code is open, pick up photos arriving from the phone.
+  useEffect(() => {
+    if (!qrOpen) return;
+    const poll = setInterval(() => {
+      fetchDocuments({ silent: true });
+      setNow(Date.now());
+    }, 4000);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrOpen, patientId]);
+
+  const qrExpired = !!qr && now >= qr.expiresAt;
+  const receivedFromPhone = Math.max(0, documents.length - qrBaseline);
 
   useEffect(() => {
     fetchDocuments();
@@ -76,7 +157,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ patientId, admission
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', await compressImage(file));
       formData.append('patientId', patientId);
       formData.append('category', category);
       formData.append('title', title.trim() || file.name);
@@ -106,16 +187,86 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ patientId, admission
   return (
     <div className="space-y-4">
       {canUpload && (
-        <div className="flex justify-end">
-          {!showUpload ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              uploadCapturedPhoto(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          {isTouchDevice ? (
+            <button
+              onClick={() => cameraRef.current?.click()}
+              disabled={capturing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>{capturing ? 'Uploading photo...' : 'Take Photo'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={openQr}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer"
+              title="Show a QR code — scan it with a phone to take photos for this patient"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Use phone (QR)</span>
+            </button>
+          )}
+          {!showUpload && (
             <button
               onClick={() => setShowUpload(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded-md transition-colors cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Upload Document</span>
+              <span>Upload File</span>
             </button>
-          ) : null}
+          )}
+        </div>
+      )}
+
+      {qrOpen && (
+        <div className="bg-surface-page p-4 rounded-lg border border-brand/30 flex flex-col sm:flex-row items-center gap-5">
+          <div className="w-[200px] h-[200px] shrink-0 rounded-lg bg-white border border-border flex items-center justify-center overflow-hidden">
+            {qrLoading || !qr ? (
+              <RefreshCw className="w-6 h-6 animate-spin text-brand" />
+            ) : qrExpired ? (
+              <button onClick={openQr} className="text-xs font-medium text-brand underline cursor-pointer">
+                Code expired — get a new one
+              </button>
+            ) : (
+              <img src={qr.image} alt="QR code to upload photos from a phone" className="w-full h-full" />
+            )}
+          </div>
+          <div className="flex-1 space-y-2 text-xs">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-semibold text-ink-primary">Take photos with a phone</p>
+              <button onClick={() => setQrOpen(false)} className="p-1 rounded text-ink-secondary hover:text-ink-primary cursor-pointer" title="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ol className="list-decimal pl-4 space-y-1 text-ink-secondary">
+              <li>Open the camera on any phone or tablet and point it at this code.</li>
+              <li>Tap the link that appears — no login needed.</li>
+              <li>Press <span className="font-semibold text-ink-primary">Take Photo</span>. Each photo appears here automatically.</li>
+            </ol>
+            {receivedFromPhone > 0 && (
+              <p className="flex items-center gap-1.5 font-semibold text-status-success">
+                <CheckCircle2 className="w-4 h-4" /> {receivedFromPhone} received from the phone
+              </p>
+            )}
+            {qr && !qrExpired && (
+              <p className="text-[11px] text-ink-secondary/80">
+                Works for this patient only, until{' '}
+                {new Date(qr.expiresAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -218,7 +369,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ patientId, admission
                   <p className="text-[11px] text-ink-secondary">{CATEGORY_LABELS[doc.category] || doc.category}</p>
                   {doc.uploadedBy && (
                     <p className="text-[10px] text-ink-secondary/70">
-                      by {doc.uploadedBy.name} &bull; {new Date(doc.createdAt).toLocaleDateString()}
+                      by {doc.uploadedBy.name} &bull; {fmtDate(doc.createdAt)}
                     </p>
                   )}
                 </div>
