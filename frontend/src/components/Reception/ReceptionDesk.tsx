@@ -18,6 +18,7 @@ export const ReceptionDesk: React.FC = () => {
   const [isAdmitOpen, setIsAdmitOpen] = useState(false);
   const [queueKey, setQueueKey] = useState(0);
   const [followUpCount, setFollowUpCount] = useState(0);
+  const [pitchCount, setPitchCount] = useState(0);
   const { addToast } = useToast();
   const { apiFetch } = useAuth();
 
@@ -28,8 +29,26 @@ export const ReceptionDesk: React.FC = () => {
       .catch(() => {});
   }, [apiFetch]);
 
+  // Packages the doctor recommended that reception hasn't sold yet — counted on the
+  // Today's Queue tab so it's noticed even from the other tabs.
+  useEffect(() => {
+    const load = () => {
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      apiFetch(`/api/queue?date=${today}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((rows) => {
+          if (Array.isArray(rows)) setPitchCount(rows.filter((q: any) => q.recommendedPackageTypeId).length);
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, [apiFetch]);
+
   const TABS: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
-    { key: 'queue', label: "Today's Queue", icon: ClipboardList },
+    { key: 'queue', label: "Today's Queue", icon: ClipboardList, badge: pitchCount },
     { key: 'appointments', label: 'Appointments', icon: CalendarClock },
     { key: 'payments', label: 'Payments', icon: Receipt },
     { key: 'followups', label: 'Follow-ups', icon: PhoneCall, badge: followUpCount },

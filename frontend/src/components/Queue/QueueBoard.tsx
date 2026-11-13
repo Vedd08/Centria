@@ -10,7 +10,7 @@ import { QueueDetail } from './QueueDetail';
 import { SellPackageModal } from '../Packages/SellPackageModal';
 import { BookedAppointments } from './BookedAppointments';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
-import { UserPlus, Search, Repeat, RefreshCw, ClipboardList } from 'lucide-react';
+import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package } from 'lucide-react';
 
 /** Local calendar date. toISOString() is UTC, which in IST is still yesterday until 5:30 am. */
 const todayStr = () => {
@@ -48,6 +48,10 @@ export const QueueBoard: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const canCheckIn = hasRole('RECEPTION', 'RM');
+  // Only the front desk can sell a package; nurses and staff see the doctor's
+  // recommendation too so they can mention it to the patient.
+  const canSell = hasRole('RECEPTION', 'RM');
+  const seesPitches = hasRole('RECEPTION', 'RM', 'NURSE', 'STAFF');
   const isDoctor = user?.role === 'DOCTOR' || hasRole('MASTER', 'SUPER_ADMIN');
   // Roles that can read appointments, so they see who is booked but not here yet.
   const seesBookings = hasRole('RECEPTION', 'RM', 'DOCTOR', 'MASTER', 'SUPER_ADMIN');
@@ -55,6 +59,8 @@ export const QueueBoard: React.FC = () => {
   // Tracks each entry's status as of the last fetch, so a background poll can tell
   // reception the moment a doctor finishes — without them having to watch the board.
   const lastStatusRef = useRef<Record<string, string>>({});
+  // Recommendation per entry as of the last fetch, so a new one can be announced.
+  const lastRecRef = useRef<Record<string, string | null> | null>(null);
 
   const fetchBoard = async (signal?: AbortSignal, opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -91,6 +97,21 @@ export const QueueBoard: React.FC = () => {
           }
         }
         lastStatusRef.current = Object.fromEntries(nextEntries.map((e) => [e.id, e.status]));
+
+        // A doctor just recommended a package: tell the desk while the patient is still here.
+        // The first load only records the baseline, so opening the page doesn't announce old ones.
+        if (lastRecRef.current) {
+          for (const entry of nextEntries) {
+            const rec = entry.recommendedPackageTypeId || null;
+            if (rec && lastRecRef.current[entry.id] !== rec && entry.recommendedPackageType) {
+              addToast(
+                'info',
+                `${entry.doctor?.name || 'The doctor'} recommended ${entry.recommendedPackageType.name} for ${entry.patient?.name} — offer it before they leave.`,
+              );
+            }
+          }
+        }
+        lastRecRef.current = Object.fromEntries(nextEntries.map((e) => [e.id, e.recommendedPackageTypeId || null]));
       }
 
       setEntries(nextEntries);
@@ -253,6 +274,28 @@ export const QueueBoard: React.FC = () => {
         />
       )}
 
+      {seesPitches && !loading && (() => {
+        const pitches = entries.filter((e) => e.recommendedPackageTypeId && e.recommendedPackageType);
+        if (pitches.length === 0) return null;
+        return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-[10px] border border-status-warning/40 bg-status-warning/10 text-xs">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-status-danger opacity-75 animate-ping" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-status-danger" />
+            </span>
+            <Package className="w-4 h-4 text-status-warning shrink-0" />
+            <p className="text-ink-primary">
+              <span className="font-semibold">
+                {pitches.length} patient{pitches.length === 1 ? '' : 's'} with a package recommended by the doctor
+              </span>
+              {' — '}
+              {canSell ? 'offer it before they leave.' : 'mention it to the patient and let reception know.'}{' '}
+              <span className="text-ink-secondary">{pitches.map((e) => e.patient?.name).join(', ')}</span>
+            </p>
+          </div>
+        );
+      })()}
+
       {loading ? (
         <LoadingSkeleton rows={5} />
       ) : entries.length === 0 ? (
@@ -284,9 +327,16 @@ export const QueueBoard: React.FC = () => {
               <tbody className="divide-y divide-border/60 text-ink-primary">
                 {entries.map((e) => {
                   const pending = e.careOrders?.filter((o) => o.status === 'ORDERED').length ?? 0;
+                  // Cleared by the backend once the package is sold, so this means "still to sell".
+                  const hasPitch = seesPitches && !!e.recommendedPackageTypeId && !!e.recommendedPackageType;
                   return (
-                    <tr key={e.id} className="hover:bg-surface-page/60 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap">
+                    <tr
+                      key={e.id}
+                      className={`transition-colors ${
+                        hasPitch ? 'bg-status-warning/5 hover:bg-status-warning/10' : 'hover:bg-surface-page/60'
+                      }`}
+                    >
+                      <td className={`py-3 px-4 whitespace-nowrap ${hasPitch ? 'border-l-4 border-status-danger' : 'border-l-4 border-transparent'}`}>
                         {/* Token reads as its department's series, e.g. CARD-004. */}
                         <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded bg-brand-soft border border-brand/20 text-brand-deep font-mono font-semibold">
                           {e.department ? `${e.department.code}-` : ''}
@@ -300,6 +350,12 @@ export const QueueBoard: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
+                          {hasPitch && (
+                            <span className="relative flex h-2.5 w-2.5 shrink-0" title="Doctor recommended a package — not sold yet">
+                              <span className="absolute inline-flex h-full w-full rounded-full bg-status-danger opacity-75 animate-ping" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-status-danger" />
+                            </span>
+                          )}
                           <span className="font-medium text-ink-primary">{e.patient?.name}</span>
                           {e.patient?.visits?.[0]?.conditionTrend === 'IMPROVING' && <span className="text-status-success font-bold" title="Improving">↑</span>}
                           {e.patient?.visits?.[0]?.conditionTrend === 'WORSENING' && <span className="text-status-danger font-bold" title="Worsening">↓</span>}
@@ -340,15 +396,21 @@ export const QueueBoard: React.FC = () => {
                         <CareRail status={e.status} pendingDispense={pending > 0} className="mt-1.5 w-28" />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {e.recommendedPackageTypeId && e.recommendedPackageType && hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN') && (
-                          <div className="mb-2 text-left bg-brand-soft/50 border border-brand/20 p-2 rounded flex flex-col gap-1 w-max ml-auto">
-                            <span className="text-[10px] font-semibold text-brand-deep">Doctor recommended: {e.recommendedPackageType.name} — ₹{e.recommendedPackageType.price}</span>
-                            <button
-                              onClick={() => setSellingPackageFor(e)}
-                              className="self-end px-2 py-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-deep rounded cursor-pointer"
-                            >
-                              Sell Package
-                            </button>
+                        {hasPitch && (
+                          <div className="mb-2 text-left bg-status-warning/10 border border-status-warning/40 p-2 rounded flex flex-col gap-1 w-max max-w-[320px] ml-auto">
+                            <span className="text-[10px] font-semibold text-ink-primary">
+                              Doctor recommended: {e.recommendedPackageType!.name} — ₹{e.recommendedPackageType!.price}
+                            </span>
+                            {canSell ? (
+                              <button
+                                onClick={() => setSellingPackageFor(e)}
+                                className="self-end px-2 py-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-deep rounded cursor-pointer"
+                              >
+                                Sell Package
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-ink-secondary">Mention it to the patient — reception will sell it.</span>
+                            )}
                           </div>
                         )}
                         <button
