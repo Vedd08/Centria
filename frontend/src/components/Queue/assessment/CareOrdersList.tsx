@@ -165,7 +165,9 @@ export const CareOrdersList: React.FC<CareOrdersListProps> = ({
                           id: o.id,
                           action: 'cancel',
                           title: 'Cancel Care Order',
-                          message: `This order is already processed. Mark "${o.description}" as cancelled instead?`
+                          message: o.dispensedAt
+                            ? `"${o.description}" was already dispensed by the pharmacy. Cancel it? The medicine goes back into pharmacy stock and is removed from the patient's bill.`
+                            : `"${o.description}" is already marked done. Cancel it? It will be removed from the patient's bill.`
                         });
                       }
                     };
@@ -243,7 +245,7 @@ export const CareOrdersList: React.FC<CareOrdersListProps> = ({
                               <Check className="w-3 h-3" /> Mark Done
                             </button>
                           )}
-                          {canAssess && (
+                          {canAssess && o.status !== 'CANCELLED' && (
                             <button
                               type="button"
                               onClick={handleRemoveClick}

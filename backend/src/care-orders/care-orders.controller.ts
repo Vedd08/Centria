@@ -65,7 +65,7 @@ export class CareOrdersController {
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Patch(':id/cancel')
   cancel(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.careOrdersService.cancel(user.clinicId, id);
+    return this.careOrdersService.cancel(user.clinicId, id, user);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')

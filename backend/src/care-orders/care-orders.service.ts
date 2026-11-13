@@ -184,16 +184,64 @@ export class CareOrdersService {
     });
   }
 
-  async cancel(clinicId: string, id: string) {
+  /**
+   * Cancels an order at any stage. If the pharmacy already dispensed it, the
+   * medicine goes back into stock — to the same batches it was taken from — and
+   * the return is logged, so stock never drifts from what is on the shelf.
+   * A cancelled order drops out of the patient's charges.
+   */
+  async cancel(clinicId: string, id: string, requestingUser: any) {
     const order = await this.findOneOrThrow(clinicId, id);
-    if (order.status !== 'ORDERED') {
-      throw new BadRequestException('Only new orders can be cancelled');
+    if (order.status === 'CANCELLED') {
+      throw new ConflictException('This order is already cancelled');
     }
-    return this.prisma.careOrder.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
-      include: ORDER_INCLUDE,
-    });
+
+    if (!order.dispensedAt || !order.medicineId) {
+      return this.prisma.careOrder.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+        include: ORDER_INCLUDE,
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Re-check inside the transaction so two clicks can't return the stock twice.
+      const claimed = await tx.careOrder.updateMany({
+        where: { id, clinicId, status: { not: 'CANCELLED' }, dispensedAt: { not: null } },
+        data: { status: 'CANCELLED', dispensedAt: null, dispensedById: null },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('This order was already cancelled');
+      }
+
+      const batchRecords = await tx.batchDispenseRecord.findMany({ where: { careOrderId: id } });
+      for (const rec of batchRecords) {
+        await tx.medicineBatch.update({
+          where: { id: rec.batchId },
+          data: { currentQty: { increment: rec.quantity } },
+        });
+      }
+      await tx.batchDispenseRecord.deleteMany({ where: { careOrderId: id } });
+
+      const medicine = await tx.medicine.update({
+        where: { id: order.medicineId! },
+        data: { stockQty: { increment: order.quantity } },
+        select: { stockQty: true },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          clinicId,
+          medicineId: order.medicineId!,
+          delta: order.quantity,
+          reason: `Cancelled care order — returned to stock (${order.description})`,
+          newQty: medicine.stockQty,
+          performedById: requestingUser.id,
+        },
+      });
+
+      return tx.careOrder.findUniqueOrThrow({ where: { id }, include: ORDER_INCLUDE });
+    }, TRANSACTION_OPTIONS);
   }
 
   async delete(clinicId: string, id: string) {
