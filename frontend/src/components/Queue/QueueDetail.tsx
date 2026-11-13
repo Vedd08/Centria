@@ -719,6 +719,37 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
         )}
       </div>
 
+      {/* Patient history comes before the assessment, so the doctor reads allergies
+          and past visits before writing a diagnosis. */}
+      <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs space-y-4">
+        <div className="flex items-center gap-1 border-b border-border">
+          {[
+            ...(!canAssess ? [{ key: 'orders' as Tab, label: 'Care Orders', icon: ClipboardList }] : []),
+            { key: 'history' as Tab, label: 'Patient History', icon: FileText },
+          ].map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
+                  tab === t.key ? 'border-brand text-brand-deep' : 'border-transparent text-ink-secondary hover:text-ink-primary'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {tab === 'orders' ? (
+          <CareOrdersList {...careOrdersProps} />
+        ) : (
+          <PatientHistoryPanel patient={entry.patient} />
+        )}
+      </div>
+
       {/* Doctor's assessment — decides OPD vs IPD and writes the day-book entry */}
       {canAssess && entry.status !== 'CANCELLED' && (
         <form id="assessment-form" onSubmit={handleAssess} className="relative z-0 space-y-4">
@@ -791,35 +822,6 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
           </div>
         </form>
       )}
-
-      <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs space-y-4">
-        <div className="flex items-center gap-1 border-b border-border">
-          {[
-            ...(!canAssess ? [{ key: 'orders' as Tab, label: 'Care Orders', icon: ClipboardList }] : []),
-            { key: 'history' as Tab, label: 'Patient History', icon: FileText },
-          ].map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
-                  tab === t.key ? 'border-brand text-brand-deep' : 'border-transparent text-ink-secondary hover:text-ink-primary'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {tab === 'orders' ? (
-          <CareOrdersList {...careOrdersProps} />
-        ) : (
-          <PatientHistoryPanel patient={entry.patient} />
-        )}
-      </div>
 
       <PrintablePrescription prescription={prescription} onClose={() => setPrescription(null)} />
 
