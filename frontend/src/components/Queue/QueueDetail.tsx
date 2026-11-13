@@ -350,6 +350,29 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
 
   const handleAssess = async (e: React.FormEvent) => {
     e.preventDefault();
+    await saveAssessment();
+  };
+
+  /**
+   * Complete Visit used to close the encounter without saving what the doctor had
+   * just chosen — a package recommended for reception to sell was silently lost.
+   * Save pending assessment changes first; stop if that save fails.
+   */
+  const completeVisit = async () => {
+    if (canAssess && isDirty) {
+      const saved = await saveAssessment();
+      if (!saved) return;
+    }
+    await setStatus('COMPLETED');
+  };
+
+  const handleBack = () => {
+    if (canAssess && isDirty && !window.confirm('You have unsaved changes to this assessment. Leave without saving?')) return;
+    onBack();
+  };
+
+  /** Saves the assessment form. Returns whether it succeeded. */
+  const saveAssessment = async (): Promise<boolean> => {
     setSaving(true);
     try {
       const res = await apiFetch(`/api/queue/${entry.id}/assess`, {
@@ -374,8 +397,10 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
       addToast('success', `Patient routed to ${careType} — recorded in the day book`);
       formSnapshot.current = takeSnapshot();
       onChanged();
+      return true;
     } catch (err: any) {
       addToast('error', err.message || 'Failed to save assessment');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -574,7 +599,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <button
-              onClick={onBack}
+              onClick={handleBack}
               className="p-2 rounded-md text-ink-secondary hover:text-ink-primary hover:bg-surface-page border border-border cursor-pointer shrink-0"
               title="Back to queue"
             >
@@ -637,7 +662,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
             )}
             {entry.status !== 'COMPLETED' && entry.status !== 'CANCELLED' && (
               <button
-                onClick={() => setStatus('COMPLETED')}
+                onClick={completeVisit}
+                disabled={saving}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Complete Visit
