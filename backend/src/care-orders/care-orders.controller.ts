@@ -44,10 +44,22 @@ export class CareOrdersController {
     return this.careOrdersService.getQueueCharges(user.clinicId, queueId);
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY')
+  /** Preview of the unpaid pharmacy bill, or a receipt to reprint with ?invoiceId=. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY', 'RECEPTION')
   @Get('pharmacy-bill/:queueId')
-  getPharmacyBill(@CurrentUser() user: any, @Param('queueId') queueId: string) {
-    return this.careOrdersService.getPharmacyBill(user.clinicId, queueId);
+  getPharmacyBill(@CurrentUser() user: any, @Param('queueId') queueId: string, @Query('invoiceId') invoiceId?: string) {
+    return this.careOrdersService.getPharmacyBill(user.clinicId, queueId, invoiceId);
+  }
+
+  /** Counter checkout: charge dispensed medicines on one receipt and return the bill. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY', 'RECEPTION')
+  @Post('pharmacy-bill/:queueId/collect')
+  collectPharmacyBill(
+    @CurrentUser() user: any,
+    @Param('queueId') queueId: string,
+    @Body() body: { paymentMethod?: string; paymentRef?: string },
+  ) {
+    return this.careOrdersService.collectPharmacyBill(user.clinicId, queueId, body);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'NURSE', 'STAFF')

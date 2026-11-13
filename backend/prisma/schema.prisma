@@ -286,6 +286,8 @@ model Invoice {
   updatedAt           DateTime         @updatedAt
   clinicId            String?
   clinic              Clinic?          @relation(fields: [clinicId], references: [id])
+  /// Medicines charged on this receipt, when it is a pharmacy counter bill.
+  pharmacyOrders      CareOrder[]      @relation("PharmacyBilledOrders")
 
   @@unique([clinicId, invoiceNumber])
   @@index([visitId])
@@ -795,6 +797,11 @@ model CareOrder {
   dispensedBy          User?                 @relation("DispensedCareOrders", fields: [dispensedById], references: [id])
   dispensedAt          DateTime?
   batchDispenseRecords BatchDispenseRecord[]
+
+  /// The pharmacy receipt this item was charged on. Set when the counter collects
+  /// payment, so the same medicine is never billed twice.
+  billedInvoiceId String?
+  billedInvoice   Invoice? @relation("PharmacyBilledOrders", fields: [billedInvoiceId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

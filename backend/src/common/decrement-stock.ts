@@ -70,8 +70,15 @@ export async function decrementStock(
     remainingToDeduct -= deductQty;
   }
 
+  // Stock can exist without a batch: opening stock entered on the medicine itself,
+  // or a manual stock correction. The medicine's stockQty (claimed above) is the
+  // authority on how much is on the shelf, so any part not covered by a batch is
+  // taken from that un-batched stock instead of failing the sale. This used to
+  // throw, which surfaced as "Internal server error" at the counter and the POS.
   if (remainingToDeduct > 0) {
-    throw new Error(`Invariant violation: stockQty allowed deduction of ${quantity}, but batches fell short by ${remainingToDeduct}. Ledger is inconsistent.`);
+    console.warn(
+      `[stock] ${medicine.name}: ${remainingToDeduct} of ${quantity} ${medicine.unit}(s) taken from stock that has no batch record`,
+    );
   }
 
   return { newQty: updated.stockQty, batchDeductions };

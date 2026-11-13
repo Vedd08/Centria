@@ -109,20 +109,47 @@ export class RetailSalesService {
       // However, we are inside a transaction right now! invoicesService.create creates its own transaction.
       // Let's create the invoice manually here to keep it atomic, or we can just call the service if we are okay with it being outside the transaction.
       // Wait, it's better to just build the invoice inside this transaction to guarantee atomicity.
-      return { retailSaleId: retailSale.id, cgst, sgst, taxableValue };
+      return { retailSaleId: retailSale.id, cgst, sgst, taxableValue, subTotal };
     }, TRANSACTION_OPTIONS)
     .then(async (result) => {
       // 6. Generate invoice OUTSIDE the stock transaction to avoid nested transaction lock issues.
+      // The receipt's value is the whole cart. Passing only the taxable part left
+      // GST-exempt medicines out of the receipt total.
       const invoice = await this.invoicesService.create(clinicId, {
         retailSaleId: result.retailSaleId,
-        taxableValue: result.taxableValue,
+        taxableValue: result.subTotal,
         cgstOverride: result.cgst,
         sgstOverride: result.sgst,
         paymentMethod: dto.paymentMethod as 'cash' | 'bank',
         paymentRef: dto.paymentRef,
       });
 
-      return invoice;
+      // Itemised lines so the counter can print a proper bill.
+      const items = await this.prisma.retailSaleItem.findMany({
+        where: { retailSaleId: result.retailSaleId },
+        include: { medicine: { select: { name: true, unit: true, hsnCode: true, isGstTaxable: true, taxRate: true } } },
+      });
+      const lines = items.map((it) => {
+        const gstRate = it.medicine?.isGstTaxable ? (it.medicine.taxRate != null ? Number(it.medicine.taxRate) : 18) : 0;
+        const amount = Number(it.totalPrice);
+        return {
+          description: it.medicine?.name ?? 'Item',
+          unit: it.medicine?.unit ?? '',
+          hsnCode: it.medicine?.hsnCode ?? null,
+          quantity: it.quantity,
+          unitPrice: Number(it.unitPrice),
+          amount,
+          gstRate,
+          gstAmount: Math.round(amount * gstRate) / 100,
+        };
+      });
+
+      return {
+        ...invoice,
+        lines,
+        subTotal: result.subTotal,
+        customer: { name: dto.customerName || 'Walk-in Customer', phone: dto.customerPhone || null },
+      };
     });
   }
 }

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { decrementStock } from '../common/decrement-stock';
 import { PrismaService } from '../prisma/prisma.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
+import { InvoicesService } from '../invoices/invoices.service';
 import { CreateCareOrderDto } from './dto/create-care-order.dto';
 import { PerformCareOrderDto } from './dto/perform-care-order.dto';
 
@@ -22,7 +23,10 @@ const ORDER_INCLUDE = {
 
 @Injectable()
 export class CareOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private invoices: InvoicesService,
+  ) {}
 
   async create(clinicId: string, dto: CreateCareOrderDto, requestingUser: any) {
     const queue = await this.prisma.patientQueue.findFirst({ where: { id: dto.queueId, clinicId } });
@@ -325,60 +329,124 @@ export class CareOrdersService {
   }
 
   /**
-   * Detailed breakdown for printing a standalone Pharmacy Invoice, complete with GST calculations.
+   * The pharmacy bill for one patient visit, itemised with GST.
+   * - With `invoiceId`: the receipt already issued (for reprinting).
+   * - Without: a preview of what is dispensed but not yet paid for.
+   * Only medicines actually handed over from stock are billed — "buy outside"
+   * prescriptions and undispensed items never appear.
    */
-  async getPharmacyBill(clinicId: string, queueId: string) {
+  async getPharmacyBill(clinicId: string, queueId: string, invoiceId?: string) {
     const queue = await this.prisma.patientQueue.findFirst({
       where: { id: queueId, clinicId },
-      include: { patient: true, doctor: true },
+      include: { patient: true, doctor: { select: { id: true, name: true } } },
     });
     if (!queue) throw new NotFoundException('Queue entry not found');
 
+    const invoice = invoiceId
+      ? await this.prisma.invoice.findFirst({ where: { id: invoiceId, clinicId } })
+      : null;
+    if (invoiceId && !invoice) throw new NotFoundException('Receipt not found');
+
     const orders = await this.prisma.careOrder.findMany({
-      where: { clinicId, queueId, status: { not: 'CANCELLED' }, orderType: { in: STOCK_BACKED } },
+      where: invoice
+        ? { clinicId, queueId, billedInvoiceId: invoice.id }
+        : {
+            clinicId,
+            queueId,
+            status: { not: 'CANCELLED' },
+            orderType: { in: STOCK_BACKED },
+            medicineId: { not: null },
+            dispensedAt: { not: null },
+            billedInvoiceId: null,
+          },
       include: ORDER_INCLUDE,
+      orderBy: { createdAt: 'asc' },
     });
 
-    const round2 = (n: number) => Math.round(n * 100) / 100;
-    const lines = orders.map(order => ({
-      description: order.description,
-      kind: order.orderType,
-      quantity: order.quantity,
-      unitPrice: Number(order.unitPrice),
-      amount: Number(order.totalPrice),
-      taxable: order.medicine?.isGstTaxable ?? false,
-      hsnCode: order.medicine?.hsnCode ?? undefined,
-      taxRate: order.medicine?.taxRate ? Number(order.medicine.taxRate) : undefined,
-    }));
+    return { ...this.buildBill(orders), header: this.billHeader(queue), invoice };
+  }
 
-    const subTotal = round2(lines.reduce((acc, l) => acc + l.amount, 0));
-    const taxableValue = round2(lines.filter(l => l.taxable).reduce((acc, l) => acc + l.amount, 0));
-    const exemptValue = round2(subTotal - taxableValue);
+  /**
+   * Pharmacy counter checkout: charge everything dispensed and not yet paid for on
+   * one receipt, mark those items as billed, and return the itemised bill to print.
+   * The receipt is a normal invoice, so the money shows up in Accounts.
+   */
+  async collectPharmacyBill(
+    clinicId: string,
+    queueId: string,
+    dto: { paymentMethod?: string; paymentRef?: string },
+  ) {
+    const paymentMethod = dto?.paymentMethod === 'cash' ? 'cash' : dto?.paymentMethod === 'bank' ? 'bank' : null;
+    if (!paymentMethod) throw new BadRequestException('Choose how the patient paid: cash or bank');
 
-    let totalCgst = 0;
-    let totalSgst = 0;
-    for (const l of lines) {
-      if (l.taxable) {
-        const rate = l.taxRate ?? 18;
-        totalCgst += l.amount * ((rate / 2) / 100);
-        totalSgst += l.amount * ((rate / 2) / 100);
-      }
+    const preview = await this.getPharmacyBill(clinicId, queueId);
+    if (preview.lines.length === 0) {
+      throw new BadRequestException('Nothing to bill — dispense the medicines first, or they are already paid for');
     }
 
-    const cgst = round2(totalCgst);
-    const sgst = round2(totalSgst);
+    const invoice = await this.invoices.create(clinicId, {
+      queueId,
+      taxableValue: preview.subTotal,
+      cgstOverride: preview.cgst,
+      sgstOverride: preview.sgst,
+      paymentMethod: paymentMethod as 'cash' | 'bank',
+      paymentRef: dto.paymentRef?.trim() || undefined,
+    });
+    if (!invoice) throw new ConflictException('Could not issue a receipt number — please try again');
 
+    // Claim only the items that were on the preview and are still unbilled, so a
+    // second click (or a second counter) can't charge them again.
+    const claimed = await this.prisma.careOrder.updateMany({
+      where: { id: { in: preview.orderIds }, billedInvoiceId: null },
+      data: { billedInvoiceId: invoice.id },
+    });
+    if (claimed.count !== preview.orderIds.length) {
+      // Someone billed part of this at the same moment: undo our receipt.
+      await this.prisma.careOrder.updateMany({ where: { billedInvoiceId: invoice.id }, data: { billedInvoiceId: null } });
+      await this.prisma.invoice.delete({ where: { id: invoice.id } });
+      throw new ConflictException('These medicines were just billed at another counter — refresh and check');
+    }
+
+    return this.getPharmacyBill(clinicId, queueId, invoice.id);
+  }
+
+  private billHeader(queue: { id: string; tokenNumber: number; queueDate: string; careType: string | null; patient: any; doctor: any }) {
     return {
       queueId: queue.id,
       tokenNumber: queue.tokenNumber,
       queueDate: queue.queueDate,
       careType: queue.careType,
-      patient: queue.patient,
-      doctor: queue.doctor,
+      patient: { name: queue.patient?.name, phone: queue.patient?.phone, uhid: queue.patient?.uhid },
+      doctor: queue.doctor ? { name: queue.doctor.name } : null,
+    };
+  }
+
+  /** Itemised lines and GST totals — the same rules the retail POS uses. */
+  private buildBill(orders: any[]) {
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const lines = orders.map((o) => {
+      const taxable = o.medicine?.isGstTaxable ?? false;
+      const gstRate = taxable ? (o.medicine?.taxRate != null ? Number(o.medicine.taxRate) : 18) : 0;
+      const amount = Number(o.totalPrice);
+      return {
+        description: o.medicine?.name ?? o.description,
+        unit: o.medicine?.unit ?? '',
+        hsnCode: o.medicine?.hsnCode ?? null,
+        quantity: o.quantity,
+        unitPrice: Number(o.unitPrice),
+        amount,
+        gstRate,
+        gstAmount: round2((amount * gstRate) / 100),
+      };
+    });
+    const subTotal = round2(lines.reduce((a, l) => a + l.amount, 0));
+    const gstTotal = lines.reduce((a, l) => a + (l.amount * l.gstRate) / 100, 0);
+    const cgst = round2(gstTotal / 2);
+    const sgst = round2(gstTotal / 2);
+    return {
       lines,
+      orderIds: orders.map((o) => o.id as string),
       subTotal,
-      taxableValue,
-      exemptValue,
       cgst,
       sgst,
       totalAmount: round2(subTotal + cgst + sgst),
