@@ -8,10 +8,15 @@ import { CheckInModal } from './CheckInModal';
 import { AssignDoctorModal } from './AssignDoctorModal';
 import { QueueDetail } from './QueueDetail';
 import { SellPackageModal } from '../Packages/SellPackageModal';
+import { BookedAppointments } from './BookedAppointments';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
 import { UserPlus, Search, Repeat, RefreshCw, ClipboardList } from 'lucide-react';
 
-const todayStr = () => new Date().toISOString().split('T')[0];
+/** Local calendar date. toISOString() is UTC, which in IST is still yesterday until 5:30 am. */
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 interface Stats {
   waiting: number;
@@ -40,9 +45,12 @@ export const QueueBoard: React.FC = () => {
   const [selected, setSelected] = useState<QueueEntry | null>(null);
   const [assigningEntry, setAssigningEntry] = useState<QueueEntry | null>(null);
   const [sellingPackageFor, setSellingPackageFor] = useState<QueueEntry | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const canCheckIn = hasRole('RECEPTION', 'RM');
   const isDoctor = user?.role === 'DOCTOR' || hasRole('MASTER', 'SUPER_ADMIN');
+  // Roles that can read appointments, so they see who is booked but not here yet.
+  const seesBookings = hasRole('RECEPTION', 'RM', 'DOCTOR', 'MASTER', 'SUPER_ADMIN');
 
   // Tracks each entry's status as of the last fetch, so a background poll can tell
   // reception the moment a doctor finishes — without them having to watch the board.
@@ -50,6 +58,7 @@ export const QueueBoard: React.FC = () => {
 
   const fetchBoard = async (signal?: AbortSignal, opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
+    setRefreshKey((k) => k + 1);
     try {
       const params = new URLSearchParams({ date });
       if (search.trim()) params.set('search', search.trim());
@@ -234,6 +243,16 @@ export const QueueBoard: React.FC = () => {
         </div>
       )}
 
+      {seesBookings && (
+        <BookedAppointments
+          date={date}
+          doctorId={mineOnly && user?.id ? user.id : undefined}
+          canCheckIn={canCheckIn}
+          onArrived={() => fetchBoard()}
+          refreshKey={refreshKey}
+        />
+      )}
+
       {loading ? (
         <LoadingSkeleton rows={5} />
       ) : entries.length === 0 ? (
@@ -241,7 +260,7 @@ export const QueueBoard: React.FC = () => {
           <p className="text-sm font-semibold text-ink-primary">No patients in the queue</p>
           <p className="text-xs text-ink-secondary">
             {canCheckIn
-              ? 'Click "Check In Patient" when someone arrives at the desk.'
+              ? 'Press "Arrived" on a booked appointment above, or "Check In Patient" for a walk-in.'
               : 'Patients appear here once reception checks them in.'}
           </p>
         </div>

@@ -5,6 +5,7 @@ import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { CalendarPlus, Search, X, CalendarClock, ChevronRight, Clock, Users } from 'lucide-react';
 import { SlotPicker } from '../Appointments/SlotPicker';
+import { drName } from '../../utils/names';
 
 interface PatientOption {
   id: string;
@@ -232,7 +233,7 @@ export const AppointmentsPanel: React.FC = () => {
       addToast(
         'success',
         token
-          ? `${a.patient?.name} is in the queue for Dr. ${a.doctor?.name} — token ${token}`
+          ? `${a.patient?.name} is in the queue for ${drName(a.doctor?.name)} — token ${token}`
           : `${a.patient?.name} checked in`,
       );
       fetchAppointments();
@@ -447,7 +448,7 @@ export const AppointmentsPanel: React.FC = () => {
                     <p className="text-xs font-medium text-ink-primary">{a.patient?.name}</p>
                     <p className="text-[11px] text-ink-secondary">
                       {start.toLocaleDateString()} {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {a.doctor && ` • Dr. ${a.doctor.name}`}
+                      {a.doctor && ` • ${drName(a.doctor.name)}`}
                       {a.reasonForVisit && ` • ${a.reasonForVisit}`}
                     </p>
                   </div>
