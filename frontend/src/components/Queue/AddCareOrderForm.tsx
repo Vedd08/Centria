@@ -58,6 +58,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   };
 
   const isStockBacked = orderType === 'MEDICINE' || orderType === 'INJECTION';
+  const isProcedure = orderType === 'TREATMENT';
 
   useEffect(() => {
     if (!open) return;
@@ -96,31 +97,35 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
       addToast('error', 'Enter what should be done');
       return;
     }
-    if (orderType === 'TREATMENT' && !treatmentId && !description.trim()) {
+    if (isProcedure && !treatmentId) {
       addToast('error', 'Select a procedure');
       return;
     }
     setSubmitting(true);
     try {
+      // A procedure is only a recommendation that reception bills at the catalogue
+      // price — no quantity, dosage or staff instructions.
+      const body = isProcedure
+        ? { queueId, orderType, treatmentId, quantity: 1 }
+        : {
+            queueId,
+            orderType,
+            medicineId: isStockBacked ? medicineId : undefined,
+            description: description.trim() || undefined,
+            dosage: dosage.trim() || undefined,
+            route: isStockBacked ? route : undefined,
+            frequency: frequency.trim() || undefined,
+            instructions: instructions.trim() || undefined,
+            quantity: Number(quantity) || 1,
+          };
       const res = await apiFetch('/api/care-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queueId,
-          orderType,
-          medicineId: isStockBacked ? medicineId : undefined,
-          treatmentId: orderType === 'TREATMENT' ? treatmentId || undefined : undefined,
-          description: description.trim() || undefined,
-          dosage: dosage.trim() || undefined,
-          route: isStockBacked ? route : undefined,
-          frequency: frequency.trim() || undefined,
-          instructions: instructions.trim() || undefined,
-          quantity: Number(quantity) || 1,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add order');
-      addToast('success', 'Order added to the patient');
+      addToast('success', isProcedure ? 'Procedure recommended — reception will bill it' : 'Order added to the patient');
       reset();
       setOpen(false);
       onOrderAdded();
@@ -169,7 +174,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-primary">
-          {isStockBacked ? 'Add medicine' : orderType === 'TREATMENT' ? 'Add procedure' : 'Add order'}
+          {isStockBacked ? 'Add medicine' : isProcedure ? 'Recommend procedure' : 'Add order'}
         </span>
         <button
           type="button"
@@ -259,6 +264,12 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
         />
       )}
 
+      {isProcedure ? (
+        <p className="text-[11px] text-ink-secondary">
+          Printed on the prescription as a recommendation. Reception bills it at the procedure's price.
+        </p>
+      ) : (
+      <>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>
           <label className="block text-xs font-semibold text-ink-secondary mb-1">Quantity</label>
@@ -314,6 +325,8 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           className={inputClass}
         />
       </div>
+      </>
+      )}
 
       <div className="flex justify-end gap-2 pt-1">
         <button
@@ -329,7 +342,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           disabled={submitting}
           className="px-3.5 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
         >
-          {submitting ? 'Adding...' : 'Add Order'}
+          {submitting ? 'Adding...' : isProcedure ? 'Recommend' : 'Add Order'}
         </button>
       </div>
     </div>

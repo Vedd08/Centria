@@ -689,7 +689,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
                     <li key={o.id} className="flex gap-2">
                       <span className="text-ink-secondary">•</span>
                       <span className="text-ink-primary">
-                        {[o.description, o.dosage, o.frequency, o.quantity ? `x${o.quantity}` : null].filter(Boolean).join(' · ')}
+                        {[o.description, o.dosage, o.frequency, o.quantity && o.orderType !== 'TREATMENT' ? `x${o.quantity}` : null].filter(Boolean).join(' · ')}
                       </span>
                     </li>
                   ))}

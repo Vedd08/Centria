@@ -472,9 +472,18 @@ export class QueueService {
         medicineId: o.medicineId,
       }));
 
+    // Procedures the doctor recommended (billed at reception), plus the one picked as
+    // "procedure done today" on the visit — which used to be billed but never printed.
     const procedures = entry.careOrders
       .filter((o) => o.status !== 'CANCELLED' && !['MEDICINE', 'INJECTION'].includes(o.orderType))
       .map((o) => ({ description: o.description, instructions: o.instructions }));
+    const visitProcedure = entry.visit?.treatmentName?.trim();
+    if (
+      visitProcedure &&
+      !procedures.some((p) => p.description?.trim().toLowerCase() === visitProcedure.toLowerCase())
+    ) {
+      procedures.unshift({ description: visitProcedure, instructions: null });
+    }
 
     return {
       queueId: entry.id,

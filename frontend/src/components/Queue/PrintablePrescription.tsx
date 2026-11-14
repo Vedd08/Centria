@@ -161,7 +161,7 @@ export const PrintablePrescription: React.FC<Props> = ({ prescription, onClose }
 
           {p.procedures.length > 0 && (
             <div className="mb-5 text-xs">
-              <p className="font-semibold mb-1.5">Procedures / Services</p>
+              <p className="font-semibold mb-1.5">Recommended procedures</p>
               <ul className="space-y-1">
                 {p.procedures.map((pr, i) => (
                   <li key={i} className="flex gap-2">
@@ -173,6 +173,7 @@ export const PrintablePrescription: React.FC<Props> = ({ prescription, onClose }
                   </li>
                 ))}
               </ul>
+              <p className="text-[10px] text-ink-secondary mt-1">Please pay at reception.</p>
             </div>
           )}
 
