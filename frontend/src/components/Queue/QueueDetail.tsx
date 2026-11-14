@@ -85,22 +85,15 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const [packageTypes, setPackageTypes] = useState<any[]>([]);
   const [recommendedPackageTypeId, setRecommendedPackageTypeId] = useState(entry.recommendedPackageTypeId || '');
   
-  const formSnapshot = useRef<any>(null);
-  
-  const takeSnapshot = () => ({
+  const takeSnapshot = () => JSON.stringify({
     careType, diagnosis, conditionTrend, doctorNotes, patientNotes, staffNotes,
     consultationFee, nextAppointmentDate, treatmentId, usePackagePurchaseId, recommendedPackageTypeId
   });
-  
-  useEffect(() => {
-    if (!formSnapshot.current) formSnapshot.current = takeSnapshot();
-  }, []);
-  
-  const isDirty = React.useMemo(() => {
-    if (!formSnapshot.current) return false;
-    const current = takeSnapshot();
-    return JSON.stringify(current) !== JSON.stringify(formSnapshot.current);
-  }, [careType, diagnosis, conditionTrend, doctorNotes, patientNotes, staffNotes, consultationFee, nextAppointmentDate, treatmentId, usePackagePurchaseId, recommendedPackageTypeId]);
+
+  // State, not a ref: the footer kept saying "Unsaved changes" after a successful
+  // save because updating a ref never re-ran the dirty check.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>(takeSnapshot);
+  const isDirty = takeSnapshot() !== savedSnapshot;
   
   const [saving, setSaving] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
@@ -389,7 +382,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to save assessment');
       addToast('success', `Patient routed to ${careType} — recorded in the day book`);
-      formSnapshot.current = takeSnapshot();
+      setSavedSnapshot(takeSnapshot());
       onChanged();
       return true;
     } catch (err: any) {

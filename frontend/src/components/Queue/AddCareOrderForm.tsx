@@ -86,8 +86,20 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
     setQuantity('1');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    if (submitting) return;
+    if (isStockBacked && !medicineId) {
+      addToast('error', 'Select a medicine from pharmacy stock');
+      return;
+    }
+    if (!isStockBacked && orderType !== 'TREATMENT' && !description.trim()) {
+      addToast('error', 'Enter what should be done');
+      return;
+    }
+    if (orderType === 'TREATMENT' && !treatmentId && !description.trim()) {
+      addToast('error', 'Select a procedure');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await apiFetch('/api/care-orders', {
@@ -143,7 +155,18 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-surface-page p-4 rounded-lg border border-border space-y-3 w-full">
+    // A div, not a <form>: this sits inside the doctor's assessment form, and a nested
+    // form made "Add Order" do a native page submit that reloaded the whole app.
+    // Enter in a field adds the order instead of submitting the outer assessment.
+    <div
+      className="bg-surface-page p-4 rounded-lg border border-border space-y-3 w-full"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-primary">
           {isStockBacked ? 'Add medicine' : orderType === 'TREATMENT' ? 'Add procedure' : 'Add order'}
@@ -301,13 +324,14 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
           Cancel
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={submitting}
           className="px-3.5 py-1.5 text-xs font-medium text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
         >
           {submitting ? 'Adding...' : 'Add Order'}
         </button>
       </div>
-    </form>
+    </div>
   );
 };
