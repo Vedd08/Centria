@@ -234,40 +234,77 @@ export class PrescriptionTemplatesService {
     }, TRANSACTION_OPTIONS);
   }
 
-  async removeAppliedTemplate(clinicId: string, templateId: string, queueId: string, user: any) {
-    const template = await this.ownedOrThrow(clinicId, templateId, user);
-    
+  /**
+   * Takes an applied template back off an encounter, keyed by the template *name*
+   * stamped on its orders — so it still works after the template was renamed or
+   * deleted. Every order carrying the tag loses it: untouched orders that came only
+   * from this template are deleted; dispensed, done or cancelled ones are kept (they
+   * are part of the bill / stock trail) but untagged, so the template no longer
+   * shows as applied. The template's wording is stripped from the encounter too.
+   */
+  async removeAppliedTemplate(clinicId: string, queueId: string, templateName: string, user: any) {
+    const name = templateName?.trim();
+    if (!name) throw new BadRequestException('Template name is required');
+
     const queue = await this.prisma.patientQueue.findFirst({ where: { id: queueId, clinicId } });
     if (!queue) throw new NotFoundException(`Queue entry ${queueId} not found`);
 
-    return this.prisma.$transaction(async (tx) => {
-      const orders = await tx.careOrder.findMany({
-        where: { queueId, status: { not: 'CANCELLED' } },
-      });
+    // Prefer the doctor's own template of that name; it may also be gone entirely.
+    const template =
+      (await this.prisma.prescriptionTemplate.findFirst({ where: { clinicId, name, doctorId: user.id } })) ??
+      (await this.prisma.prescriptionTemplate.findFirst({ where: { clinicId, name } }));
 
-      let skippedCount = 0;
+    const revertText = (existing: string | null, toRemove: string | null | undefined) => {
+      if (!existing || !toRemove) return existing;
+      const removeLines = new Set(toRemove.split('\n').map((l) => l.trim()).filter(Boolean));
+      const kept = existing.split('\n').filter((l) => !removeLines.has(l.trim()));
+      return kept.length ? kept.join('\n') : null;
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const orders = await tx.careOrder.findMany({ where: { queueId } });
+
+      let removedCount = 0;
+      let keptCount = 0;
       for (const order of orders) {
         if (!order.sourceTemplates) continue;
         const tags = order.sourceTemplates.split(' | ');
-        if (!tags.includes(template.name)) continue;
+        if (!tags.includes(name)) continue;
 
-        if (order.dispensedAt || order.performedAt) {
-          skippedCount++;
-          continue;
-        }
+        const remaining = tags.filter((t) => t !== name);
+        const untouched = order.status === 'ORDERED' && !order.dispensedAt && !order.performedAt;
 
-        if (tags.length === 1) {
+        if (untouched && remaining.length === 0) {
           await tx.careOrder.delete({ where: { id: order.id } });
+          removedCount++;
         } else {
-          const newTags = tags.filter(t => t !== template.name).join(' | ');
           await tx.careOrder.update({
             where: { id: order.id },
-            data: { sourceTemplates: newTags }
+            data: { sourceTemplates: remaining.length ? remaining.join(' | ') : null },
           });
+          if (!untouched && remaining.length === 0 && order.status !== 'CANCELLED') keptCount++;
         }
       }
 
-      return { deleted: true, skippedCount };
+      if (template) {
+        await tx.patientQueue.update({
+          where: { id: queue.id },
+          data: {
+            diagnosis: revertText(queue.diagnosis, template.diagnosis),
+            patientNotes: revertText(queue.patientNotes, template.patientNotes),
+            staffNotes: revertText(queue.staffNotes, template.staffNotes),
+          },
+        });
+      }
+
+      return {
+        removed: true,
+        removedCount,
+        keptCount,
+        template: template
+          ? { diagnosis: template.diagnosis, patientNotes: template.patientNotes, staffNotes: template.staffNotes }
+          : null,
+      };
     }, TRANSACTION_OPTIONS);
   }
 }

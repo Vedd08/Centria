@@ -245,49 +245,43 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
     }
   };
 
+  /**
+   * Removed by name, server-side: works even if the template was since renamed or
+   * deleted, and also clears the tag from cancelled / dispensed / done orders, which
+   * used to keep the chip stuck on screen.
+   */
   const removeAppliedTemplate = async (templateName: string) => {
-    const template = templates.find((t) => t.name === templateName);
-    if (!template) {
-      addToast('error', 'Cannot remove an unknown template');
-      return;
-    }
-    setApplyingTemplate(template.id);
+    setApplyingTemplate(templateName);
     try {
-      const revertText = (existing: string, toRemove?: string) => {
+      const res = await apiFetch(
+        `/api/prescription-templates/applied/${entry.id}?name=${encodeURIComponent(templateName)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not remove the template');
+
+      const revertText = (existing: string, toRemove?: string | null) => {
         if (!existing || !toRemove) return existing;
-        const removeLines = new Set(toRemove.split('\n').map(l => l.trim()).filter(Boolean));
-        return existing.split('\n')
-          .map(l => l.trim())
-          .filter(l => !removeLines.has(l))
-          .join('\n');
+        const removeLines = new Set(toRemove.split('\n').map((l) => l.trim()).filter(Boolean));
+        return existing.split('\n').filter((l) => !removeLines.has(l.trim())).join('\n');
       };
+      const tpl = data.template || templates.find((t) => t.name === templateName);
+      if (tpl) {
+        setDiagnosis((prev) => revertText(prev, tpl.diagnosis));
+        setPatientNotes((prev) => revertText(prev, tpl.patientNotes));
+        setStaffNotes((prev) => revertText(prev, tpl.staffNotes));
+      }
 
-      const newDiagnosis = revertText(diagnosis, template.diagnosis);
-      const newPatientNotes = revertText(patientNotes, template.patientNotes);
-      const newStaffNotes = revertText(staffNotes, template.staffNotes);
-
-      setDiagnosis(newDiagnosis);
-      setPatientNotes(newPatientNotes);
-      setStaffNotes(newStaffNotes);
-
-      await apiFetch(`/api/prescription-templates/${template.id}/applied/${entry.id}`, { method: 'DELETE' });
-
-      await apiFetch(`/api/queue/${entry.id}/assess`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          careType: entry.careType || 'OPD',
-          diagnosis: newDiagnosis || undefined,
-          patientNotes: newPatientNotes || undefined,
-          staffNotes: newStaffNotes || undefined,
-        }),
-      });
-
-      setAppliedTemplates(prev => prev.filter(a => a.templateName !== templateName));
-      addToast('success', `Removed template: ${templateName}`);
+      setAppliedTemplates((prev) => prev.filter((a) => a.templateName !== templateName));
+      addToast(
+        'success',
+        data.keptCount > 0
+          ? `Removed template: ${templateName} — ${data.keptCount} already dispensed/done item(s) kept on the bill`
+          : `Removed template: ${templateName}`,
+      );
       onChanged();
     } catch (err: any) {
-      addToast('error', 'Could not fully remove template');
+      addToast('error', err.message || 'Could not remove the template');
     } finally {
       setApplyingTemplate('');
     }
@@ -792,35 +786,44 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
              />
           </CollapsibleStep>
           
-          <CollapsibleStep step={2} title="Procedure">
-             <Step2Treatment
-               careType={careType} setCareType={setCareType}
-               treatmentId={treatmentId} setTreatmentId={setTreatmentId} treatments={treatments}
-               onTreatmentCreated={(t) => setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)))}
-               setUsePackagePurchaseId={setUsePackagePurchaseId} patientPurchases={patientPurchases} usePackagePurchaseId={usePackagePurchaseId}
-               setRecommendedPackageTypeId={setRecommendedPackageTypeId} recommendedPackageTypeId={recommendedPackageTypeId} packageTypes={packageTypes}
-               onPackageCreated={(pkg) => setPackageTypes((prev) => [...prev, pkg])}
-               setNextAppointmentDate={setNextAppointmentDate}
-             />
+          {/* One box for everything prescribed: medicines with dosage first, then the
+              procedure done today and the package recommended to reception.
+              Expanded by default and under its own key — it holds the only place
+              to prescribe medicine. */}
+          <CollapsibleStep step={2} title="Medicines & procedures" storageKey="assessment-step-medicines-expanded">
+            <div className="space-y-5">
+              <section>
+                <h4 className="text-xs font-semibold text-ink-primary mb-2">Medicines &amp; dosage</h4>
+                <Step3Orders
+                  queueId={entry.id} isAssessed={isAssessed} onOrderAdded={onChanged}
+                  {...careOrdersProps}
+                />
+              </section>
+              <section className="pt-4 border-t border-border">
+                <h4 className="text-xs font-semibold text-ink-primary mb-2">Procedure &amp; package recommendation</h4>
+                <Step2Treatment
+                  careType={careType} setCareType={setCareType}
+                  treatmentId={treatmentId} setTreatmentId={setTreatmentId} treatments={treatments}
+                  onTreatmentCreated={(t) => setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)))}
+                  setUsePackagePurchaseId={setUsePackagePurchaseId} patientPurchases={patientPurchases} usePackagePurchaseId={usePackagePurchaseId}
+                  setRecommendedPackageTypeId={setRecommendedPackageTypeId} recommendedPackageTypeId={recommendedPackageTypeId} packageTypes={packageTypes}
+                  onPackageCreated={(pkg) => setPackageTypes((prev) => [...prev, pkg])}
+                  setNextAppointmentDate={setNextAppointmentDate}
+                />
+              </section>
+            </div>
           </CollapsibleStep>
 
-          {/* Expanded by default and under its own key: the old "Orders" step was
-              often left collapsed, which hid the only place to prescribe medicine. */}
-          <CollapsibleStep step={3} title="Medicines & procedures" storageKey="assessment-step-medicines-expanded">
-             <Step3Orders
-               queueId={entry.id} isAssessed={isAssessed} onOrderAdded={onChanged}
-               {...careOrdersProps}
-             />
-          </CollapsibleStep>
-          
-          <CollapsibleStep step={4} title="Advice for patient · Notes for nurse / staff">
+          {/* Storage keys pinned to the old step numbers so remembered open/closed
+              state survives the renumbering. */}
+          <CollapsibleStep step={3} title="Advice for patient · Notes for nurse / staff" storageKey="assessment-step-4-expanded">
              <Step4Advice
                patientNotes={patientNotes} setPatientNotes={setPatientNotes}
                staffNotes={staffNotes} setStaffNotes={setStaffNotes}
              />
           </CollapsibleStep>
-          
-          <CollapsibleStep step={5} title="Fee & next visit">
+
+          <CollapsibleStep step={4} title="Fee & next visit" storageKey="assessment-step-5-expanded">
              <Step5Fee
                consultationFee={consultationFee} setConsultationFee={setConsultationFee}
                nextAppointmentDate={nextAppointmentDate} setNextAppointmentDate={setNextAppointmentDate}

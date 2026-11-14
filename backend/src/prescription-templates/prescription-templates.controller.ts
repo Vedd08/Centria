@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { PrescriptionTemplatesService } from './prescription-templates.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -43,8 +43,9 @@ export class PrescriptionTemplatesController {
     return this.templatesService.applyToQueue(user.clinicId, id, queueId, user);
   }
 
-  @Delete(':id/applied/:queueId')
-  removeAppliedTemplate(@CurrentUser() user: any, @Param('id') id: string, @Param('queueId') queueId: string) {
-    return this.templatesService.removeAppliedTemplate(user.clinicId, id, queueId, user);
+  /** Keyed by name (`?name=`) so a renamed or deleted template can still be taken off. */
+  @Delete('applied/:queueId')
+  removeAppliedTemplate(@CurrentUser() user: any, @Param('queueId') queueId: string, @Query('name') name: string) {
+    return this.templatesService.removeAppliedTemplate(user.clinicId, queueId, name, user);
   }
 }
