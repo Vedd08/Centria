@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export const CARE_ORDER_TYPES = ['MEDICINE', 'INJECTION', 'TREATMENT', 'OTHER'] as const;
 
@@ -20,6 +20,11 @@ export class CreateCareOrderDto {
 
   @IsOptional()
   notStocked?: boolean;
+
+  /** A procedure done as a sitting of a package the patient already paid for — not charged again. */
+  @IsOptional()
+  @IsBoolean()
+  coveredByPackage?: boolean;
 
   @IsOptional()
   @IsString()

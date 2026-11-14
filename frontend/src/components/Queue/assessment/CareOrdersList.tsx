@@ -194,7 +194,11 @@ export const CareOrdersList: React.FC<CareOrdersListProps> = ({
                               ))}
                             </div>
                             <p className="text-[11px] text-ink-secondary mt-0.5">
-                              {o.orderType === 'TREATMENT' ? 'Recommended · billed at reception' : `Qty ${o.quantity}`}
+                              {o.orderType !== 'TREATMENT'
+                                ? `Qty ${o.quantity}`
+                                : o.instructions?.startsWith('Package sitting')
+                                  ? 'Package sitting · already paid'
+                                  : 'Recommended · billed at reception'}
                               {showDetails.showDosage && o.dosage && ` · ${o.dosage}`}
                               {showDetails.showDosage && o.route && ` · ${o.route}`}
                               {showDetails.showDosage && o.frequency && ` · ${o.frequency}`}

@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { Pill, Stethoscope, X } from 'lucide-react';
 import { ORDER_TYPE_LABEL } from './types';
 import { QuickAddProcedure } from '../Treatments/QuickAddProcedure';
+import { QuickAddPackage } from './assessment/QuickAddPackage';
 
 /** Sentinel select value for adding a procedure to the catalogue. */
 const NEW_PROCEDURE = '__new__';
@@ -22,7 +23,18 @@ interface TreatmentOption {
   name: string;
 }
 
-interface AddCareOrderFormProps {
+/** Package hooks for the procedure flow — the doctor recommends packages from here. */
+export interface ProcedurePackageProps {
+  packageTypes?: any[];
+  patientPurchases?: any[];
+  /** Sends the recommendation to reception right away. Returns whether it worked. */
+  onRecommendPackage?: (packageTypeId: string) => Promise<boolean>;
+  /** The patient already owns a package for this procedure: count today as a sitting. */
+  onUseSitting?: (purchase: any) => void;
+  onPackageCreated?: (pkg: any) => void;
+}
+
+interface AddCareOrderFormProps extends ProcedurePackageProps {
   queueId: string;
   onOrderAdded: () => void;
 }
@@ -33,7 +45,9 @@ const inputClass =
 const ROUTES = ['Oral', 'IV', 'IM', 'Subcutaneous', 'Topical', 'Inhalation'];
 
 /** Doctor's order entry — one line per medicine, injection or treatment. */
-export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onOrderAdded }) => {
+export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
+  queueId, onOrderAdded, packageTypes = [], patientPurchases = [], onRecommendPackage, onUseSitting, onPackageCreated,
+}) => {
   const { apiFetch } = useAuth();
   const { addToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -50,6 +64,9 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
   const [quantity, setQuantity] = useState('1');
   const [submitting, setSubmitting] = useState(false);
   const [addingProcedure, setAddingProcedure] = useState(false);
+  const [packageId, setPackageId] = useState('');
+  const [addingPackage, setAddingPackage] = useState(false);
+  const [useSitting, setUseSitting] = useState(true);
 
   const openAs = (type: string) => {
     setOrderType(type);
@@ -59,6 +76,17 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
 
   const isStockBacked = orderType === 'MEDICINE' || orderType === 'INJECTION';
   const isProcedure = orderType === 'TREATMENT';
+
+  // A package the patient already bought that covers this procedure, with sittings left.
+  const activePurchase = isProcedure && treatmentId
+    ? patientPurchases.find((p) => p.packageType?.treatmentId === treatmentId && p.sittingsRemaining > 0)
+    : null;
+  const coveredBySitting = !!activePurchase && useSitting;
+  const activePackages = packageTypes.filter((pt) => pt.isActive !== false);
+  const packagesForProcedure = treatmentId ? activePackages.filter((pt) => pt.treatmentId === treatmentId) : [];
+  const otherPackages = activePackages.filter((pt) => !treatmentId || pt.treatmentId !== treatmentId);
+  const formatPkg = (pt: any) =>
+    `${pt.name} — ${pt.totalSittings} sittings, ₹${Number(pt.price).toLocaleString('en-IN')}${pt.sittingGapDays ? ` (every ${pt.sittingGapDays} days)` : ''}`;
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +113,9 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
     setFrequency('');
     setInstructions('');
     setQuantity('1');
+    setPackageId('');
+    setAddingPackage(false);
+    setUseSitting(true);
   };
 
   const handleSubmit = async () => {
@@ -106,7 +137,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
       // A procedure is only a recommendation that reception bills at the catalogue
       // price — no quantity, dosage or staff instructions.
       const body = isProcedure
-        ? { queueId, orderType, treatmentId, quantity: 1 }
+        ? { queueId, orderType, treatmentId, quantity: 1, coveredByPackage: coveredBySitting || undefined }
         : {
             queueId,
             orderType,
@@ -125,7 +156,17 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add order');
-      addToast('success', isProcedure ? 'Procedure recommended — reception will bill it' : 'Order added to the patient');
+      if (isProcedure && coveredBySitting) {
+        onUseSitting?.(activePurchase);
+        addToast('success', `Procedure added as a sitting of ${activePurchase.packageName} — no charge`);
+      } else if (isProcedure && packageId && onRecommendPackage) {
+        const ok = await onRecommendPackage(packageId);
+        addToast(ok ? 'success' : 'warning', ok
+          ? 'Procedure and package recommended — reception can see them now'
+          : 'Procedure added, but the package recommendation failed — try again');
+      } else {
+        addToast('success', isProcedure ? 'Procedure recommended — reception will bill it' : 'Order added to the patient');
+      }
       reset();
       setOpen(false);
       onOrderAdded();
@@ -265,9 +306,72 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({ queueId, onO
       )}
 
       {isProcedure ? (
-        <p className="text-[11px] text-ink-secondary">
-          Printed on the prescription as a recommendation. Reception bills it at the procedure's price.
-        </p>
+        <div className="space-y-3">
+          {activePurchase ? (
+            <label className="flex items-start gap-2 p-3 rounded-lg bg-brand-soft border border-brand/20 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useSitting}
+                onChange={(e) => setUseSitting(e.target.checked)}
+                className="mt-0.5 rounded border-brand/30 text-brand focus:ring-brand"
+              />
+              <span className="text-xs text-brand-deep">
+                <span className="font-semibold">Count as a sitting of {activePurchase.packageName}</span>
+                <span className="block text-[11px] text-brand-deep/80">
+                  Sitting {activePurchase.sittingsUsed + 1} of {activePurchase.totalSittings} · already paid, no charge today
+                </span>
+              </span>
+            </label>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">
+                Recommend a package to reception <span className="font-normal text-ink-secondary/70">(optional, multiple sittings)</span>
+              </label>
+              <select
+                value={addingPackage ? NEW_PROCEDURE : packageId}
+                onChange={(e) => {
+                  if (e.target.value === NEW_PROCEDURE) {
+                    setAddingPackage(true);
+                    return;
+                  }
+                  setAddingPackage(false);
+                  setPackageId(e.target.value);
+                }}
+                className={inputClass}
+              >
+                <option value="">No package — just this procedure</option>
+                {packagesForProcedure.length > 0 && (
+                  <optgroup label="For this procedure">
+                    {packagesForProcedure.map((pt) => <option key={pt.id} value={pt.id}>{formatPkg(pt)}</option>)}
+                  </optgroup>
+                )}
+                {otherPackages.length > 0 && (
+                  <optgroup label={treatmentId ? 'Other packages' : 'All packages'}>
+                    {otherPackages.map((pt) => <option key={pt.id} value={pt.id}>{formatPkg(pt)}</option>)}
+                  </optgroup>
+                )}
+                {onPackageCreated && <option value={NEW_PROCEDURE}>+ Create a new package…</option>}
+              </select>
+              {addingPackage && (
+                <QuickAddPackage
+                  treatmentId={treatmentId}
+                  treatmentName={treatments.find((t) => t.id === treatmentId)?.name}
+                  onCancel={() => setAddingPackage(false)}
+                  onCreated={(pkg) => {
+                    onPackageCreated?.(pkg);
+                    setPackageId(pkg.id);
+                    setAddingPackage(false);
+                  }}
+                />
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-ink-secondary">
+            {coveredBySitting
+              ? 'Printed on the prescription. Not billed — the package was paid for when it was sold.'
+              : 'Printed on the prescription as a recommendation. Reception bills the procedure at its price and sees any package you recommend.'}
+          </p>
+        </div>
       ) : (
       <>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

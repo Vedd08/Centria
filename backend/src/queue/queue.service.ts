@@ -282,6 +282,28 @@ export class QueueService {
   }
 
   /**
+   * Sets the package the doctor recommends, straight away — reception's board picks
+   * it up (and offers "Sell") without waiting for the assessment to be saved.
+   */
+  async recommendPackage(clinicId: string, id: string, packageTypeId: string | null) {
+    const entry = await this.findOne(clinicId, id);
+    if (['CANCELLED', 'COMPLETED'].includes(entry.status)) {
+      throw new BadRequestException('This patient encounter is already closed');
+    }
+    if (packageTypeId) {
+      const pkgType = await this.prisma.packageType.findFirst({ where: { id: packageTypeId, clinicId } });
+      if (!pkgType || !pkgType.isActive) {
+        throw new BadRequestException('Recommended package type is not active or not found');
+      }
+    }
+    return this.prisma.patientQueue.update({
+      where: { id },
+      data: { recommendedPackageTypeId: packageTypeId },
+      include: QUEUE_INCLUDE,
+    });
+  }
+
+  /**
    * The doctor's call that this OPD patient needs to be admitted. This doesn't pick a
    * ward/bed itself — it raises a flag that the nurse's dashboard picks up, so the
    * bed assignment stays a ward-desk decision rather than something the doctor does

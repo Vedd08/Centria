@@ -6,7 +6,6 @@ import { StatusBadge } from '../common/StatusBadge';
 import { PatientHistoryPanel } from '../PatientHistory/PatientHistoryPanel';
 import { CollapsibleStep } from './assessment/CollapsibleStep';
 import { Step1Diagnosis } from './assessment/Step1Diagnosis';
-import { Step2Treatment } from './assessment/Step2Treatment';
 import { Step3Orders } from './assessment/Step3Orders';
 import { Step4Advice } from './assessment/Step4Advice';
 import { Step5Fee } from './assessment/Step5Fee';
@@ -38,11 +37,6 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-interface TreatmentOption {
-  id: string;
-  name: string;
-}
-
 interface QueueDetailProps {
   entry: QueueEntry;
   onBack: () => void;
@@ -61,7 +55,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const { addToast } = useToast();
   const canAssess = hasRole('DOCTOR');
   const [tab, setTab] = useState<Tab>(canAssess ? 'history' : 'orders');
-  const [careType, setCareType] = useState<'OPD' | 'IPD'>((entry.careType as 'OPD' | 'IPD') || 'OPD');
+  // No longer picked on this screen: OPD by default, IPD via "Recommend for Admission".
+  const [careType] = useState<'OPD' | 'IPD'>((entry.careType as 'OPD' | 'IPD') || 'OPD');
   const [diagnosis, setDiagnosis] = useState(entry.diagnosis || (entry.visitId ? '' : entry.complaint) || '');
   const [conditionTrend, setConditionTrend] = useState<string>(entry.visit?.conditionTrend || '');
   const [diagnosisTouched, setDiagnosisTouched] = useState(false);
@@ -76,9 +71,10 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const [templateSearch, setTemplateSearch] = useState('');
   const [applyingTemplate, setApplyingTemplate] = useState('');
   const [prescription, setPrescription] = useState<PrescriptionData | null>(null);
-  const [treatmentId, setTreatmentId] = useState(entry.visit?.treatmentId ?? '');
-  const [treatments, setTreatments] = useState<TreatmentOption[]>([]);
-  
+  // The old "Procedure done today" picker is gone — procedures are added as orders.
+  // An existing visit keeps whatever it already had.
+  const [treatmentId] = useState(entry.visit?.treatmentId ?? '');
+
   const [patientPurchases, setPatientPurchases] = useState<any[]>([]);
   const [usePackagePurchaseId, setUsePackagePurchaseId] = useState(entry.visit?.packagePurchaseId || '');
   
@@ -153,10 +149,6 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
     if (!canAssess) return;
     (async () => {
       try {
-        const res = await apiFetch('/api/treatments');
-        const data = await res.json();
-        setTreatments(Array.isArray(data) ? data : data.data || []);
-
         const purRes = await apiFetch(`/api/packages/purchases?patientId=${entry.patientId}`);
         const purData = await purRes.json();
         setPatientPurchases(Array.isArray(purData) ? purData : purData.data || []);
@@ -165,10 +157,50 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
         const ptData = await ptRes.json();
         setPackageTypes(Array.isArray(ptData) ? ptData : ptData.data || []);
       } catch {
-        // Non-fatal — the doctor can save without picking a treatment.
+        // Non-fatal — the package options just stay empty.
       }
     })();
   }, [canAssess, apiFetch, entry.patientId]);
+
+  /** Records a value the server already holds, so it doesn't count as unsaved. */
+  const markSaved = (field: string, value: string) =>
+    setSavedSnapshot((prev) => JSON.stringify({ ...JSON.parse(prev), [field]: value }));
+
+  /** Package recommendation goes to reception immediately (empty id clears it). */
+  const recommendPackage = async (packageTypeId: string): Promise<boolean> => {
+    try {
+      const res = await apiFetch(`/api/queue/${entry.id}/recommend-package`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageTypeId: packageTypeId || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not recommend the package');
+      setRecommendedPackageTypeId(packageTypeId);
+      markSaved('recommendedPackageTypeId', packageTypeId);
+      onChanged();
+      return true;
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not recommend the package');
+      return false;
+    }
+  };
+
+  /** Today's procedure is a sitting of a package the patient already bought. */
+  const applySitting = (purchase: any) => {
+    setUsePackagePurchaseId(purchase.id);
+    if (recommendedPackageTypeId) recommendPackage('');
+    const gap = purchase.packageType?.sittingGapDays;
+    if (gap) {
+      const next = new Date();
+      next.setDate(next.getDate() + gap);
+      setNextAppointmentDate(next.toISOString().split('T')[0]);
+    }
+  };
+
+  const recommendedPackage = packageTypes.find((pt) => pt.id === recommendedPackageTypeId)
+    || (recommendedPackageTypeId ? (entry as any).recommendedPackageType : null);
+  const sittingPurchase = patientPurchases.find((p) => p.id === usePackagePurchaseId);
 
   // A doctor's own saved prescriptions for conditions they treat often.
   useEffect(() => {
@@ -779,32 +811,65 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
              />
           </CollapsibleStep>
           
-          {/* One box for everything prescribed: medicines with dosage first, then the
-              procedure done today and the package recommended to reception.
+          {/* One box for everything prescribed. "Add Procedure" also recommends a
+              package to reception, or counts a sitting of one the patient owns.
               Expanded by default and under its own key — it holds the only place
               to prescribe medicine. */}
           <CollapsibleStep step={2} title="Medicines & procedures" storageKey="assessment-step-medicines-expanded">
-            <div className="space-y-5">
-              <section>
-                <h4 className="text-xs font-semibold text-ink-primary mb-2">Medicines &amp; dosage</h4>
-                <Step3Orders
-                  queueId={entry.id} isAssessed={isAssessed} onOrderAdded={onChanged}
-                  {...careOrdersProps}
-                />
-              </section>
-              <section className="pt-4 border-t border-border">
-                <h4 className="text-xs font-semibold text-ink-primary mb-2">Procedure &amp; package recommendation</h4>
-                <Step2Treatment
-                  careType={careType} setCareType={setCareType}
-                  treatmentId={treatmentId} setTreatmentId={setTreatmentId} treatments={treatments}
-                  onTreatmentCreated={(t) => setTreatments((prev) => [...prev, t].sort((a, b) => a.name.localeCompare(b.name)))}
-                  setUsePackagePurchaseId={setUsePackagePurchaseId} patientPurchases={patientPurchases} usePackagePurchaseId={usePackagePurchaseId}
-                  setRecommendedPackageTypeId={setRecommendedPackageTypeId} recommendedPackageTypeId={recommendedPackageTypeId} packageTypes={packageTypes}
-                  onPackageCreated={(pkg) => setPackageTypes((prev) => [...prev, pkg])}
-                  setNextAppointmentDate={setNextAppointmentDate}
-                />
-              </section>
-            </div>
+            <Step3Orders
+              queueId={entry.id} isAssessed={isAssessed} onOrderAdded={onChanged}
+              packageTypes={packageTypes}
+              patientPurchases={patientPurchases}
+              onRecommendPackage={recommendPackage}
+              onUseSitting={applySitting}
+              onPackageCreated={(pkg) => setPackageTypes((prev) => [...prev, pkg])}
+              {...careOrdersProps}
+              footer={(recommendedPackage || sittingPurchase) && (
+                <div className="space-y-2">
+                  {recommendedPackage && (
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-brand-soft/60 border border-brand/20">
+                      <span className="flex items-center gap-2 text-xs text-brand-deep">
+                        <Package className="w-3.5 h-3.5 shrink-0" />
+                        <span>
+                          <span className="font-semibold">Package recommended to reception:</span>{' '}
+                          {recommendedPackage.name} — {recommendedPackage.totalSittings} sittings
+                          {recommendedPackage.price != null && `, ${money(recommendedPackage.price)}`}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => { if (await recommendPackage('')) addToast('success', 'Package recommendation removed'); }}
+                        className="p-1 rounded text-brand-deep hover:bg-brand/10 cursor-pointer"
+                        title="Remove recommendation"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {sittingPurchase && (
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-status-success/10 border border-status-success/20">
+                      <span className="flex items-center gap-2 text-xs text-ink-primary">
+                        <Package className="w-3.5 h-3.5 shrink-0 text-status-success" />
+                        <span>
+                          <span className="font-semibold">Today is a sitting of {sittingPurchase.packageName}</span>
+                          {usePackagePurchaseId !== (entry.visit?.packagePurchaseId || '') && (
+                            <span className="text-ink-secondary"> — counted when you save</span>
+                          )}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setUsePackagePurchaseId('')}
+                        className="p-1 rounded text-ink-secondary hover:bg-status-success/20 cursor-pointer"
+                        title="Don't count this visit as a sitting"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            />
           </CollapsibleStep>
 
           {/* Storage keys pinned to the old step numbers so remembered open/closed

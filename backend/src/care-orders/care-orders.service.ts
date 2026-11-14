@@ -68,7 +68,9 @@ export class CareOrdersService {
     }
 
     const quantity = dto.quantity ?? 1;
-    const unitPrice = Number(medicine?.unitPrice ?? treatment?.price ?? 0);
+    // A package sitting was paid for when the package was sold, so it bills at zero.
+    const covered = !!dto.coveredByPackage && !medicine;
+    const unitPrice = covered ? 0 : Number(medicine?.unitPrice ?? treatment?.price ?? 0);
 
     return this.prisma.careOrder.create({
       data: {
@@ -82,7 +84,7 @@ export class CareOrdersService {
         dosage: dto.dosage,
         route: dto.route,
         frequency: dto.frequency,
-        instructions: dto.instructions,
+        instructions: covered ? dto.instructions || 'Package sitting — already paid' : dto.instructions,
         quantity,
         unitPrice,
         totalPrice: unitPrice * quantity,

@@ -77,6 +77,13 @@ export class QueueController {
   }
 
   // Only a doctor recommends admission — the nurse still decides the actual bed.
+  /** Doctor recommends (or clears, with null) a package for reception to sell. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Patch(':id/recommend-package')
+  recommendPackage(@CurrentUser() user: any, @Param('id') id: string, @Body('packageTypeId') packageTypeId: string | null) {
+    return this.queueService.recommendPackage(user.clinicId, id, packageTypeId || null);
+  }
+
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Patch(':id/request-admission')
   requestAdmission(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: RequestAdmissionDto) {
