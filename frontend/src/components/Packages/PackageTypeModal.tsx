@@ -10,9 +10,11 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  /** Open straight into editing this package (from a catalog card's Edit button). */
+  editPackage?: PackageTypeItem | null;
 }
 
-export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate }) => {
+export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate, editPackage }) => {
   const { token, user , apiFetch } = useAuth();
   const { addToast } = useToast();
   
@@ -126,6 +128,14 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
     setNewSkipHolidays(pkg.skipHolidays !== false);
     setError(null);
   };
+
+  // Opened from a card's Edit button: load that package; otherwise start blank.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (editPackage) startEdit(editPackage);
+    else resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editPackage?.id]);
 
   const handleDeletePackageType = async (id: string) => {
     setDeletingId(id);
@@ -378,7 +388,7 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                     <span className={`text-[11px] font-medium ${pkg.treatmentId ? 'text-ink-secondary' : 'text-status-warning'}`}>
                       {pkg.treatmentId ? getTreatmentName(pkg.treatmentId) : 'Not linked to a treatment'}
                     </span>
-                    {(canEdit && (user?.role !== 'DOCTOR' || (pkg as any).doctorId === user?.id)) && (
+                    {(canEdit && (user?.role !== 'DOCTOR' || !pkg.doctorId || pkg.doctorId === user?.id)) && (
                       <button
                         onClick={() => startEdit(pkg)}
                         className="text-brand hover:underline text-[11px] font-medium ml-1 cursor-pointer"

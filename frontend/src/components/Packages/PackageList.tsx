@@ -10,7 +10,7 @@ import { PackagePlanModal } from './PackagePlanModal';
 import { HolidaysModal } from './HolidaysModal';
 import { PackagePlan, STATE_STYLE, fmtDate, expiryText } from './packagePlan';
 import { money } from '../../utils/money';
-import { CalendarOff } from 'lucide-react';
+import { CalendarOff, Pencil } from 'lucide-react';
 
 export interface PackageTypeItem {
   id: string;
@@ -49,8 +49,10 @@ type PurchaseFilter = 'attention' | 'active' | 'all';
 const ATTENTION: PackagePlan['state'][] = ['OVERDUE', 'DUE_TODAY', 'EXPIRING_SOON', 'EXPIRED'];
 
 export const PackageList: React.FC = () => {
-  const { token, hasRole , apiFetch } = useAuth();
-  
+  const { token, hasRole , apiFetch, user } = useAuth();
+  /** Package type opened from a catalog card's Edit button. */
+  const [editingType, setEditingType] = useState<PackageTypeItem | null>(null);
+
   const [packageTypes, setPackageTypes] = useState<PackageTypeItem[]>([]);
   const [purchases, setPurchases] = useState<PackagePurchaseItem[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -72,6 +74,10 @@ export const PackageList: React.FC = () => {
   const { addToast } = useToast();
   const canSellPackage = hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN');
   const canManagePackages = hasRole('MASTER', 'SUPER_ADMIN', 'DOCTOR');
+  // Same rule as the server: admins edit any package; a doctor edits their own and
+  // clinic-wide ones, not another doctor's.
+  const canEditType = (pkg: PackageTypeItem) =>
+    canManagePackages && (user?.role !== 'DOCTOR' || !pkg.doctorId || pkg.doctorId === user?.id);
 
   const fetchData = async () => {
     setLoading(true);
@@ -213,18 +219,32 @@ export const PackageList: React.FC = () => {
                   <span className="text-[10px] text-ink-secondary font-medium">Package Price</span>
                   <div className="text-sm font-extrabold text-ink-primary">{money(pkg.price)}</div>
                 </div>
-                {canSellPackage && (
-                  <button
-                    onClick={() => {
-                      setSelectedPackageTypeId(pkg.id);
-                      setAmountPaid(pkg.price);
-                      setIsSellModalOpen(true);
-                    }}
-                    className="px-2.5 py-1 text-xs font-semibold text-brand bg-brand/10 hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
-                  >
-                    Sell Package
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {canEditType(pkg) && (
+                    <button
+                      onClick={() => {
+                        setEditingType(pkg);
+                        setIsTypeModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-ink-primary bg-surface-page hover:bg-border/50 border border-border rounded-lg transition-colors cursor-pointer"
+                      title="Edit sittings, gap, validity and price"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                  )}
+                  {canSellPackage && (
+                    <button
+                      onClick={() => {
+                        setSelectedPackageTypeId(pkg.id);
+                        setAmountPaid(pkg.price);
+                        setIsSellModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold text-brand bg-brand/10 hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
+                    >
+                      Sell Package
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -409,8 +429,9 @@ export const PackageList: React.FC = () => {
 
       <PackageTypeModal
         isOpen={isTypeModalOpen}
-        onClose={() => setIsTypeModalOpen(false)}
+        onClose={() => { setIsTypeModalOpen(false); setEditingType(null); }}
         onUpdate={fetchData}
+        editPackage={editingType}
       />
 
       <PackagePlanModal purchaseId={planFor} onClose={() => setPlanFor(null)} onChanged={fetchData} />

@@ -51,8 +51,10 @@ export class PackagesService {
     const pkg = await this.prisma.packageType.findFirst({ where: { id, clinicId: user.clinicId } });
     if (!pkg) throw new NotFoundException(`Package type ID ${id} not found in this clinic`);
 
-    if (user.role === 'DOCTOR' && pkg.doctorId !== user.id) {
-      throw new ForbiddenException(`You can only edit your own packages`);
+    // A doctor edits their own packages and clinic-wide ones (no owner), but not
+    // another doctor's.
+    if (user.role === 'DOCTOR' && pkg.doctorId && pkg.doctorId !== user.id) {
+      throw new ForbiddenException(`This package belongs to another doctor`);
     }
 
     return this.prisma.packageType.update({
@@ -70,7 +72,9 @@ export class PackagesService {
         skipHolidays: dto.skipHolidays,
         isActive: dto.isActive ?? pkg.isActive,
         treatmentId: dto.treatmentId,
-        doctorId: user.role === 'DOCTOR' ? user.id : dto.doctorId,
+        // Editing never changes who owns the package (a doctor editing a clinic-wide
+        // package doesn't take it over).
+        doctorId: user.role === 'DOCTOR' ? pkg.doctorId : dto.doctorId,
       },
     });
   }
