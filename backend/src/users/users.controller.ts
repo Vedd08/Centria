@@ -78,7 +78,8 @@ export class UpdateUserDto {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT')
+  // Nurse / staff need the doctor list to book follow-up appointments.
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT', 'NURSE', 'STAFF')
   @Get()
   findAll(
     @CurrentUser() user: any,

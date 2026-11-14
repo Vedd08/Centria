@@ -25,7 +25,12 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
   const [newSittings, setNewSittings] = useState<number>(5);
   const [newSittingGapDays, setNewSittingGapDays] = useState<number>(30);
   const [newTreatmentId, setNewTreatmentId] = useState<string>('');
-  
+  const [newValidityDays, setNewValidityDays] = useState<string>('90');
+  const [newSkipSundays, setNewSkipSundays] = useState(true);
+  const [newSkipHolidays, setNewSkipHolidays] = useState(true);
+  /** Set while editing an existing package type instead of adding one. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [treatments, setTreatments] = useState<{id: string, name: string}[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +67,8 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
     setError(null);
 
     try {
-      const res = await apiFetch('/api/packages/types', {
-        method: 'POST',
+      const res = await apiFetch(editingId ? `/api/packages/types/${editingId}` : '/api/packages/types', {
+        method: editingId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           },
@@ -73,19 +78,18 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
           price: Number(newPrice),
           totalSittings: Number(newSittings),
           sittingGapDays: Number(newSittingGapDays),
+          validityDays: Number(newValidityDays) > 0 ? Math.floor(Number(newValidityDays)) : null,
+          skipSundays: newSkipSundays,
+          skipHolidays: newSkipHolidays,
           treatmentId: newTreatmentId || undefined,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add package type');
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to save package type');
 
-      setNewName('');
-      setNewDescription('');
-      setNewPrice(5000);
-      setNewSittings(5);
-      setNewSittingGapDays(30);
-      setNewTreatmentId('');
+      addToast('success', editingId ? `${data.name} updated — applies to new sales` : `${data.name} added`);
+      resetForm();
       fetchPackageTypes();
       onUpdate();
     } catch (err: any) {
@@ -93,6 +97,34 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setNewName('');
+    setNewDescription('');
+    setNewPrice(5000);
+    setNewSittings(5);
+    setNewSittingGapDays(30);
+    setNewTreatmentId('');
+    setNewValidityDays('90');
+    setNewSkipSundays(true);
+    setNewSkipHolidays(true);
+    setError(null);
+  };
+
+  const startEdit = (pkg: PackageTypeItem) => {
+    setEditingId(pkg.id);
+    setNewName(pkg.name);
+    setNewDescription(pkg.description || '');
+    setNewPrice(Number(pkg.price));
+    setNewSittings(pkg.totalSittings);
+    setNewSittingGapDays(pkg.sittingGapDays || 30);
+    setNewTreatmentId(pkg.treatmentId || '');
+    setNewValidityDays(pkg.validityDays ? String(pkg.validityDays) : '');
+    setNewSkipSundays(pkg.skipSundays !== false);
+    setNewSkipHolidays(pkg.skipHolidays !== false);
+    setError(null);
   };
 
   const handleDeletePackageType = async (id: string) => {
@@ -152,9 +184,16 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
           
           {canEdit && (
             <form onSubmit={handleAddPackageType} className="bg-surface-page border border-border p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-ink-primary uppercase tracking-wider flex items-center gap-1.5">
-                <Plus className="w-4 h-4 text-brand" /> Add New Package Type
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-ink-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-brand" /> {editingId ? `Edit ${newName || 'package type'}` : 'Add New Package Type'}
+                </h3>
+                {editingId && (
+                  <button type="button" onClick={resetForm} className="text-[11px] text-ink-secondary hover:text-ink-primary cursor-pointer">
+                    Cancel edit
+                  </button>
+                )}
+              </div>
 
               {error && (
                 <div className="p-2.5 rounded-lg bg-status-danger/10 border border-status-danger/20 text-status-danger text-xs">
@@ -253,12 +292,46 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Validity (days) — package expires after
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newValidityDays}
+                    onChange={(e) => setNewValidityDays(e.target.value)}
+                    placeholder="e.g. 90 — leave empty for no expiry"
+                    className="w-full text-sm border-slate-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary"
+                    disabled={submitting}
+                  />
+                  {Number(newValidityDays) > 0 && Number(newSittings) > 1 && newSittingGapDays * (Number(newSittings) - 1) > Number(newValidityDays) && (
+                    <p className="text-[10px] text-status-warning mt-1">
+                      {newSittings} sittings {newSittingGapDays} days apart need {newSittingGapDays * (Number(newSittings) - 1)} days — more than the validity.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col justify-end gap-1.5 pb-1">
+                  <label className="flex items-center gap-2 text-xs text-ink-primary cursor-pointer select-none">
+                    <input type="checkbox" checked={newSkipSundays} onChange={(e) => setNewSkipSundays(e.target.checked)} className="rounded border-border text-brand" disabled={submitting} />
+                    Skip Sundays (move the sitting to Monday)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-ink-primary cursor-pointer select-none">
+                    <input type="checkbox" checked={newSkipHolidays} onChange={(e) => setNewSkipHolidays(e.target.checked)} className="rounded border-border text-brand" disabled={submitting} />
+                    Skip clinic holidays
+                  </label>
+                </div>
               </div>
 
               <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <strong>Summary: </strong> 
-                {newName || 'New Package'} covers {newSittings} sittings for {getTreatmentName(newTreatmentId)} at ₹{newPrice}. 
-                {newSittingGapDays > 0 ? ` Sittings are spaced ${newSittingGapDays} days apart.` : ''}
+                <strong>Summary: </strong>
+                {newName || 'New Package'} covers {newSittings} sittings for {getTreatmentName(newTreatmentId)} at ₹{newPrice}.
+                {newSittingGapDays > 0 ? ` Sittings are spaced ${newSittingGapDays} days apart` : ''}
+                {newSkipSundays || newSkipHolidays ? ` (never on ${[newSkipSundays && 'a Sunday', newSkipHolidays && 'a clinic holiday'].filter(Boolean).join(' or ')})` : ''}.
+                {Number(newValidityDays) > 0 ? ` Valid for ${newValidityDays} days from the sale.` : ' No expiry.'}
+                {editingId && ' Changes apply to new sales; packages already sold keep their terms.'}
               </div>
 
               <div className="flex justify-end pt-2">
@@ -267,7 +340,7 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                   disabled={submitting}
                   className="px-4 py-2 text-xs font-bold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {submitting ? 'Adding...' : 'Add Package Type'}
+                  {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Add Package Type'}
                 </button>
               </div>
             </form>
@@ -288,7 +361,7 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="font-mono font-bold text-ink-primary">{money(pkg.price)}</span>
-                    <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-brand/10 text-brand-soft border border-brand/20">
+                    <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-brand/10 text-brand-deep border border-brand/20">
                       {pkg.totalSittings} Sittings
                     </span>
                     {!pkg.isActive && (
@@ -299,9 +372,21 @@ export const PackageTypeModal: React.FC<Props> = ({ isOpen, onClose, onUpdate })
                     <span className={`text-[11px] font-medium ${pkg.sittingGapDays ? 'text-ink-secondary' : 'text-status-warning'}`}>
                       {pkg.sittingGapDays ? `${pkg.sittingGapDays}d gap` : 'No sitting gap set'}
                     </span>
+                    <span className={`text-[11px] font-medium ${pkg.validityDays ? 'text-ink-secondary' : 'text-status-warning'}`}>
+                      {pkg.validityDays ? `${pkg.validityDays}d validity` : 'No expiry'}
+                    </span>
                     <span className={`text-[11px] font-medium ${pkg.treatmentId ? 'text-ink-secondary' : 'text-status-warning'}`}>
                       {pkg.treatmentId ? getTreatmentName(pkg.treatmentId) : 'Not linked to a treatment'}
                     </span>
+                    {(canEdit && (user?.role !== 'DOCTOR' || (pkg as any).doctorId === user?.id)) && (
+                      <button
+                        onClick={() => startEdit(pkg)}
+                        className="text-brand hover:underline text-[11px] font-medium ml-1 cursor-pointer"
+                        title="Edit package type"
+                      >
+                        Edit
+                      </button>
+                    )}
                     {(canEdit && (user?.role !== 'DOCTOR' || (pkg as any).doctorId === user?.id)) && (
                       <button
                         onClick={() => setConfirmDelete({ id: pkg.id, name: pkg.name })}

@@ -120,6 +120,12 @@ model PackageType {
   price          Decimal
   totalSittings  Int
   sittingGapDays Int?
+  /// Days the package stays valid from the sale date (e.g. 90). Null = no expiry.
+  validityDays   Int?
+  /// A planned sitting that lands on a Sunday moves to the next open day.
+  skipSundays    Boolean           @default(true)
+  /// A planned sitting that lands on a clinic holiday moves to the next open day.
+  skipHolidays   Boolean           @default(true)
   isActive       Boolean           @default(true)
   isGstTaxable   Boolean           @default(true)
   treatmentId    String?
@@ -167,14 +173,56 @@ model PackagePurchase {
   totalSittings       Int         @default(0)
   sittingsUsed        Int         @default(0)
   sittingsRemaining   Int
+  /// Copied from the package type at sale, so later catalogue edits don't change a sold package.
+  validityDays        Int?
+  skipSundays         Boolean     @default(true)
+  skipHolidays        Boolean     @default(true)
+  /// YYYY-MM-DD the package expires: sale date + validity + any doctor extensions. Null = no expiry.
+  expiryDate          String?
+  /// Days added to the validity because the doctor/clinic caused a delay.
+  extendedDays        Int         @default(0)
+  /// YYYY-MM-DD the doctor planned for the next sitting; overrides the computed date.
+  plannedNextSitting  String?
+  /// Set when the package lapsed because the patient missed it — remaining sittings are forfeited.
+  lapsedAt            String?
+  lapseNote           String?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   visits              Visit[]
   invoices            Invoice[]
+  adjustments         PackageAdjustment[]
   clinicId            String?
   clinic              Clinic?     @relation(fields: [clinicId], references: [id])
 
   @@index([patientId])
+}
+
+/// History of how a sold package's plan was changed: doctor delays (shown as a red
+/// notice, extend the expiry, no charge), patient lapses, and rescheduled sittings.
+model PackageAdjustment {
+  id         String          @id @default(uuid())
+  purchaseId String
+  purchase   PackagePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  kind       String // "DOCTOR_DELAY" | "PATIENT_LAPSE" | "RESCHEDULE" | "REINSTATE"
+  days       Int             @default(0)
+  note       String?
+  byName     String
+  byId       String?
+  createdAt  DateTime        @default(now())
+
+  @@index([purchaseId])
+}
+
+/// Days the clinic is closed. Package sittings that land on one move to the next open day.
+model ClinicHoliday {
+  id        String   @id @default(uuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  date      String // YYYY-MM-DD
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([clinicId, date])
 }
 
 model CommissionRule {
@@ -485,6 +533,7 @@ model Clinic {
   RetailSale                RetailSale[]
   FollowUpCall              FollowUpCall[]
   referringDoctors          ReferringDoctor[]
+  holidays                  ClinicHoliday[]
 }
 
 /// An outside doctor who sends patients to the clinic. Reception picks from this

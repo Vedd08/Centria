@@ -190,8 +190,13 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const applySitting = (purchase: any) => {
     setUsePackagePurchaseId(purchase.id);
     if (recommendedPackageTypeId) recommendPackage('');
-    const gap = purchase.packageType?.sittingGapDays;
-    if (gap) {
+    // The plan already skips Sundays / clinic holidays per the package's rules.
+    if (purchase.plan?.nextIfDoneToday) {
+      setNextAppointmentDate(purchase.plan.nextIfDoneToday);
+      return;
+    }
+    const gap = purchase.sittingGapDays ?? purchase.packageType?.sittingGapDays;
+    if (gap && purchase.sittingsRemaining > 1) {
       const next = new Date();
       next.setDate(next.getDate() + gap);
       setNextAppointmentDate(next.toISOString().split('T')[0]);

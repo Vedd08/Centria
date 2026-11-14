@@ -77,10 +77,13 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
   const isStockBacked = orderType === 'MEDICINE' || orderType === 'INJECTION';
   const isProcedure = orderType === 'TREATMENT';
 
-  // A package the patient already bought that covers this procedure, with sittings left.
-  const activePurchase = isProcedure && treatmentId
-    ? patientPurchases.find((p) => p.packageType?.treatmentId === treatmentId && p.sittingsRemaining > 0)
-    : null;
+  // A package the patient already bought that covers this procedure, with sittings
+  // left and still valid. Expired / lapsed ones can't take a sitting — say why.
+  const forProcedure = isProcedure && treatmentId
+    ? patientPurchases.filter((p) => p.packageType?.treatmentId === treatmentId && p.sittingsRemaining > 0)
+    : [];
+  const activePurchase = forProcedure.find((p) => !['EXPIRED', 'LAPSED'].includes(p.plan?.state)) || null;
+  const blockedPurchase = !activePurchase ? forProcedure.find((p) => ['EXPIRED', 'LAPSED'].includes(p.plan?.state)) : null;
   const coveredBySitting = !!activePurchase && useSitting;
   const activePackages = packageTypes.filter((pt) => pt.isActive !== false);
   const packagesForProcedure = treatmentId ? activePackages.filter((pt) => pt.treatmentId === treatmentId) : [];
@@ -319,11 +322,25 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
                 <span className="font-semibold">Count as a sitting of {activePurchase.packageName}</span>
                 <span className="block text-[11px] text-brand-deep/80">
                   Sitting {activePurchase.sittingsUsed + 1} of {activePurchase.totalSittings} · already paid, no charge today
+                  {activePurchase.plan?.expiryDate && ` · valid till ${activePurchase.plan.expiryDate}`}
+                  {activePurchase.plan?.nextIfDoneToday && ` · next sitting ${activePurchase.plan.nextIfDoneToday}`}
                 </span>
+                {activePurchase.plan?.extendedDays > 0 && (
+                  <span className="block mt-1 text-[11px] font-semibold text-status-danger">
+                    Extended +{activePurchase.plan.extendedDays} days by the doctor — covered, no charge
+                  </span>
+                )}
               </span>
             </label>
           ) : (
             <div>
+              {blockedPurchase && (
+                <p className="mb-2 p-2.5 rounded-lg bg-status-danger/10 border border-status-danger/30 text-[11px] text-status-danger">
+                  {blockedPurchase.plan?.state === 'LAPSED'
+                    ? `${blockedPurchase.packageName} lapsed on ${blockedPurchase.lapsedAt} (missed by the patient) — recommend it again below.`
+                    : `${blockedPurchase.packageName} expired on ${blockedPurchase.plan?.expiryDate} with ${blockedPurchase.sittingsRemaining} sitting(s) left. If the clinic caused the delay, extend it from Packages → Manage plan; otherwise recommend a new package below.`}
+                </p>
+              )}
               <label className="block text-xs font-semibold text-ink-secondary mb-1">
                 Recommend a package to reception <span className="font-normal text-ink-secondary/70">(optional, multiple sittings)</span>
               </label>

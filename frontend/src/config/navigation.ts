@@ -23,6 +23,7 @@ import {
   Network,
   Tag,
   HeartHandshake,
+  PhoneCall,
 } from 'lucide-react';
 import React from 'react';
 
@@ -33,6 +34,7 @@ export type NavTab =
   | 'reception'
   | 'queue'
   | 'tasks'
+  | 'followups'
   | 'templates'
   | 'accounts'
   | 'opd'
@@ -118,6 +120,14 @@ export const PRIMARY_NAV_ITEMS: NavItemConfig[] = [
     label: 'Care Tasks',
     icon: ClipboardCheck,
     allowedRoles: [...OWNER, 'NURSE', 'STAFF'],
+  },
+  {
+    // Package sittings due, overdue, expiring or lapsed. Reception has the same list
+    // inside the reception desk.
+    id: 'followups',
+    label: 'Follow-ups',
+    icon: PhoneCall,
+    allowedRoles: ['NURSE', 'STAFF'],
   },
   {
     id: 'opd',

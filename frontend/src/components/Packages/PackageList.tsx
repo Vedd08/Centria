@@ -6,7 +6,11 @@ import { Package, Plus, RefreshCw, CheckCircle2, AlertCircle, Sparkles, Tag, Lay
 import { Patient } from '../Patients/PatientList';
 import { PackageTypeModal } from './PackageTypeModal';
 import { SellPackageModal } from './SellPackageModal';
+import { PackagePlanModal } from './PackagePlanModal';
+import { HolidaysModal } from './HolidaysModal';
+import { PackagePlan, STATE_STYLE, fmtDate, expiryText } from './packagePlan';
 import { money } from '../../utils/money';
+import { CalendarOff } from 'lucide-react';
 
 export interface PackageTypeItem {
   id: string;
@@ -15,6 +19,9 @@ export interface PackageTypeItem {
   price: number;
   totalSittings: number;
   sittingGapDays?: number;
+  validityDays?: number | null;
+  skipSundays?: boolean;
+  skipHolidays?: boolean;
   isActive?: boolean;
   treatmentId?: string;
   doctorId?: string;
@@ -34,7 +41,12 @@ export interface PackagePurchaseItem {
   amountPaid: number;
   sittingsUsed: number;
   sittingsRemaining: number;
+  totalSittings?: number;
+  plan?: PackagePlan;
 }
+
+type PurchaseFilter = 'attention' | 'active' | 'all';
+const ATTENTION: PackagePlan['state'][] = ['OVERDUE', 'DUE_TODAY', 'EXPIRING_SOON', 'EXPIRED'];
 
 export const PackageList: React.FC = () => {
   const { token, hasRole , apiFetch } = useAuth();
@@ -46,7 +58,10 @@ export const PackageList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
-  
+  const [planFor, setPlanFor] = useState<string | null>(null);
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [filter, setFilter] = useState<PurchaseFilter>('active');
+
   // Sell package form state
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedPackageTypeId, setSelectedPackageTypeId] = useState('');
@@ -143,7 +158,14 @@ export const PackageList: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setShowHolidays(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded-md transition-colors cursor-pointer shrink-0"
+          >
+            <CalendarOff className="w-4 h-4 text-brand" />
+            <span>Clinic Holidays</span>
+          </button>
           <button
             onClick={() => setIsTypeModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-ink-primary bg-surface-page hover:bg-surface-page/80 border border-border rounded-md transition-colors cursor-pointer shrink-0"
@@ -174,9 +196,14 @@ export const PackageList: React.FC = () => {
           {packageTypes.map((pkg) => (
             <div key={pkg.id} className="bg-surface-card rounded-[10px] p-4 border border-border shadow-xs space-y-3 flex flex-col justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand/10 text-brand-soft border border-brand/20">
-                  {pkg.totalSittings} Total Sittings
-                </span>
+                <div className="flex flex-wrap gap-1">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand/10 text-brand-deep border border-brand/20">
+                    {pkg.totalSittings} Total Sittings{pkg.sittingGapDays ? ` · every ${pkg.sittingGapDays}d` : ''}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${pkg.validityDays ? 'bg-surface-page text-ink-secondary border-border' : 'bg-status-warning/10 text-status-warning border-status-warning/20'}`}>
+                    {pkg.validityDays ? `Valid ${pkg.validityDays} days` : 'No expiry'}
+                  </span>
+                </div>
                 <h4 className="font-bold text-ink-primary text-sm mt-1">{pkg.name}</h4>
                 <p className="text-xs text-ink-secondary leading-snug">{pkg.description}</p>
               </div>
@@ -206,9 +233,26 @@ export const PackageList: React.FC = () => {
 
       {/* Patient Package Purchases Tracker */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-ink-primary tracking-tight flex items-center gap-2">
-          <Layers className="w-4 h-4 text-brand" /> Patient Active Package & Sitting Balances
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-ink-primary tracking-tight flex items-center gap-2">
+            <Layers className="w-4 h-4 text-brand" /> Patient Packages — Sittings, Plan & Expiry
+          </h3>
+          <div className="flex items-center gap-1 bg-surface-page border border-border rounded-md p-0.5 text-[11px] font-medium">
+            {([
+              ['attention', `Needs attention (${purchases.filter((p) => p.plan && ATTENTION.includes(p.plan.state)).length})`],
+              ['active', 'Active'],
+              ['all', 'All'],
+            ] as [PurchaseFilter, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-2.5 py-1 rounded cursor-pointer ${filter === key ? 'bg-surface-card text-ink-primary shadow-xs border border-border' : 'text-ink-secondary hover:text-ink-primary'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {loading ? (
           <LoadingSkeleton rows={4} />
@@ -227,21 +271,30 @@ export const PackageList: React.FC = () => {
                     <th className="py-3.5 px-4">Package Title</th>
                     <th className="py-3.5 px-4">Amount Paid</th>
                     <th className="py-3.5 px-4">Sitting Usage Progress</th>
+                    <th className="py-3.5 px-4">Next Sitting</th>
+                    <th className="py-3.5 px-4">Validity</th>
                     <th className="py-3.5 px-4 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60 text-ink-secondary">
-                  {purchases.map((pur) => {
+                  {purchases
+                    .filter((pur) =>
+                      filter === 'all' ? true
+                      : filter === 'attention' ? !!pur.plan && ATTENTION.includes(pur.plan.state)
+                      : !pur.plan || !['COMPLETED', 'LAPSED'].includes(pur.plan.state))
+                    .map((pur) => {
                     const total = pur.sittingsUsed + pur.sittingsRemaining;
                     const percent = total > 0 ? Math.round((pur.sittingsUsed / total) * 100) : 0;
                     const isExhausted = pur.sittingsRemaining <= 0;
+                    const plan = pur.plan;
+                    const style = plan ? STATE_STYLE[plan.state] : null;
 
                     return (
                       <tr key={pur.id} className="hover:bg-surface-page/60 transition-colors">
-                        
+
                         {/* Purchase Date */}
                         <td className="py-3.5 px-4 font-medium text-ink-secondary">
-                          {pur.purchaseDate}
+                          {fmtDate(pur.purchaseDate)}
                         </td>
 
                         {/* Patient */}
@@ -282,15 +335,58 @@ export const PackageList: React.FC = () => {
                           </div>
                         </td>
 
+                        {/* Next sitting */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {plan?.nextSittingDate ? (
+                            <>
+                              <div className={`font-semibold ${plan.overdueDays > 0 ? 'text-status-warning' : 'text-ink-primary'}`}>
+                                {fmtDate(plan.nextSittingDate, true)}
+                              </div>
+                              <div className="text-[10px] text-ink-secondary">
+                                {plan.overdueDays > 0 ? `${plan.overdueDays}d overdue` : plan.nextIsDoctorPlanned ? 'Planned by doctor' : 'Regular gap'}
+                              </div>
+                            </>
+                          ) : <span className="text-ink-secondary/60">—</span>}
+                        </td>
+
+                        {/* Validity */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {plan?.expiryDate ? (
+                            <>
+                              <div className="font-semibold text-ink-primary">{fmtDate(plan.expiryDate)}</div>
+                              <div className={`text-[10px] ${plan.daysToExpiry !== null && plan.daysToExpiry <= 7 ? 'text-status-danger font-semibold' : 'text-ink-secondary'}`}>
+                                {expiryText(plan)}
+                              </div>
+                            </>
+                          ) : <span className="text-[11px] text-ink-secondary/70">No expiry</span>}
+                          {!!plan?.extendedDays && plan.state !== 'LAPSED' && (
+                            <div className="mt-0.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-status-danger/10 text-status-danger border border-status-danger/30">
+                              +{plan.extendedDays}d by doctor
+                            </div>
+                          )}
+                        </td>
+
                         {/* Status */}
                         <td className="py-3.5 px-4 text-right">
-                          <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${
-                            isExhausted
-                              ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
-                              : 'bg-status-success/10 text-status-success border-status-success/20'
-                          }`}>
-                            {isExhausted ? 'Fully Exhausted' : 'Active Package'}
-                          </span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            {style ? (
+                              <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border whitespace-nowrap ${style.className}`}>{style.label}</span>
+                            ) : (
+                              <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${
+                                isExhausted
+                                  ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
+                                  : 'bg-status-success/10 text-status-success border-status-success/20'
+                              }`}>
+                                {isExhausted ? 'Fully Exhausted' : 'Active Package'}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => setPlanFor(pur.id)}
+                              className="text-[11px] font-semibold text-brand hover:underline cursor-pointer whitespace-nowrap"
+                            >
+                              {canManagePackages ? 'Manage plan' : 'View plan'}
+                            </button>
+                          </div>
                         </td>
 
                       </tr>
@@ -316,6 +412,10 @@ export const PackageList: React.FC = () => {
         onClose={() => setIsTypeModalOpen(false)}
         onUpdate={fetchData}
       />
+
+      <PackagePlanModal purchaseId={planFor} onClose={() => setPlanFor(null)} onChanged={fetchData} />
+      <HolidaysModal isOpen={showHolidays} onClose={() => setShowHolidays(false)} onChanged={fetchData} />
+
     </div>
   );
 };

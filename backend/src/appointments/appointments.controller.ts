@@ -12,7 +12,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
+  // Nurse / staff book package sittings from their follow-up worklist.
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR', 'NURSE', 'STAFF')
   @Post()
   create(@Body() createAppointmentDto: CreateAppointmentDto, @CurrentUser() user: any) {
     return this.appointmentsService.create(createAppointmentDto, user.clinicId);
@@ -31,7 +32,7 @@ export class AppointmentsController {
     return this.appointmentsService.findAll(user.clinicId, { date, from, to, doctorId, status });
   }
 
-  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR', 'NURSE', 'STAFF')
   @Get('slots/available')
   getAvailableSlots(
     @CurrentUser() user: any,

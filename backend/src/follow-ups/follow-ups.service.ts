@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { toLocalDateKey } from '../common/date.helper';
+import { computePlan } from '../packages/package-plan';
 
 export type FollowUpKind = 'DOCTOR_FOLLOW_UP' | 'PACKAGE_SITTING';
 export type CallOutcome = 'NO_ANSWER' | 'CALL_BACK' | 'DECLINED' | 'BOOKED';
@@ -10,6 +11,8 @@ export interface FollowUpReason {
   refId: string;
   dueDate: string | null;
   label: string;
+  /** Highlights a package that needs attention: red for doctor delay / expired / lapsed. */
+  notice?: 'DOCTOR_DELAY' | 'EXPIRED' | 'LAPSED' | 'EXPIRING';
   overdueDays: number;
   lastCall: { outcome: CallOutcome; callBackOn: string | null; attempts: number } | null;
 }
@@ -192,18 +195,27 @@ export class FollowUpsService {
       }
     }
 
+    // Active packages, plus ones that lapsed in the last 30 days (offer to buy again).
+    const lapseWindowStart = addDays(today, -30);
     const purchases = await this.prisma.packagePurchase.findMany({
-      where: pkgWhere,
+      where: {
+        ...pkgWhere,
+        OR: [{ lapsedAt: null }, { lapsedAt: { gte: lapseWindowStart } }],
+      },
       include: {
         patient: { select: { id: true, name: true, phone: true, uhid: true } },
         packageType: { select: { sittingGapDays: true, treatmentId: true } },
-        visits: {
-          select: { date: true },
-          orderBy: { date: 'desc' },
-          take: 1,
-        },
+        visits: { select: { date: true }, orderBy: { date: 'asc' } },
+        adjustments: { where: { kind: 'DOCTOR_DELAY' }, orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
+    const holidays = new Set(
+      (await this.prisma.clinicHoliday.findMany({ where: { clinicId }, select: { date: true } })).map((h) => h.date),
+    );
+    // A lapsed package that the patient has since bought again needs no call.
+    const rebought = new Set(
+      purchases.filter((p) => !p.lapsedAt).map((p) => `${p.patientId}__${p.packageTypeId}`),
+    );
 
     const purchaseRefIds = purchases.map(p => p.id);
     const pkgCalls = purchaseRefIds.length ? await this.prisma.followUpCall.findMany({
@@ -219,19 +231,29 @@ export class FollowUpsService {
 
     const pkgItems: FollowUpItem[] = [];
     for (const p of purchases) {
-      const gap = p.packageType?.sittingGapDays;
-      const lastVisitDate = p.visits[0]?.date ?? null;
+      const plan = computePlan(
+        { ...p, sittingGapDays: p.sittingGapDays ?? p.packageType?.sittingGapDays, visitDates: p.visits.map((v) => v.date) },
+        holidays,
+        today,
+      );
+      if (plan.state === 'COMPLETED') continue;
+      if (plan.state === 'LAPSED' && rebought.has(`${p.patientId}__${p.packageTypeId}`)) continue;
 
-      // Due date only computable when gap exists AND there's been a visit
-      const dueDate = (gap && lastVisitDate) ? addDays(lastVisitDate, gap) : null;
+      // Expired / lapsed packages are chased from their expiry / lapse date; active
+      // ones from the planned next sitting.
+      const dueDate =
+        plan.state === 'LAPSED' ? p.lapsedAt
+        : plan.state === 'EXPIRED' ? plan.expiryDate
+        : plan.nextSittingDate;
 
-      // Skip if patient has returned (visit date >= due date)
-      if (dueDate) {
+      // Skip if patient has returned (visit date >= due date) — not for expired/lapsed,
+      // which need a decision rather than a visit.
+      if (dueDate && plan.state !== 'EXPIRED' && plan.state !== 'LAPSED') {
         const patientLastReturn = latestReturn.get(p.patientId) ?? '';
         if (patientLastReturn >= dueDate) continue;
       }
       // Skip if patient has a future scheduled appointment
-      if (hasScheduled.has(p.patientId)) continue;
+      if (plan.state !== 'LAPSED' && hasScheduled.has(p.patientId)) continue;
 
       // Check calls
       const key = dueDate ? `${p.id}__${dueDate}` : `${p.id}__unknown`;
@@ -249,6 +271,28 @@ export class FollowUpsService {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const boughtStr = parts.length === 3 ? `${parseInt(parts[2], 10)} ${months[parseInt(parts[1], 10) - 1]}` : p.purchaseDate;
       const sittingLabel = `${p.packageName} (bought ${boughtStr}) — sitting ${p.sittingsUsed + 1} of ${p.totalSittings}`;
+      const expiryNote = plan.expiryDate
+        ? plan.daysToExpiry! >= 0 ? ` · expires ${plan.expiryDate}${plan.daysToExpiry! <= 7 ? ` (${plan.daysToExpiry} day${plan.daysToExpiry === 1 ? '' : 's'} left)` : ''}` : ''
+        : '';
+      const delay = p.adjustments[0];
+
+      let label: string;
+      let notice: FollowUpReason['notice'];
+      if (plan.state === 'LAPSED') {
+        label = `${p.packageName} lapsed on ${p.lapsedAt} (missed by patient) — offer to buy the package again`;
+        notice = 'LAPSED';
+      } else if (plan.state === 'EXPIRED') {
+        label = `${p.packageName} expired on ${plan.expiryDate} with ${p.sittingsRemaining} sitting(s) left — ask the doctor: extend (clinic delay) or patient buys again`;
+        notice = 'EXPIRED';
+      } else {
+        label = (dueDate ? sittingLabel : `${sittingLabel} (Date unknown — call to schedule)`) + expiryNote;
+        if (plan.extendedDays > 0) {
+          label += ` · extended +${plan.extendedDays} days by ${delay?.byName ?? 'doctor'} (no charge)`;
+          notice = 'DOCTOR_DELAY';
+        } else if (plan.state === 'EXPIRING_SOON') {
+          notice = 'EXPIRING';
+        }
+      }
 
       pkgItems.push({
         patient: p.patient,
@@ -258,7 +302,8 @@ export class FollowUpsService {
           kind: 'PACKAGE_SITTING',
           refId: p.id,
           dueDate,
-          label: dueDate ? sittingLabel : `${sittingLabel} (Date unknown — call to schedule)`,
+          label,
+          notice,
           overdueDays,
           lastCall: latestCall ? {
             outcome: latestCall.outcome as CallOutcome,

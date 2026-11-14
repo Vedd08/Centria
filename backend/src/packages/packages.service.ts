@@ -4,6 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePackageTypeDto } from './dto/create-package-type.dto';
 import { PurchasePackageDto } from './dto/purchase-package.dto';
 import { InvoicesService } from '../invoices/invoices.service';
+import { UpdatePackagePlanDto, DoctorDelayDto, PatientLapseDto, CreateHolidayDto } from './dto/package-plan.dto';
+import { addDays, computePlan, isValidDate, sittingBlockReason } from './package-plan';
+
+const PLAN_INCLUDE = {
+  visits: { select: { date: true }, orderBy: { date: 'asc' as const } },
+  adjustments: { orderBy: { createdAt: 'desc' as const } },
+} as const;
 
 @Injectable()
 export class PackagesService {
@@ -23,6 +30,9 @@ export class PackagesService {
         totalSittings: dto.totalSittings,
         isGstTaxable: dto.isGstTaxable ?? true,
         sittingGapDays: dto.sittingGapDays,
+        validityDays: dto.validityDays ?? null,
+        skipSundays: dto.skipSundays ?? true,
+        skipHolidays: dto.skipHolidays ?? true,
         isActive: dto.isActive ?? true,
         treatmentId: dto.treatmentId,
         doctorId: isDoctor ? user.id : dto.doctorId,
@@ -54,6 +64,10 @@ export class PackagesService {
         totalSittings: dto.totalSittings,
         isGstTaxable: dto.isGstTaxable ?? true,
         sittingGapDays: dto.sittingGapDays,
+        // Applies to future sales only; packages already sold keep their own terms.
+        validityDays: dto.validityDays === undefined ? undefined : dto.validityDays,
+        skipSundays: dto.skipSundays,
+        skipHolidays: dto.skipHolidays,
         isActive: dto.isActive ?? pkg.isActive,
         treatmentId: dto.treatmentId,
         doctorId: user.role === 'DOCTOR' ? user.id : dto.doctorId,
@@ -121,14 +135,20 @@ export class PackagesService {
     const hasDiscount = discountAmount > 0;
 
     const purchase = await this.prisma.$transaction(async (tx) => {
-      // 1. Save PackagePurchase record
+      // 1. Save PackagePurchase record. The plan terms (validity, Sunday/holiday
+      // rules) are copied so later catalogue edits don't change a sold package.
+      const saleDate = dto.purchaseDate || todayDate;
       const created = await tx.packagePurchase.create({
         data: {
           clinicId,
           patientId: patient.id,
           packageTypeId: pkgType.id,
           packageName: pkgType.name,
-          purchaseDate: dto.purchaseDate || todayDate,
+          validityDays: pkgType.validityDays,
+          skipSundays: pkgType.skipSundays,
+          skipHolidays: pkgType.skipHolidays,
+          expiryDate: pkgType.validityDays ? addDays(saleDate, pkgType.validityDays) : null,
+          purchaseDate: saleDate,
           amountPaid,
           listPrice,
           discountAmount,
@@ -192,7 +212,7 @@ export class PackagesService {
   }
 
   async findAllPurchases(clinicId: string, patientId?: string) {
-    return this.prisma.packagePurchase.findMany({
+    const purchases = await this.prisma.packagePurchase.findMany({
       where: {
         clinicId,
         ...(patientId ? { patientId } : {}),
@@ -201,24 +221,186 @@ export class PackagesService {
         patient: true,
         packageType: true,
         invoices: true,
+        ...PLAN_INCLUDE,
       },
       orderBy: { createdAt: 'desc' },
     });
+    return this.withPlans(clinicId, purchases);
   }
 
   async findActivePurchasesByPatient(clinicId: string, patientId: string) {
-    return this.prisma.packagePurchase.findMany({
+    const purchases = await this.prisma.packagePurchase.findMany({
       where: {
         clinicId,
         patientId,
         sittingsRemaining: { gt: 0 },
+        lapsedAt: null,
       },
       include: {
         packageType: true,
         invoices: true,
+        ...PLAN_INCLUDE,
       },
       orderBy: { createdAt: 'desc' },
     });
+    return this.withPlans(clinicId, purchases);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sitting plan: schedule, expiry, doctor delays and patient lapses
+  // ---------------------------------------------------------------------------
+
+  async holidaySet(clinicId: string): Promise<Set<string>> {
+    const rows = await this.prisma.clinicHoliday.findMany({ where: { clinicId }, select: { date: true } });
+    return new Set(rows.map((r) => r.date));
+  }
+
+  /** Adds the computed `plan` (next sitting, expiry, state, schedule) to each purchase. */
+  async withPlans<T extends { visits: { date: string }[] } & Record<string, any>>(clinicId: string, purchases: T[]) {
+    const holidays = await this.holidaySet(clinicId);
+    const today = toLocalDateKey(new Date());
+    return purchases.map((p) => ({
+      ...p,
+      plan: computePlan({ ...p, visitDates: p.visits.map((v) => v.date) } as any, holidays, today),
+    }));
+  }
+
+  private async purchaseOrThrow(clinicId: string, id: string) {
+    const purchase = await this.prisma.packagePurchase.findFirst({ where: { id, clinicId } });
+    if (!purchase) throw new NotFoundException(`Package purchase ${id} not found`);
+    return purchase;
+  }
+
+  async findOnePurchase(clinicId: string, id: string) {
+    await this.purchaseOrThrow(clinicId, id);
+    const purchase = await this.prisma.packagePurchase.findUniqueOrThrow({
+      where: { id },
+      include: { patient: true, packageType: true, ...PLAN_INCLUDE },
+    });
+    return (await this.withPlans(clinicId, [purchase]))[0];
+  }
+
+  /** Doctor plans the next sitting (e.g. "20 days from now") and/or corrects the expiry. */
+  async updatePlan(user: any, id: string, dto: UpdatePackagePlanDto) {
+    const purchase = await this.purchaseOrThrow(user.clinicId, id);
+    if (purchase.lapsedAt) throw new BadRequestException('This package has lapsed — reinstate it before planning sittings');
+
+    const data: any = {};
+    const changes: string[] = [];
+    if (dto.plannedNextSitting !== undefined) {
+      data.plannedNextSitting = dto.plannedNextSitting || null;
+      changes.push(dto.plannedNextSitting ? `next sitting set to ${dto.plannedNextSitting}` : 'next sitting reset to the regular gap');
+    }
+    if (dto.expiryDate !== undefined) {
+      if (dto.expiryDate && dto.expiryDate < purchase.purchaseDate) {
+        throw new BadRequestException('Expiry cannot be before the purchase date');
+      }
+      data.expiryDate = dto.expiryDate || null;
+      changes.push(dto.expiryDate ? `expiry set to ${dto.expiryDate}` : 'expiry removed');
+    }
+    if (!changes.length) throw new BadRequestException('Nothing to change');
+
+    await this.prisma.$transaction([
+      this.prisma.packagePurchase.update({ where: { id }, data }),
+      this.prisma.packageAdjustment.create({
+        data: {
+          purchaseId: id,
+          kind: 'RESCHEDULE',
+          note: [changes.join('; '), dto.note?.trim()].filter(Boolean).join(' — '),
+          byName: user.name || 'Doctor',
+          byId: user.id,
+        },
+      }),
+    ]);
+    return this.findOnePurchase(user.clinicId, id);
+  }
+
+  /**
+   * The doctor/clinic caused the delay. The package is extended by `days` — shown as a
+   * red notice — and the remaining sittings stay covered at no charge. A planned next
+   * sitting moves by the same number of days.
+   */
+  async doctorDelay(user: any, id: string, dto: DoctorDelayDto) {
+    const purchase = await this.purchaseOrThrow(user.clinicId, id);
+    if (purchase.lapsedAt) throw new BadRequestException('This package has lapsed — reinstate it first');
+    if (purchase.sittingsRemaining <= 0) throw new BadRequestException('All sittings of this package are already used');
+
+    const today = toLocalDateKey(new Date());
+    // An already-expired package is extended from today, so the patient gets the full delay.
+    const base = purchase.expiryDate && purchase.expiryDate < today ? today : purchase.expiryDate;
+    await this.prisma.$transaction([
+      this.prisma.packagePurchase.update({
+        where: { id },
+        data: {
+          extendedDays: { increment: dto.days },
+          expiryDate: base ? addDays(base, dto.days) : null,
+          plannedNextSitting: purchase.plannedNextSitting
+            ? addDays(purchase.plannedNextSitting < today ? today : purchase.plannedNextSitting, dto.days)
+            : undefined,
+        },
+      }),
+      this.prisma.packageAdjustment.create({
+        data: { purchaseId: id, kind: 'DOCTOR_DELAY', days: dto.days, note: dto.note.trim(), byName: user.name || 'Doctor', byId: user.id },
+      }),
+    ]);
+    return this.findOnePurchase(user.clinicId, id);
+  }
+
+  /** The patient missed it: the package lapses, remaining sittings are forfeited, and they buy again. */
+  async patientLapse(user: any, id: string, dto: PatientLapseDto) {
+    const purchase = await this.purchaseOrThrow(user.clinicId, id);
+    if (purchase.lapsedAt) throw new BadRequestException('This package has already lapsed');
+    if (purchase.sittingsRemaining <= 0) throw new BadRequestException('All sittings are used — nothing to lapse');
+
+    const today = toLocalDateKey(new Date());
+    await this.prisma.$transaction([
+      this.prisma.packagePurchase.update({
+        where: { id },
+        data: { lapsedAt: today, lapseNote: dto.note?.trim() || null, plannedNextSitting: null },
+      }),
+      this.prisma.packageAdjustment.create({
+        data: {
+          purchaseId: id,
+          kind: 'PATIENT_LAPSE',
+          days: purchase.sittingsRemaining,
+          note: dto.note?.trim() || `Missed by patient — ${purchase.sittingsRemaining} sitting(s) forfeited`,
+          byName: user.name || 'Doctor',
+          byId: user.id,
+        },
+      }),
+    ]);
+    return this.findOnePurchase(user.clinicId, id);
+  }
+
+  /** Undo a lapse marked by mistake. */
+  async reinstate(user: any, id: string, note?: string) {
+    const purchase = await this.purchaseOrThrow(user.clinicId, id);
+    if (!purchase.lapsedAt) throw new BadRequestException('This package has not lapsed');
+    await this.prisma.$transaction([
+      this.prisma.packagePurchase.update({ where: { id }, data: { lapsedAt: null, lapseNote: null } }),
+      this.prisma.packageAdjustment.create({
+        data: { purchaseId: id, kind: 'REINSTATE', note: note?.trim() || 'Lapse undone', byName: user.name || 'Admin', byId: user.id },
+      }),
+    ]);
+    return this.findOnePurchase(user.clinicId, id);
+  }
+
+  async listHolidays(clinicId: string) {
+    return this.prisma.clinicHoliday.findMany({ where: { clinicId }, orderBy: { date: 'asc' } });
+  }
+
+  async addHoliday(clinicId: string, dto: CreateHolidayDto) {
+    if (!isValidDate(dto.date)) throw new BadRequestException('Enter a valid date');
+    const existing = await this.prisma.clinicHoliday.findFirst({ where: { clinicId, date: dto.date } });
+    if (existing) throw new BadRequestException(`${dto.date} is already a holiday (${existing.name})`);
+    return this.prisma.clinicHoliday.create({ data: { clinicId, date: dto.date, name: dto.name.trim() } });
+  }
+
+  async removeHoliday(clinicId: string, id: string) {
+    const holiday = await this.prisma.clinicHoliday.findFirst({ where: { id, clinicId } });
+    if (!holiday) throw new NotFoundException('Holiday not found');
+    await this.prisma.clinicHoliday.delete({ where: { id } });
+    return { id, deleted: true };
   }
 
   async syncSittings(clinicId: string, packagePurchaseId: string, tx?: any) {
@@ -261,7 +443,16 @@ export class PackagesService {
     if (purchase.patientId !== patientId) {
       throw new BadRequestException(`Package belongs to another patient (${purchase.patientId})`);
     }
-    
+
+    // Safety 1b: an expired or lapsed package can't take a new sitting. Re-saving a
+    // visit that is already counted on this package is always allowed.
+    const visit = await db.visit.findFirst({ where: { id: visitId }, select: { date: true, packagePurchaseId: true } });
+    const isNewSitting = visit?.packagePurchaseId !== purchaseId;
+    if (isNewSitting) {
+      const blocked = sittingBlockReason(purchase, visit?.date || toLocalDateKey(new Date()));
+      if (blocked) throw new BadRequestException(blocked);
+    }
+
     // Safety 2: Ensure not already full before linking
     // We check current usage (including previously linked visits, not including this one if it's new)
     const visitsCount = await db.visit.count({
@@ -276,6 +467,11 @@ export class PackagesService {
       where: { id: visitId },
       data: { packagePurchaseId: purchaseId }
     });
+
+    // The doctor's planned date was for this sitting; the next one is planned afresh.
+    if (isNewSitting && purchase.plannedNextSitting) {
+      await db.packagePurchase.update({ where: { id: purchaseId }, data: { plannedNextSitting: null } });
+    }
 
     // Re-sync sittings
     await this.syncSittings(clinicId, purchaseId, db);

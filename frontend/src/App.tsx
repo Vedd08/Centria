@@ -31,6 +31,7 @@ import { AccountsDashboard } from './components/Accounts/AccountsDashboard';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { PlatformConsole } from './components/Platform/PlatformConsole';
 import { StaffTasks } from './components/Staff/StaffTasks';
+import { FollowUpsScreen } from './components/Reception/FollowUpsScreen';
 import { PharmacyCounter } from './components/Pharmacy/PharmacyCounter';
 
 /** Every tab has exactly one screen; a missing entry here is what previously showed
@@ -40,6 +41,7 @@ const TAB_SCREENS: Record<NavTab, React.ComponentType> = {
   reception: ReceptionDesk,
   queue: QueueBoard,
   tasks: StaffTasks,
+  followups: FollowUpsScreen,
   templates: PrescriptionTemplates,
   accounts: AccountsDashboard,
   admin: AdminPanel,

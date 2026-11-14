@@ -55,9 +55,14 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, onSelectTab }) => {
     const fetchNotifications = async () => {
       try {
         const headers = { };
+        // Only ask for what this role may read — nurses / staff got a 403 per call before.
+        const role = user?.role || '';
+        const skip = Promise.reject(new Error('not permitted'));
+        skip.catch(() => {});
+        const can = (roles: string[]) => roles.includes(role);
         const [medRes, invRes, rxRes] = await Promise.allSettled([
-          apiFetch('/api/medicines', { headers }),
-          apiFetch('/api/invoices?reconciled=false', { headers }),
+          can(['SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'PHARMACY', 'ACCOUNT']) ? apiFetch('/api/medicines', { headers }) : skip,
+          can(['SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'ACCOUNT']) ? apiFetch('/api/invoices?reconciled=false', { headers }) : skip,
           apiFetch('/api/prescriptions?status=Pending', { headers }),
         ]);
 
@@ -88,15 +93,16 @@ export const TopNav: React.FC<TopNavProps> = ({ activeTab, onSelectTab }) => {
           }
         }
 
-        // Follow-ups summary — only relevant for RECEPTION and RM
-        if (user && ['RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN'].includes(user.role)) {
+        // Follow-ups summary — reception / RM, and nurses / staff (their own Follow-ups page)
+        if (user && ['RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN', 'NURSE', 'STAFF'].includes(user.role)) {
           try {
             const fuRes = await apiFetch('/api/follow-ups/summary');
             if (fuRes.ok) {
               const fuData = await fuRes.json();
               const fuCount = fuData.total ?? 0;
               if (fuCount > 0) {
-                items.push({ type: 'followup', message: `${fuCount} follow-up${fuCount !== 1 ? 's' : ''} due`, link: 'reception', tab: 'followups' });
+                const own = ['NURSE', 'STAFF'].includes(user.role);
+                items.push({ type: 'followup', message: `${fuCount} follow-up${fuCount !== 1 ? 's' : ''} due`, link: own ? 'followups' : 'reception', ...(own ? {} : { tab: 'followups' }) });
               }
             }
           } catch {}

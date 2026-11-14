@@ -11,9 +11,17 @@ interface FollowUpReason {
   refId: string;
   dueDate: string | null;
   label: string;
+  notice?: 'DOCTOR_DELAY' | 'EXPIRED' | 'LAPSED' | 'EXPIRING';
   overdueDays: number;
   lastCall: LastCall | null;
 }
+
+const NOTICE: Record<NonNullable<FollowUpReason['notice']>, { text: string; className: string }> = {
+  DOCTOR_DELAY: { text: 'Extended by doctor — no charge', className: 'bg-status-danger/10 text-status-danger border-status-danger/30' },
+  EXPIRED: { text: 'Package expired', className: 'bg-status-danger/10 text-status-danger border-status-danger/30' },
+  LAPSED: { text: 'Lapsed — sell again', className: 'bg-status-danger/10 text-status-danger border-status-danger/30' },
+  EXPIRING: { text: 'Expiring soon', className: 'bg-status-warning/10 text-status-warning border-status-warning/30' },
+};
 interface FollowUpItem {
   patient: Patient;
   reasons: FollowUpReason[];
@@ -171,7 +179,12 @@ export const FollowUpsTab: React.FC = () => {
           <div className="mt-2 space-y-4">
             {item.reasons.map((r, i) => (
               <div key={i} className="space-y-1 pb-3 border-b border-border/50 last:border-0 last:pb-0">
-                <p className="text-xs text-ink-secondary font-medium">{r.label}</p>
+                {r.notice && (
+                  <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold ${NOTICE[r.notice].className}`}>
+                    {NOTICE[r.notice].text}
+                  </span>
+                )}
+                <p className={`text-xs font-medium ${r.notice && r.notice !== 'EXPIRING' ? 'text-status-danger' : 'text-ink-secondary'}`}>{r.label}</p>
                 {r.lastCall && (
                   <p className="text-[11px] text-ink-tertiary">
                     Last: {OUTCOME_LABELS[r.lastCall.outcome] ?? r.lastCall.outcome}

@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { PackagesService } from './packages.service';
 import { CreatePackageTypeDto } from './dto/create-package-type.dto';
+import { UpdatePackagePlanDto, DoctorDelayDto, PatientLapseDto, CreateHolidayDto } from './dto/package-plan.dto';
 import { PurchasePackageDto } from './dto/purchase-package.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -53,5 +54,59 @@ export class PackagesController {
   @Get('purchases/active')
   findActivePurchases(@CurrentUser() user: any, @Query('patientId') patientId: string) {
     return this.packagesService.findActivePurchasesByPatient(user.clinicId, patientId);
+  }
+
+  // --- Clinic holidays: sittings that land on one move to the next open day ---
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'ACCOUNT', 'NURSE', 'STAFF')
+  @Get('holidays')
+  listHolidays(@CurrentUser() user: any) {
+    return this.packagesService.listHolidays(user.clinicId);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Post('holidays')
+  addHoliday(@CurrentUser() user: any, @Body() dto: CreateHolidayDto) {
+    return this.packagesService.addHoliday(user.clinicId, dto);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Delete('holidays/:id')
+  removeHoliday(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.packagesService.removeHoliday(user.clinicId, id);
+  }
+
+  // --- Sitting plan of one sold package (declared after purchases/active) ---
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RM', 'RECEPTION', 'ACCOUNT')
+  @Get('purchases/:id')
+  findOnePurchase(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.packagesService.findOnePurchase(user.clinicId, id);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Patch('purchases/:id/plan')
+  updatePlan(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdatePackagePlanDto) {
+    return this.packagesService.updatePlan(user, id, dto);
+  }
+
+  /** Delay caused by the doctor/clinic: extends the package, no charge (red notice). */
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Post('purchases/:id/doctor-delay')
+  doctorDelay(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: DoctorDelayDto) {
+    return this.packagesService.doctorDelay(user, id, dto);
+  }
+
+  /** Missed by the patient: the package lapses and they buy again. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Post('purchases/:id/lapse')
+  patientLapse(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: PatientLapseDto) {
+    return this.packagesService.patientLapse(user, id, dto);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
+  @Post('purchases/:id/reinstate')
+  reinstate(@CurrentUser() user: any, @Param('id') id: string, @Body('note') note?: string) {
+    return this.packagesService.reinstate(user, id, note);
   }
 }

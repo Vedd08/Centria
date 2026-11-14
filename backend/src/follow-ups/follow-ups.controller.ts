@@ -8,8 +8,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-const READ_ROLES = ['RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN'] as const;
-const CALL_ROLES = ['RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN'] as const;
+// Nurse / staff chase package sittings alongside reception.
+const READ_ROLES = ['RECEPTION', 'RM', 'NURSE', 'STAFF', 'MASTER', 'SUPER_ADMIN'] as const;
+const CALL_ROLES = ['RECEPTION', 'RM', 'NURSE', 'STAFF', 'MASTER', 'SUPER_ADMIN'] as const;
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('follow-ups')

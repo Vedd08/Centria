@@ -26,6 +26,20 @@ export class CreatePackageTypeDto {
   @Min(1)
   sittingGapDays?: number;
 
+  /** Days the package stays valid after sale (e.g. 90). Empty/null = no expiry. */
+  @IsOptional()
+  @IsInt()
+  @Min(1, { message: 'Validity must be at least 1 day' })
+  validityDays?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  skipSundays?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  skipHolidays?: boolean;
+
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
