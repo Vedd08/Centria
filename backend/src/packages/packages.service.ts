@@ -1,49 +1,161 @@
 import { toLocalDateKey } from '../common/date.helper';
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePackageTypeDto } from './dto/create-package-type.dto';
 import { PurchasePackageDto } from './dto/purchase-package.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { UpdatePackagePlanDto, DoctorDelayDto, PatientLapseDto, CreateHolidayDto } from './dto/package-plan.dto';
-import { addDays, computePlan, isValidDate, sittingBlockReason } from './package-plan';
+import { addDays, computePurchasePlan, isValidDate, itemUsed, sittingBlockReason } from './package-plan';
 
 const PLAN_INCLUDE = {
   visits: { select: { date: true }, orderBy: { date: 'asc' as const } },
   adjustments: { orderBy: { createdAt: 'desc' as const } },
+  items: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: { sittings: { select: { date: true, visitId: true }, orderBy: { date: 'asc' as const } } },
+  },
 } as const;
 
 @Injectable()
-export class PackagesService {
+export class PackagesService implements OnModuleInit {
+  private readonly logger = new Logger(PackagesService.name);
+
   constructor(
     private prisma: PrismaService,
     private invoicesService: InvoicesService,
   ) {}
 
+  /** Runs before the app takes requests, so every package has treatment lines. */
+  async onModuleInit() {
+    try {
+      await this.migrateToTreatmentLines();
+    } catch (err) {
+      this.logger.error('Could not convert packages to treatment lines', err as any);
+    }
+  }
+
+  /**
+   * One-time, repeat-safe conversion: packages and sales set up before treatment
+   * lines existed become a single treatment line, and the visits already counted
+   * become that line's sittings. Nothing changes for the patient.
+   */
+  async migrateToTreatmentLines() {
+    const types = await this.prisma.packageType.findMany({
+      where: { items: { none: {} } },
+      include: { treatment: { select: { name: true } } },
+    });
+    for (const t of types) {
+      await this.prisma.packageTypeItem
+        .create({
+          data: {
+            packageTypeId: t.id,
+            treatmentId: t.treatmentId,
+            name: t.treatment?.name ?? t.name,
+            sittings: Math.max(1, t.totalSittings || 1),
+            sittingGapDays: t.sittingGapDays,
+            sortOrder: 0,
+          },
+        })
+        .catch(() => undefined); // Another instance got there first.
+    }
+
+    const purchases = await this.prisma.packagePurchase.findMany({
+      where: { items: { none: {} } },
+      include: {
+        packageType: { include: { treatment: { select: { name: true } } } },
+        visits: { select: { id: true, date: true } },
+      },
+    });
+    for (const p of purchases) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const item = await tx.packagePurchaseItem.create({
+            data: {
+              purchaseId: p.id,
+              treatmentId: p.packageType?.treatmentId ?? null,
+              name: p.packageType?.treatment?.name ?? p.packageName,
+              totalSittings: Math.max(1, p.totalSittings || p.sittingsUsed + p.sittingsRemaining || 1),
+              sittingGapDays: p.sittingGapDays ?? p.packageType?.sittingGapDays ?? null,
+              openingSittingsUsed: p.openingSittingsUsed,
+              plannedNextSitting: p.plannedNextSitting,
+              sortOrder: 0,
+            },
+          });
+          if (p.visits.length) {
+            await tx.packageSitting.createMany({
+              data: p.visits.map((v) => ({ purchaseId: p.id, itemId: item.id, visitId: v.id, date: v.date, byName: 'Earlier records' })),
+            });
+          }
+        }, TRANSACTION_OPTIONS);
+      } catch (err: any) {
+        // Usually another instance converted it first; log anything else.
+        this.logger.warn(`Treatment lines for sale ${p.id} skipped: ${err?.message ?? err}`);
+      }
+    }
+    if (types.length || purchases.length) {
+      this.logger.log(`Treatment lines: converted ${types.length} package type(s) and ${purchases.length} sale(s)`);
+    }
+  }
+
+  /**
+   * Turns the request into treatment lines (name resolved from the catalogue) plus
+   * the summary fields older screens read: total sittings, first treatment and gap.
+   */
+  private async buildTypeItems(clinicId: string, dto: CreatePackageTypeDto) {
+    const raw = dto.items?.length
+      ? dto.items
+      : [{ treatmentId: dto.treatmentId, name: undefined, sittings: dto.totalSittings ?? 0, sittingGapDays: dto.sittingGapDays }];
+    if (!raw.length || raw.some((i) => !i.sittings || i.sittings < 1)) {
+      throw new BadRequestException('Add at least one treatment with 1 or more sittings');
+    }
+    const ids = raw.map((i) => i.treatmentId).filter(Boolean) as string[];
+    const treatments = ids.length
+      ? await this.prisma.treatmentMaster.findMany({ where: { id: { in: ids }, clinicId }, select: { id: true, name: true } })
+      : [];
+    const items = raw.map((i, idx) => {
+      const t = treatments.find((x) => x.id === i.treatmentId);
+      if (i.treatmentId && !t) throw new NotFoundException(`Treatment ${i.treatmentId} not found`);
+      const name = (i.name?.trim() || t?.name || dto.name || '').trim();
+      if (!name) throw new BadRequestException('Each treatment needs a name');
+      return { treatmentId: t?.id ?? null, name, sittings: i.sittings, sittingGapDays: i.sittingGapDays ?? null, sortOrder: idx };
+    });
+    return {
+      items,
+      totalSittings: items.reduce((s, i) => s + i.sittings, 0),
+      treatmentId: items[0].treatmentId,
+      sittingGapDays: items[0].sittingGapDays,
+    };
+  }
+
   async createPackageType(user: any, dto: CreatePackageTypeDto) {
     const isDoctor = user.role === 'DOCTOR';
+    const built = await this.buildTypeItems(user.clinicId, dto);
     return this.prisma.packageType.create({
       data: {
         clinicId: user.clinicId,
         name: dto.name.trim(),
         description: dto.description,
         price: dto.price,
-        totalSittings: dto.totalSittings,
+        totalSittings: built.totalSittings,
         isGstTaxable: dto.isGstTaxable ?? true,
-        sittingGapDays: dto.sittingGapDays,
+        sittingGapDays: built.sittingGapDays,
         validityDays: dto.validityDays ?? null,
         skipSundays: dto.skipSundays ?? true,
         skipHolidays: dto.skipHolidays ?? true,
         isActive: dto.isActive ?? true,
-        treatmentId: dto.treatmentId,
+        treatmentId: built.treatmentId,
         doctorId: isDoctor ? user.id : dto.doctorId,
+        items: { create: built.items },
       },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
     });
   }
 
   async findAllPackageTypes(clinicId: string) {
     return this.prisma.packageType.findMany({
       where: { clinicId },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { name: 'asc' },
     });
   }
@@ -58,26 +170,33 @@ export class PackagesService {
       throw new ForbiddenException(`This package belongs to another doctor`);
     }
 
-    return this.prisma.packageType.update({
-      where: { id },
-      data: {
-        name: dto.name.trim(),
-        description: dto.description,
-        price: dto.price,
-        totalSittings: dto.totalSittings,
-        isGstTaxable: dto.isGstTaxable ?? true,
-        sittingGapDays: dto.sittingGapDays,
-        // Applies to future sales only; packages already sold keep their own terms.
-        validityDays: dto.validityDays === undefined ? undefined : dto.validityDays,
-        skipSundays: dto.skipSundays,
-        skipHolidays: dto.skipHolidays,
-        isActive: dto.isActive ?? pkg.isActive,
-        treatmentId: dto.treatmentId,
-        // Editing never changes who owns the package (a doctor editing a clinic-wide
-        // package doesn't take it over).
-        doctorId: user.role === 'DOCTOR' ? pkg.doctorId : dto.doctorId,
-      },
-    });
+    const built = await this.buildTypeItems(user.clinicId, dto);
+    return this.prisma.$transaction(async (tx) => {
+      // Treatment lines have no natural key, so they are replaced wholesale. Packages
+      // already sold keep their own copy, so this only affects new sales.
+      await tx.packageTypeItem.deleteMany({ where: { packageTypeId: id } });
+      return tx.packageType.update({
+        where: { id },
+        data: {
+          name: dto.name.trim(),
+          description: dto.description,
+          price: dto.price,
+          totalSittings: built.totalSittings,
+          isGstTaxable: dto.isGstTaxable ?? true,
+          sittingGapDays: built.sittingGapDays,
+          validityDays: dto.validityDays === undefined ? undefined : dto.validityDays,
+          skipSundays: dto.skipSundays,
+          skipHolidays: dto.skipHolidays,
+          isActive: dto.isActive ?? pkg.isActive,
+          treatmentId: built.treatmentId,
+          // Editing never changes who owns the package (a doctor editing a clinic-wide
+          // package doesn't take it over).
+          doctorId: user.role === 'DOCTOR' ? pkg.doctorId : dto.doctorId,
+          items: { create: built.items },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    }, TRANSACTION_OPTIONS);
   }
 
   async removePackageType(user: any, id: string) {
@@ -108,10 +227,17 @@ export class PackagesService {
 
     const pkgType = await this.prisma.packageType.findFirst({
       where: { id: dto.packageTypeId, clinicId },
+      include: { items: { orderBy: { sortOrder: 'asc' } }, treatment: { select: { name: true } } },
     });
     if (!pkgType) {
       throw new NotFoundException(`PackageType ID ${dto.packageTypeId} not found in this clinic`);
     }
+    // Treatment lines copied onto the sale (a package set up before treatment lines
+    // existed counts as one treatment).
+    const saleItems = pkgType.items.length
+      ? pkgType.items.map((i, idx) => ({ treatmentId: i.treatmentId, name: i.name, totalSittings: i.sittings, sittingGapDays: i.sittingGapDays, sortOrder: idx }))
+      : [{ treatmentId: pkgType.treatmentId, name: pkgType.treatment?.name ?? pkgType.name, totalSittings: pkgType.totalSittings, sittingGapDays: pkgType.sittingGapDays, sortOrder: 0 }];
+    const saleTotal = saleItems.reduce((s, i) => s + i.totalSittings, 0);
 
     const todayDate = toLocalDateKey(new Date());
 
@@ -160,12 +286,13 @@ export class PackagesService {
           discountReason: hasDiscount ? discountReason : null,
           discountById: hasDiscount ? user?.id ?? null : null,
           discountGivenBy: hasDiscount ? user?.name ?? null : null,
-          totalSittings: pkgType.totalSittings,
+          totalSittings: saleTotal,
           isGstTaxable: pkgType.isGstTaxable,
-          sittingGapDays: pkgType.sittingGapDays,
+          sittingGapDays: saleItems[0].sittingGapDays,
           sittingsUsed: 0,
           openingSittingsUsed: 0,
-          sittingsRemaining: pkgType.totalSittings,
+          sittingsRemaining: saleTotal,
+          items: { create: saleItems },
         },
         include: {
           patient: true,
@@ -187,9 +314,10 @@ export class PackagesService {
             data: { recommendedPackageTypeId: null }
           });
 
-          // Link the visit if one exists (the doctor already assessed)
+          // Count today's visit as the first sitting when it's clear which treatment
+          // was done (matching procedure, or a one-treatment package).
           if (queueEntry.visitId) {
-            await this.linkVisitToPurchase(clinicId, queueEntry.visitId, created.id, patient.id, tx);
+            await this.linkVisitToPurchase(clinicId, queueEntry.visitId, created.id, patient.id, tx, { optional: true });
           }
         }
       }
@@ -260,13 +388,23 @@ export class PackagesService {
     return new Set(rows.map((r) => r.date));
   }
 
-  /** Adds the computed `plan` (next sitting, expiry, state, schedule) to each purchase. */
-  async withPlans<T extends { visits: { date: string }[] } & Record<string, any>>(clinicId: string, purchases: T[]) {
+  /**
+   * Adds the computed `plan` to each purchase: per-treatment schedules in
+   * `plan.items`, and the package-level state / next sitting / expiry.
+   */
+  async withPlans<T extends { items: any[] } & Record<string, any>>(clinicId: string, purchases: T[]) {
     const holidays = await this.holidaySet(clinicId);
     const today = toLocalDateKey(new Date());
     return purchases.map((p) => ({
       ...p,
-      plan: computePlan({ ...p, visitDates: p.visits.map((v) => v.date) } as any, holidays, today),
+      plan: computePurchasePlan(
+        {
+          ...p,
+          items: p.items.map((i: any) => ({ ...i, sittingDates: (i.sittings || []).map((s: any) => s.date) })),
+        } as any,
+        holidays,
+        today,
+      ),
     }));
   }
 
@@ -292,9 +430,14 @@ export class PackagesService {
 
     const data: any = {};
     const changes: string[] = [];
+    let itemUpdate: { id: string; plannedNextSitting: string | null } | null = null;
     if (dto.plannedNextSitting !== undefined) {
-      data.plannedNextSitting = dto.plannedNextSitting || null;
-      changes.push(dto.plannedNextSitting ? `next sitting set to ${dto.plannedNextSitting}` : 'next sitting reset to the regular gap');
+      // The next sitting is planned per treatment. A one-treatment package needs no itemId.
+      const items = await this.prisma.packagePurchaseItem.findMany({ where: { purchaseId: id }, orderBy: { sortOrder: 'asc' } });
+      const item = dto.itemId ? items.find((i) => i.id === dto.itemId) : items.length === 1 ? items[0] : null;
+      if (!item) throw new BadRequestException(dto.itemId ? 'That treatment is not part of this package' : 'Choose which treatment to plan');
+      itemUpdate = { id: item.id, plannedNextSitting: dto.plannedNextSitting || null };
+      changes.push(dto.plannedNextSitting ? `${item.name}: next sitting set to ${dto.plannedNextSitting}` : `${item.name}: back to the regular gap`);
     }
     if (dto.expiryDate !== undefined) {
       if (dto.expiryDate && dto.expiryDate < purchase.purchaseDate) {
@@ -307,6 +450,9 @@ export class PackagesService {
 
     await this.prisma.$transaction([
       this.prisma.packagePurchase.update({ where: { id }, data }),
+      ...(itemUpdate
+        ? [this.prisma.packagePurchaseItem.update({ where: { id: itemUpdate.id }, data: { plannedNextSitting: itemUpdate.plannedNextSitting } })]
+        : []),
       this.prisma.packageAdjustment.create({
         data: {
           purchaseId: id,
@@ -333,17 +479,22 @@ export class PackagesService {
     const today = toLocalDateKey(new Date());
     // An already-expired package is extended from today, so the patient gets the full delay.
     const base = purchase.expiryDate && purchase.expiryDate < today ? today : purchase.expiryDate;
+    // Each treatment's planned sitting moves by the same number of days.
+    const planned = await this.prisma.packagePurchaseItem.findMany({ where: { purchaseId: id, plannedNextSitting: { not: null } } });
     await this.prisma.$transaction([
       this.prisma.packagePurchase.update({
         where: { id },
         data: {
           extendedDays: { increment: dto.days },
           expiryDate: base ? addDays(base, dto.days) : null,
-          plannedNextSitting: purchase.plannedNextSitting
-            ? addDays(purchase.plannedNextSitting < today ? today : purchase.plannedNextSitting, dto.days)
-            : undefined,
         },
       }),
+      ...planned.map((i) =>
+        this.prisma.packagePurchaseItem.update({
+          where: { id: i.id },
+          data: { plannedNextSitting: addDays(i.plannedNextSitting! < today ? today : i.plannedNextSitting!, dto.days) },
+        }),
+      ),
       this.prisma.packageAdjustment.create({
         data: { purchaseId: id, kind: 'DOCTOR_DELAY', days: dto.days, note: dto.note.trim(), byName: user.name || 'Doctor', byId: user.id },
       }),
@@ -363,6 +514,7 @@ export class PackagesService {
         where: { id },
         data: { lapsedAt: today, lapseNote: dto.note?.trim() || null, plannedNextSitting: null },
       }),
+      this.prisma.packagePurchaseItem.updateMany({ where: { purchaseId: id }, data: { plannedNextSitting: null } }),
       this.prisma.packageAdjustment.create({
         data: {
           purchaseId: id,
@@ -409,25 +561,33 @@ export class PackagesService {
    * Counted on the visit, so a sitting the doctor already counted can't be counted
    * twice. Creates the day-book visit if the patient didn't see the doctor.
    */
-  async recordSitting(user: any, purchaseId: string, queueId?: string) {
+  async recordSitting(user: any, purchaseId: string, queueId?: string, itemIds?: string[]) {
     const clinicId = user.clinicId;
     const purchase = await this.prisma.packagePurchase.findFirst({
       where: { id: purchaseId, clinicId },
-      include: { packageType: { include: { treatment: { select: { name: true } } } } },
+      include: { packageType: { include: { treatment: { select: { name: true } } } }, items: { orderBy: { sortOrder: 'asc' } } },
     });
     if (!purchase) throw new NotFoundException('Package not found');
     const entry = await this.sittingQueueEntry(clinicId, purchase.patientId, queueId);
 
+    // Which treatments: as asked, else the ones the nurse was given for this visit.
+    let targets = itemIds?.filter(Boolean) ?? [];
+    if (!targets.length) {
+      const orders = await this.prisma.careOrder.findMany({
+        where: { queueId: entry.id, status: { not: 'CANCELLED' }, packageItemId: { not: null } },
+        select: { packageItemId: true },
+      });
+      targets = [...new Set(orders.map((o) => o.packageItemId!))].filter((id) => purchase.items.some((i) => i.id === id));
+    }
+    if (entry.visitId && targets.length) {
+      const already = await this.prisma.packageSitting.findMany({ where: { visitId: entry.visitId, itemId: { in: targets } }, select: { itemId: true } });
+      if (already.length === targets.length) throw new BadRequestException('This sitting is already recorded for today\'s visit');
+    }
+
     await this.prisma.$transaction(async (tx) => {
       let visitId = entry.visitId;
-      if (visitId) {
-        const visit = await tx.visit.findFirst({ where: { id: visitId }, select: { packagePurchaseId: true } });
-        if (visit?.packagePurchaseId === purchaseId) throw new BadRequestException('This sitting is already recorded for today\'s visit');
-        if (visit?.packagePurchaseId) {
-          const other = await tx.packagePurchase.findFirst({ where: { id: visit.packagePurchaseId }, select: { packageName: true } });
-          throw new BadRequestException(`Today's visit is already counted as a sitting of ${other?.packageName ?? 'another package'}`);
-        }
-      } else {
+      if (!visitId) {
+        const firstItem = purchase.items.find((i) => targets.includes(i.id)) ?? purchase.items[0];
         // No consultation happened: the visit goes in the day book under the
         // patient's doctor, at no charge (the package was paid when sold).
         const doctorId = entry.doctorId ?? purchase.packageType?.doctorId ?? (user.role === 'DOCTOR' ? user.id : null);
@@ -440,8 +600,8 @@ export class PackagesService {
             patientId: entry.patientId,
             doctorId,
             operator: user.name || 'Reception',
-            treatmentId: purchase.packageType?.treatmentId ?? null,
-            treatmentName: purchase.packageType?.treatment?.name ?? purchase.packageName,
+            treatmentId: firstItem?.treatmentId ?? purchase.packageType?.treatmentId ?? null,
+            treatmentName: firstItem?.name ?? purchase.packageType?.treatment?.name ?? purchase.packageName,
             treatmentPrice: 0,
             isGstTaxable: false,
             status: 'Follow Up',
@@ -451,29 +611,33 @@ export class PackagesService {
         visitId = visit.id;
         await tx.patientQueue.update({ where: { id: entry.id }, data: { visitId, doctorId } });
       }
-      await this.linkVisitToPurchase(clinicId, visitId, purchaseId, purchase.patientId, tx);
+      const counted = await this.linkVisitToPurchase(clinicId, visitId, purchaseId, purchase.patientId, tx, {
+        itemIds: targets.length ? targets : undefined,
+        byName: user.name,
+      });
+      if (!counted.length) throw new BadRequestException('This sitting is already recorded for today\'s visit');
     }, TRANSACTION_OPTIONS);
 
     return this.findOnePurchase(clinicId, purchaseId);
   }
 
-  /** Undo a sitting recorded by mistake (today's visit stops counting). */
-  async undoSitting(user: any, purchaseId: string, queueId?: string, note?: string) {
+  /** Undo sittings recorded by mistake for that visit (all treatments, or the ones given). */
+  async undoSitting(user: any, purchaseId: string, queueId?: string, note?: string, itemIds?: string[]) {
     const clinicId = user.clinicId;
     const purchase = await this.purchaseOrThrow(clinicId, purchaseId);
     const entry = await this.sittingQueueEntry(clinicId, purchase.patientId, queueId);
-    const visit = entry.visitId ? await this.prisma.visit.findFirst({ where: { id: entry.visitId } }) : null;
-    if (!visit || visit.packagePurchaseId !== purchaseId) throw new BadRequestException('No sitting of this package is recorded for that visit');
+    if (!entry.visitId) throw new BadRequestException('No sitting of this package is recorded for that visit');
+    const visitId = entry.visitId;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.visit.update({ where: { id: visit.id }, data: { packagePurchaseId: null } });
-      await this.syncSittings(clinicId, purchaseId, tx);
+      const removed = await this.unlinkVisitFromPurchase(clinicId, visitId, purchaseId, tx, itemIds);
+      if (!removed.length) throw new BadRequestException('No sitting of this package is recorded for that visit');
       await tx.packageAdjustment.create({
         data: {
           purchaseId,
           kind: 'SITTING_UNDONE',
-          days: 0,
-          note: note?.trim() || `Sitting of ${visit.date} undone`,
+          days: removed.length,
+          note: note?.trim() || `Sitting of ${entry.queueDate} undone: ${removed.join(', ')}`,
           byName: user.name || 'Reception',
           byId: user.id,
         },
@@ -500,77 +664,126 @@ export class PackagesService {
     return { id, deleted: true };
   }
 
+  /** Recomputes the package totals from its treatment lines and their sittings. */
   async syncSittings(clinicId: string, packagePurchaseId: string, tx?: any) {
     const db = tx ?? this.prisma;
-    const purchase = await db.packagePurchase.findFirst({
-      where: { id: packagePurchaseId, clinicId },
-    });
+    const purchase = await db.packagePurchase.findFirst({ where: { id: packagePurchaseId, clinicId } });
     if (!purchase) {
       throw new NotFoundException(`Package purchase ID ${packagePurchaseId} not found`);
     }
-
-    const visitsCount = await db.visit.count({
-      where: { packagePurchaseId, clinicId },
+    const items = await db.packagePurchaseItem.findMany({
+      where: { purchaseId: packagePurchaseId },
+      include: { _count: { select: { sittings: true } } },
     });
+    if (!items.length) return; // Converted on the next start-up.
 
-    const sittingsUsed = purchase.openingSittingsUsed + visitsCount;
-    if (sittingsUsed > purchase.totalSittings) {
-      throw new BadRequestException(`Package has 0 remaining sittings`);
-    }
-    const sittingsRemaining = purchase.totalSittings - sittingsUsed;
-
+    const totalSittings = items.reduce((s: number, i: any) => s + i.totalSittings, 0);
+    const sittingsUsed = items.reduce((s: number, i: any) => s + itemUsed(i, i._count.sittings), 0);
     await db.packagePurchase.update({
       where: { id: packagePurchaseId },
-      data: { sittingsUsed, sittingsRemaining },
+      data: { totalSittings, sittingsUsed, sittingsRemaining: Math.max(0, totalSittings - sittingsUsed) },
     });
   }
 
-  async linkVisitToPurchase(clinicId: string, visitId: string, purchaseId: string, patientId: string, tx: any) {
+  /**
+   * Counts a visit as a sitting of one or more of the package's treatments.
+   *
+   * Which treatments: `itemIds` if given; otherwise the ones done in the visit (the
+   * nurse's package orders, or a procedure matching the treatment), or the only
+   * treatment with sittings left. Treatments already counted for this visit are
+   * skipped, so re-saving never counts twice. Returns the treatment names counted.
+   * With `optional`, an unclear case counts nothing instead of failing.
+   */
+  async linkVisitToPurchase(
+    clinicId: string,
+    visitId: string,
+    purchaseId: string,
+    patientId: string,
+    tx: any,
+    opts: { itemIds?: string[]; optional?: boolean; byName?: string } = {},
+  ): Promise<string[]> {
     const db = tx ?? this.prisma;
-    
-    // Safety 1: Check clinic scope and patient ownership
     const purchase = await db.packagePurchase.findFirst({
-      where: { id: purchaseId, clinicId }
+      where: { id: purchaseId, clinicId },
+      include: {
+        items: {
+          orderBy: { sortOrder: 'asc' },
+          include: { _count: { select: { sittings: true } }, sittings: { where: { visitId }, select: { id: true } } },
+        },
+      },
     });
-    
-    if (!purchase) {
-      throw new NotFoundException(`Package purchase ID ${purchaseId} not found`);
-    }
-    
+    if (!purchase) throw new NotFoundException(`Package purchase ID ${purchaseId} not found`);
     if (purchase.patientId !== patientId) {
       throw new BadRequestException(`Package belongs to another patient (${purchase.patientId})`);
     }
+    const visit = await db.visit.findFirst({ where: { id: visitId }, select: { date: true, packagePurchaseId: true, treatmentId: true } });
+    if (!visit) throw new NotFoundException('Visit not found');
 
-    // Safety 1b: an expired or lapsed package can't take a new sitting. Re-saving a
-    // visit that is already counted on this package is always allowed.
-    const visit = await db.visit.findFirst({ where: { id: visitId }, select: { date: true, packagePurchaseId: true } });
-    const isNewSitting = visit?.packagePurchaseId !== purchaseId;
-    if (isNewSitting) {
-      const blocked = sittingBlockReason(purchase, visit?.date || toLocalDateKey(new Date()));
-      if (blocked) throw new BadRequestException(blocked);
+    const items: any[] = purchase.items;
+    const remaining = (i: any) => i.totalSittings - itemUsed(i, i._count.sittings);
+    const counted = new Set(items.filter((i) => i.sittings.length).map((i) => i.id));
+
+    let targets: any[];
+    if (opts.itemIds?.length) {
+      const unknown = opts.itemIds.filter((id) => !items.some((i) => i.id === id));
+      if (unknown.length) throw new BadRequestException('That treatment is not part of this package');
+      targets = items.filter((i) => opts.itemIds!.includes(i.id) && !counted.has(i.id));
+    } else {
+      const open = items.filter((i) => !counted.has(i.id) && remaining(i) > 0);
+      const entry = await db.patientQueue.findFirst({
+        where: { visitId },
+        include: { careOrders: { where: { status: { not: 'CANCELLED' } }, select: { treatmentId: true, packageItemId: true } } },
+      });
+      const doneTreatments = new Set([visit.treatmentId, ...(entry?.careOrders ?? []).map((o: any) => o.treatmentId)].filter(Boolean));
+      const doneItems = new Set((entry?.careOrders ?? []).map((o: any) => o.packageItemId).filter(Boolean));
+      targets = open.filter((i) => doneItems.has(i.id) || (i.treatmentId && doneTreatments.has(i.treatmentId)));
+      if (!targets.length && open.length === 1) targets = open;
+      if (!targets.length) {
+        if (counted.size || opts.optional) return []; // Already counted, or unclear and allowed to skip.
+        throw new BadRequestException(
+          open.length
+            ? `${purchase.packageName} has several treatments — choose which were done (Packages → Manage plan → Record today's sitting)`
+            : `${purchase.packageName} has no sittings left`,
+        );
+      }
     }
+    if (!targets.length) return [];
 
-    // Safety 2: Ensure not already full before linking
-    // We check current usage (including previously linked visits, not including this one if it's new)
-    const visitsCount = await db.visit.count({
-      where: { packagePurchaseId: purchaseId, clinicId, id: { not: visitId } },
-    });
-    if (purchase.openingSittingsUsed + visitsCount >= purchase.totalSittings) {
-      throw new BadRequestException(`Package has 0 remaining sittings`);
+    // An expired or lapsed package can't take a new sitting.
+    const blocked = sittingBlockReason(purchase, visit.date || toLocalDateKey(new Date()));
+    if (blocked) {
+      if (opts.optional) return [];
+      throw new BadRequestException(blocked);
     }
+    const full = targets.find((i) => remaining(i) <= 0);
+    if (full) throw new BadRequestException(`${full.name} has no sittings left in ${purchase.packageName}`);
 
-    // Link the visit
-    await db.visit.update({
-      where: { id: visitId },
-      data: { packagePurchaseId: purchaseId }
+    await db.packageSitting.createMany({
+      data: targets.map((i) => ({ purchaseId, itemId: i.id, visitId, date: visit.date, byName: opts.byName ?? null })),
     });
-
     // The doctor's planned date was for this sitting; the next one is planned afresh.
-    if (isNewSitting && purchase.plannedNextSitting) {
-      await db.packagePurchase.update({ where: { id: purchaseId }, data: { plannedNextSitting: null } });
+    await db.packagePurchaseItem.updateMany({
+      where: { id: { in: targets.map((i) => i.id) }, plannedNextSitting: { not: null } },
+      data: { plannedNextSitting: null },
+    });
+    if (visit.packagePurchaseId !== purchaseId) {
+      await db.visit.update({ where: { id: visitId }, data: { packagePurchaseId: purchaseId } });
     }
-
-    // Re-sync sittings
     await this.syncSittings(clinicId, purchaseId, db);
+    return targets.map((i) => i.name);
+  }
+
+  /** Stops counting a visit as sittings of this package (all treatments, or the given ones). */
+  async unlinkVisitFromPurchase(clinicId: string, visitId: string, purchaseId: string, tx?: any, itemIds?: string[]): Promise<string[]> {
+    const db = tx ?? this.prisma;
+    const where: any = { visitId, purchaseId, ...(itemIds?.length ? { itemId: { in: itemIds } } : {}) };
+    const rows = await db.packageSitting.findMany({ where, include: { item: { select: { name: true } } } });
+    if (rows.length) await db.packageSitting.deleteMany({ where });
+    const left = await db.packageSitting.count({ where: { visitId, purchaseId } });
+    if (!left) {
+      await db.visit.updateMany({ where: { id: visitId, packagePurchaseId: purchaseId }, data: { packagePurchaseId: null } });
+    }
+    await this.syncSittings(clinicId, purchaseId, db);
+    return rows.map((r: any) => r.item.name);
   }
 }

@@ -77,6 +77,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
 
   const [patientPurchases, setPatientPurchases] = useState<any[]>([]);
   const [usePackagePurchaseId, setUsePackagePurchaseId] = useState(entry.visit?.packagePurchaseId || '');
+  /** Which treatment lines of that package this visit counts for. */
+  const [usePackageItemIds, setUsePackageItemIds] = useState<string[]>([]);
   // The sitting counted when this screen opened. Saving sends null only if the
   // doctor removed it — never wiping a sitting reception recorded meanwhile.
   const initialSitting = useRef(entry.visit?.packagePurchaseId || '');
@@ -190,12 +192,18 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   };
 
   /** Today's procedure is a sitting of a package the patient already bought. */
-  const applySitting = (purchase: any) => {
+  const applySitting = (purchase: any, item?: any) => {
+    // Treatment lines counted today; several procedures can each use their own line.
+    setUsePackageItemIds((ids) => {
+      const base = usePackagePurchaseId === purchase.id ? ids : [];
+      return item?.id && !base.includes(item.id) ? [...base, item.id] : base;
+    });
     setUsePackagePurchaseId(purchase.id);
     if (recommendedPackageTypeId) recommendPackage('');
     // The plan already skips Sundays / clinic holidays per the package's rules.
-    if (purchase.plan?.nextIfDoneToday) {
-      setNextAppointmentDate(purchase.plan.nextIfDoneToday);
+    const next = item?.plan?.nextIfDoneToday ?? purchase.plan?.nextIfDoneToday;
+    if (next) {
+      setNextAppointmentDate(next);
       return;
     }
     const gap = purchase.sittingGapDays ?? purchase.packageType?.sittingGapDays;
@@ -416,6 +424,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
           nextAppointmentDate: nextAppointmentDate || undefined,
           treatmentId: treatmentId || undefined,
           usePackagePurchaseId: usePackagePurchaseId || (initialSitting.current ? null : undefined),
+          usePackageItemIds: usePackagePurchaseId && usePackageItemIds.length ? usePackageItemIds : undefined,
           recommendedPackageTypeId: recommendedPackageTypeId || null,
         }),
       });
@@ -861,14 +870,19 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
                         <Package className="w-3.5 h-3.5 shrink-0 text-status-success" />
                         <span>
                           <span className="font-semibold">Today is a sitting of {sittingPurchase.packageName}</span>
-                          {usePackagePurchaseId !== (entry.visit?.packagePurchaseId || '') && (
+                          {usePackageItemIds.length > 0 && (
+                            <span className="text-ink-secondary">
+                              {' '}({(sittingPurchase.plan?.items || []).filter((i: any) => usePackageItemIds.includes(i.id)).map((i: any) => i.name).join(', ')})
+                            </span>
+                          )}
+                          {(usePackagePurchaseId !== (entry.visit?.packagePurchaseId || '') || usePackageItemIds.length > 0) && (
                             <span className="text-ink-secondary"> — counted when you save</span>
                           )}
                         </span>
                       </span>
                       <button
                         type="button"
-                        onClick={() => setUsePackagePurchaseId('')}
+                        onClick={() => { setUsePackagePurchaseId(''); setUsePackageItemIds([]); }}
                         className="p-1 rounded text-ink-secondary hover:bg-status-success/20 cursor-pointer"
                         title="Don't count this visit as a sitting"
                       >

@@ -5,6 +5,8 @@ export interface CareOrder {
   orderType: string;
   medicineId?: string;
   treatmentId?: string;
+  /** Set when this order is a package sitting: the treatment line it uses up. */
+  packageItemId?: string | null;
   description: string;
   dosage?: string;
   route?: string;
@@ -58,6 +60,7 @@ export interface QueueEntry {
     sittingsRemaining: number;
     expiryDate?: string | null;
     lapsedAt?: string | null;
+    items?: { id: string; name: string; totalSittings: number; openingSittingsUsed: number; _count: { sittings: number } }[];
   } | null;
   checkedInAt: string;
   seenAt?: string;
@@ -72,6 +75,8 @@ export interface QueueEntry {
     treatment?: { id: string; name: string; isGstTaxable: boolean; } | null;
     packagePurchaseId?: string | null;
     conditionTrend?: string;
+    /** Package sittings (one per treatment) counted for this visit. */
+    packageSittings?: { itemId: string; purchaseId: string }[];
   };
   admissionId?: string;
   admissionRequestedAt?: string;

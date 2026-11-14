@@ -139,8 +139,63 @@ model PackageType {
   clinic         Clinic            @relation(fields: [clinicId], references: [id])
   
   recommendedInQueues PatientQueue[]
+  /// The treatments in the package, each with its own sittings and gap.
+  items               PackageTypeItem[]
 
   @@unique([clinicId, name])
+}
+
+/// One treatment in a package type: its own number of sittings and gap. The package's
+/// validity covers all of them.
+model PackageTypeItem {
+  id             String      @id @default(uuid())
+  packageTypeId  String
+  packageType    PackageType @relation(fields: [packageTypeId], references: [id], onDelete: Cascade)
+  treatmentId    String?
+  name           String
+  sittings       Int
+  sittingGapDays Int?
+  sortOrder      Int         @default(0)
+
+  @@unique([packageTypeId, sortOrder])
+}
+
+/// A treatment in a sold package, copied from the package type at sale. Sittings are
+/// counted per treatment; the package's expiry covers all of them.
+model PackagePurchaseItem {
+  id                  String           @id @default(uuid())
+  purchaseId          String
+  purchase            PackagePurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  treatmentId         String?
+  name                String
+  totalSittings       Int
+  sittingGapDays      Int?
+  /// Sittings done before records were kept in the software.
+  openingSittingsUsed Int              @default(0)
+  /// Date the doctor planned for this treatment's next sitting; overrides the gap.
+  plannedNextSitting  String?
+  sortOrder           Int              @default(0)
+  sittings            PackageSitting[]
+
+  @@unique([purchaseId, sortOrder])
+}
+
+/// One sitting of one treatment, done in a visit.
+model PackageSitting {
+  id         String              @id @default(uuid())
+  purchaseId String
+  purchase   PackagePurchase     @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       PackagePurchaseItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  visitId    String?
+  visit      Visit?              @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  date       String // YYYY-MM-DD
+  byName     String?
+  createdAt  DateTime            @default(now())
+
+  @@unique([itemId, visitId])
+  @@index([purchaseId])
+  @@index([visitId])
 }
 
 model PackagePurchase {
@@ -192,6 +247,8 @@ model PackagePurchase {
   invoices            Invoice[]
   adjustments         PackageAdjustment[]
   sittingQueues       PatientQueue[]      @relation("QueueSitting")
+  items               PackagePurchaseItem[]
+  sittings            PackageSitting[]
   clinicId            String?
   clinic              Clinic?     @relation(fields: [clinicId], references: [id])
 
@@ -299,6 +356,8 @@ model Visit {
 
   documents  PatientDocument[]
   queueEntry PatientQueue?
+  /// Package sittings (one per treatment) done in this visit.
+  packageSittings PackageSitting[]
 
   @@index([patientId])
   @@index([date])
@@ -826,6 +885,8 @@ model CareOrder {
   medicine    Medicine?        @relation(fields: [medicineId], references: [id])
   treatmentId String?
   treatment   TreatmentMaster? @relation(fields: [treatmentId], references: [id])
+  /// Set when this order is a package sitting: the treatment line it uses up.
+  packageItemId String?
   description String // Display label — medicine/treatment name, or free text
 
   dosage       String?

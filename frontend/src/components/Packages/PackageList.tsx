@@ -8,7 +8,7 @@ import { PackageTypeModal } from './PackageTypeModal';
 import { SellPackageModal } from './SellPackageModal';
 import { PackagePlanModal } from './PackagePlanModal';
 import { HolidaysModal } from './HolidaysModal';
-import { PackagePlan, STATE_STYLE, fmtDate, expiryText } from './packagePlan';
+import { PackagePlan, PurchasePlan, PackageTypeLine, STATE_STYLE, fmtDate, expiryText } from './packagePlan';
 import { money } from '../../utils/money';
 import { CalendarOff, Pencil } from 'lucide-react';
 
@@ -25,6 +25,8 @@ export interface PackageTypeItem {
   isActive?: boolean;
   treatmentId?: string;
   doctorId?: string;
+  /** The treatments in the package, each with its own sittings and gap. */
+  items?: PackageTypeLine[];
 }
 
 export interface PackagePurchaseItem {
@@ -42,7 +44,7 @@ export interface PackagePurchaseItem {
   sittingsUsed: number;
   sittingsRemaining: number;
   totalSittings?: number;
-  plan?: PackagePlan;
+  plan?: PurchasePlan;
 }
 
 type PurchaseFilter = 'attention' | 'active' | 'all';
@@ -204,7 +206,7 @@ export const PackageList: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex flex-wrap gap-1">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand/10 text-brand-deep border border-brand/20">
-                    {pkg.totalSittings} Total Sittings{pkg.sittingGapDays ? ` · every ${pkg.sittingGapDays}d` : ''}
+                    {pkg.totalSittings} Total Sittings{(pkg.items?.length ?? 0) <= 1 && pkg.sittingGapDays ? ` · every ${pkg.sittingGapDays}d` : ''}
                   </span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${pkg.validityDays ? 'bg-surface-page text-ink-secondary border-border' : 'bg-status-warning/10 text-status-warning border-status-warning/20'}`}>
                     {pkg.validityDays ? `Valid ${pkg.validityDays} days` : 'No expiry'}
@@ -212,6 +214,16 @@ export const PackageList: React.FC = () => {
                 </div>
                 <h4 className="font-bold text-ink-primary text-sm mt-1">{pkg.name}</h4>
                 <p className="text-xs text-ink-secondary leading-snug">{pkg.description}</p>
+                {(pkg.items?.length ?? 0) > 1 && (
+                  <ul className="mt-2 space-y-1">
+                    {pkg.items!.map((l, i) => (
+                      <li key={l.id || i} className="flex items-center justify-between gap-2 text-[11px] px-2 py-1 rounded bg-surface-page border border-border">
+                        <span className="font-medium text-ink-primary truncate">{l.name}</span>
+                        <span className="shrink-0 text-ink-secondary">{l.sittings}×{l.sittingGapDays ? ` · ${l.sittingGapDays}d` : ''}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="pt-3 border-t border-border/60 flex items-center justify-between">
@@ -363,6 +375,7 @@ export const PackageList: React.FC = () => {
                                 {fmtDate(plan.nextSittingDate, true)}
                               </div>
                               <div className="text-[10px] text-ink-secondary">
+                                {(plan.items?.length ?? 0) > 1 && plan.nextTreatment ? `${plan.nextTreatment} · ` : ''}
                                 {plan.overdueDays > 0 ? `${plan.overdueDays}d overdue` : plan.nextIsDoctorPlanned ? 'Planned by doctor' : 'Regular gap'}
                               </div>
                             </>

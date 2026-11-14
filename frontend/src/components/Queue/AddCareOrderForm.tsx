@@ -29,8 +29,8 @@ export interface ProcedurePackageProps {
   patientPurchases?: any[];
   /** Sends the recommendation to reception right away. Returns whether it worked. */
   onRecommendPackage?: (packageTypeId: string) => Promise<boolean>;
-  /** The patient already owns a package for this procedure: count today as a sitting. */
-  onUseSitting?: (purchase: any) => void;
+  /** The patient already owns a package for this procedure: count today as a sitting of that treatment line. */
+  onUseSitting?: (purchase: any, item?: any) => void;
   onPackageCreated?: (pkg: any) => void;
 }
 
@@ -79,15 +79,21 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
 
   // A package the patient already bought that covers this procedure, with sittings
   // left and still valid. Expired / lapsed ones can't take a sitting — say why.
-  const forProcedure = isProcedure && treatmentId
-    ? patientPurchases.filter((p) => p.packageType?.treatmentId === treatmentId && p.sittingsRemaining > 0)
-    : [];
+  // Each package can hold several treatments; find the treatment line for this procedure.
+  const lineFor = (p: any) =>
+    (p.plan?.items || []).find((i: any) => i.treatmentId === treatmentId && i.sittingsRemaining > 0) ||
+    (!(p.plan?.items?.length) && p.packageType?.treatmentId === treatmentId && p.sittingsRemaining > 0
+      ? { id: undefined, name: p.packageName, sittingsUsed: p.sittingsUsed, totalSittings: p.totalSittings, plan: p.plan }
+      : null);
+  const forProcedure = isProcedure && treatmentId ? patientPurchases.filter((p) => !!lineFor(p)) : [];
   const activePurchase = forProcedure.find((p) => !['EXPIRED', 'LAPSED'].includes(p.plan?.state)) || null;
+  const activeItem = activePurchase ? lineFor(activePurchase) : null;
   const blockedPurchase = !activePurchase ? forProcedure.find((p) => ['EXPIRED', 'LAPSED'].includes(p.plan?.state)) : null;
   const coveredBySitting = !!activePurchase && useSitting;
   const activePackages = packageTypes.filter((pt) => pt.isActive !== false);
-  const packagesForProcedure = treatmentId ? activePackages.filter((pt) => pt.treatmentId === treatmentId) : [];
-  const otherPackages = activePackages.filter((pt) => !treatmentId || pt.treatmentId !== treatmentId);
+  const includesProcedure = (pt: any) => pt.treatmentId === treatmentId || (pt.items || []).some((i: any) => i.treatmentId === treatmentId);
+  const packagesForProcedure = treatmentId ? activePackages.filter(includesProcedure) : [];
+  const otherPackages = activePackages.filter((pt) => !treatmentId || !includesProcedure(pt));
   const formatPkg = (pt: any) =>
     `${pt.name} — ${pt.totalSittings} sittings, ₹${Number(pt.price).toLocaleString('en-IN')}${pt.sittingGapDays ? ` (every ${pt.sittingGapDays} days)` : ''}`;
 
@@ -160,7 +166,7 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add order');
       if (isProcedure && coveredBySitting) {
-        onUseSitting?.(activePurchase);
+        onUseSitting?.(activePurchase, activeItem);
         addToast('success', `Procedure added as a sitting of ${activePurchase.packageName} — no charge`);
       } else if (isProcedure && packageId && onRecommendPackage) {
         const ok = await onRecommendPackage(packageId);
@@ -321,9 +327,10 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
               <span className="text-xs text-brand-deep">
                 <span className="font-semibold">Count as a sitting of {activePurchase.packageName}</span>
                 <span className="block text-[11px] text-brand-deep/80">
-                  Sitting {activePurchase.sittingsUsed + 1} of {activePurchase.totalSittings} · already paid, no charge today
+                  {activeItem && activeItem.name !== activePurchase.packageName ? `${activeItem.name}: ` : ''}
+                  sitting {(activeItem?.sittingsUsed ?? activePurchase.sittingsUsed) + 1} of {activeItem?.totalSittings ?? activePurchase.totalSittings} · already paid, no charge today
                   {activePurchase.plan?.expiryDate && ` · valid till ${activePurchase.plan.expiryDate}`}
-                  {activePurchase.plan?.nextIfDoneToday && ` · next sitting ${activePurchase.plan.nextIfDoneToday}`}
+                  {activeItem?.plan?.nextIfDoneToday && ` · next sitting ${activeItem.plan.nextIfDoneToday}`}
                 </span>
                 {activePurchase.plan?.extendedDays > 0 && (
                   <span className="block mt-1 text-[11px] font-semibold text-status-danger">

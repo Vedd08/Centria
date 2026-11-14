@@ -22,6 +22,37 @@ export interface PackagePlan {
   schedule: PlannedSitting[];
 }
 
+/** One treatment of a sold package, with its own sittings and plan. */
+export interface ItemPlan {
+  id: string;
+  name: string;
+  treatmentId: string | null;
+  totalSittings: number;
+  sittingsUsed: number;
+  sittingsRemaining: number;
+  sittingGapDays: number | null;
+  plan: PackagePlan;
+}
+
+/** Package-level plan: most urgent state, earliest next sitting, plus each treatment. */
+export interface PurchasePlan extends PackagePlan {
+  nextTreatment: string | null;
+  items: ItemPlan[];
+}
+
+/** A treatment line of a package type (catalogue). */
+export interface PackageTypeLine {
+  id?: string;
+  treatmentId?: string | null;
+  name: string;
+  sittings: number;
+  sittingGapDays?: number | null;
+}
+
+/** "5× Q-Switch every 30d · 3× Carbon Peel every 15d". */
+export const linesSummary = (lines?: PackageTypeLine[]) =>
+  (lines || []).map((l) => `${l.sittings}× ${l.name}${l.sittingGapDays ? ` every ${l.sittingGapDays}d` : ''}`).join(' · ');
+
 export interface PackageAdjustment {
   id: string;
   kind: 'DOCTOR_DELAY' | 'PATIENT_LAPSE' | 'RESCHEDULE' | 'REINSTATE' | 'SITTING_UNDONE';

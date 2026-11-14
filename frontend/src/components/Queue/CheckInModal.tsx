@@ -81,6 +81,19 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
   const blockedPackages = packages.filter((p) => ['EXPIRED', 'LAPSED'].includes(p.plan?.state));
   const isSitting = purpose === 'sitting' && !!sittingPurchaseId;
 
+  // Which of the package's treatments are done today. Default: the ones due (or
+  // overdue); if none is due yet, every treatment with sittings left.
+  const selectedPackage = packages.find((p) => p.id === sittingPurchaseId);
+  const openItems: any[] = (selectedPackage?.plan?.items || []).filter((i: any) => i.sittingsRemaining > 0);
+  const [sittingItemIds, setSittingItemIds] = useState<string[]>([]);
+  useEffect(() => {
+    const today = new Date();
+    const t = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const due = openItems.filter((i) => i.plan?.nextSittingDate && i.plan.nextSittingDate <= t);
+    setSittingItemIds((due.length ? due : openItems).map((i) => i.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sittingPurchaseId, packages]);
+
   useEffect(() => {
     if (!isOpen) return;
     (async () => {
@@ -153,6 +166,10 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (isSitting && openItems.length > 0 && !sittingItemIds.length) {
+      setError('Tick at least one treatment being done today');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await apiFetch('/api/queue', {
@@ -165,6 +182,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
           complaint: complaint.trim() || undefined,
           doctorId: doctorId || undefined,
           sittingPurchaseId: isSitting ? sittingPurchaseId : undefined,
+          sittingItemIds: isSitting && sittingItemIds.length ? sittingItemIds : undefined,
         }),
       });
       const data = await res.json();
@@ -297,11 +315,34 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
                   <select value={sittingPurchaseId} onChange={(e) => setSittingPurchaseId(e.target.value)} className={inputClass}>
                     {usablePackages.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.packageName} — sitting {p.sittingsUsed + 1} of {p.totalSittings}
+                        {p.packageName}
+                        {(p.plan?.items?.length ?? 0) > 1 ? ` — ${p.plan.items.length} treatments` : ` — sitting ${p.sittingsUsed + 1} of ${p.totalSittings}`}
                         {p.plan?.expiryDate ? ` · valid till ${p.plan.expiryDate}` : ''}
                       </option>
                     ))}
                   </select>
+                  {openItems.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-brand-deep">Treatments today</p>
+                      {openItems.map((i) => (
+                        <label key={i.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-surface-card border border-border text-xs cursor-pointer select-none">
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={sittingItemIds.includes(i.id)}
+                              onChange={(e) => setSittingItemIds((s) => (e.target.checked ? [...s, i.id] : s.filter((x) => x !== i.id)))}
+                              className="rounded border-border text-brand"
+                            />
+                            <span className="font-medium text-ink-primary">{i.name}</span>
+                          </span>
+                          <span className="text-[11px] text-ink-secondary">
+                            sitting {i.sittingsUsed + 1} of {i.totalSittings}
+                            {i.plan?.nextSittingDate ? ` · due ${i.plan.nextSittingDate}` : ''}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-[11px] text-brand-deep">
                     Goes straight to the nurse — no doctor consultation, no charge. Record the sitting from the queue once the nurse has done it.
                   </p>

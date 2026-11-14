@@ -169,6 +169,121 @@ export function computePlan(p: PlanInput, holidays: Set<string>, today: string):
   };
 }
 
+// ---------------------------------------------------------------------------
+// Multi-treatment packages: each treatment has its own sittings and gap; the
+// package's expiry / lapse / doctor extension cover all of them.
+// ---------------------------------------------------------------------------
+
+export interface ItemPlanInput {
+  id: string;
+  name: string;
+  treatmentId?: string | null;
+  totalSittings: number;
+  sittingGapDays?: number | null;
+  openingSittingsUsed?: number | null;
+  plannedNextSitting?: string | null;
+  /** Dates of this treatment's recorded sittings. */
+  sittingDates: string[];
+}
+
+export interface PurchasePlanInput {
+  purchaseDate: string;
+  expiryDate?: string | null;
+  extendedDays?: number | null;
+  skipSundays?: boolean | null;
+  skipHolidays?: boolean | null;
+  lapsedAt?: string | null;
+  items: ItemPlanInput[];
+}
+
+export interface ItemPlan {
+  id: string;
+  name: string;
+  treatmentId: string | null;
+  totalSittings: number;
+  sittingsUsed: number;
+  sittingsRemaining: number;
+  sittingGapDays: number | null;
+  plan: PackagePlan;
+}
+
+export interface PurchasePlan extends PackagePlan {
+  /** Name of the treatment whose sitting is next. */
+  nextTreatment: string | null;
+  items: ItemPlan[];
+}
+
+const STATE_RANK: PackageState[] = ['LAPSED', 'EXPIRED', 'OVERDUE', 'DUE_TODAY', 'EXPIRING_SOON', 'ACTIVE', 'COMPLETED'];
+
+export const itemUsed = (item: { totalSittings: number; openingSittingsUsed?: number | null }, recorded: number) =>
+  Math.min(item.totalSittings, Math.max(0, item.openingSittingsUsed ?? 0) + recorded);
+
+export function computePurchasePlan(p: PurchasePlanInput, holidays: Set<string>, today: string): PurchasePlan {
+  const items: ItemPlan[] = p.items.map((it) => {
+    const used = itemUsed(it, it.sittingDates.length);
+    const remaining = Math.max(0, it.totalSittings - used);
+    const plan = computePlan(
+      {
+        purchaseDate: p.purchaseDate,
+        totalSittings: it.totalSittings,
+        sittingsUsed: used,
+        sittingsRemaining: remaining,
+        openingSittingsUsed: it.openingSittingsUsed,
+        sittingGapDays: it.sittingGapDays,
+        expiryDate: p.expiryDate,
+        extendedDays: p.extendedDays,
+        skipSundays: p.skipSundays,
+        skipHolidays: p.skipHolidays,
+        plannedNextSitting: it.plannedNextSitting,
+        lapsedAt: p.lapsedAt,
+        visitDates: it.sittingDates,
+      },
+      holidays,
+      today,
+    );
+    return {
+      id: it.id,
+      name: it.name,
+      treatmentId: it.treatmentId ?? null,
+      totalSittings: it.totalSittings,
+      sittingsUsed: used,
+      sittingsRemaining: remaining,
+      sittingGapDays: it.sittingGapDays ?? null,
+      plan,
+    };
+  });
+
+  const open = items.filter((i) => i.sittingsRemaining > 0);
+  const expiryDate = p.expiryDate || null;
+  const daysToExpiry = expiryDate ? diffDays(today, expiryDate) : null;
+
+  // Package state = the most urgent state among its treatments.
+  let state: PackageState = 'COMPLETED';
+  if (open.length) {
+    state = open.map((i) => i.plan.state).sort((a, b) => STATE_RANK.indexOf(a) - STATE_RANK.indexOf(b))[0];
+  }
+
+  const next = open
+    .filter((i) => i.plan.nextSittingDate)
+    .sort((a, b) => (a.plan.nextSittingDate! < b.plan.nextSittingDate! ? -1 : 1))[0];
+
+  return {
+    state,
+    expiryDate,
+    daysToExpiry,
+    nextSittingDate: next?.plan.nextSittingDate ?? null,
+    nextIsDoctorPlanned: next?.plan.nextIsDoctorPlanned ?? false,
+    nextTreatment: next?.name ?? null,
+    overdueDays: Math.max(0, ...open.map((i) => i.plan.overdueDays)),
+    nextIfDoneToday: next?.plan.nextIfDoneToday ?? null,
+    extendedDays: p.extendedDays ?? 0,
+    sittingsPlannedAfterExpiry: open.reduce((s, i) => s + i.plan.sittingsPlannedAfterExpiry, 0),
+    // Combined schedule, kept for older screens; the per-treatment one is in `items`.
+    schedule: items.flatMap((i) => i.plan.schedule),
+    items,
+  };
+}
+
 /** Whether a sitting can be counted against this package on `date`. Returns the reason if not. */
 export function sittingBlockReason(
   p: { lapsedAt?: string | null; expiryDate?: string | null; sittingsRemaining: number; packageName?: string },

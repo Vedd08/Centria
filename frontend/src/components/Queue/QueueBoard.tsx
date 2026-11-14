@@ -377,9 +377,15 @@ export const QueueBoard: React.FC = () => {
                   const hasPitch = seesPitches && !!e.recommendedPackageTypeId && !!e.recommendedPackageType;
                   // Package-sitting visit: nurse does the treatment, reception records the sitting.
                   const sp = e.sittingPurchase;
-                  const sittingOrder = sp ? e.careOrders?.find((o) => o.orderType === 'TREATMENT' && o.instructions?.startsWith('Package sitting')) : undefined;
-                  const nurseDone = sittingOrder?.status === 'DONE';
-                  const sittingRecorded = !!sp && e.visit?.packagePurchaseId === sp.id;
+                  // One nurse task per treatment done today.
+                  const sittingOrders = sp ? (e.careOrders || []).filter((o) => o.packageItemId && o.status !== 'CANCELLED') : [];
+                  const nurseDone = sittingOrders.length > 0 && sittingOrders.every((o) => o.status === 'DONE');
+                  const nurseDoneCount = sittingOrders.filter((o) => o.status === 'DONE').length;
+                  const recordedIds = new Set((e.visit?.packageSittings || []).filter((s) => s.purchaseId === sp?.id).map((s) => s.itemId));
+                  const sittingRecorded = !!sp && (sittingOrders.length
+                    ? sittingOrders.every((o) => recordedIds.has(o.packageItemId!))
+                    : recordedIds.size > 0);
+                  const todaysTreatments = sittingOrders.map((o) => o.description).join(' + ');
                   return (
                     <tr
                       key={e.id}
@@ -460,8 +466,12 @@ export const QueueBoard: React.FC = () => {
                           <div className={`mb-2 text-left p-2 rounded border flex flex-col gap-1 w-max max-w-[320px] ml-auto ${sittingRecorded ? 'bg-status-success/10 border-status-success/30' : 'bg-brand-soft/60 border-brand/30'}`}>
                             <span className="text-[10px] font-semibold text-ink-primary">
                               {sittingRecorded
-                                ? `Sitting recorded — ${sp.sittingsUsed} of ${sp.totalSittings} used`
-                                : `Sitting ${sp.sittingsUsed + 1} of ${sp.totalSittings} · ${nurseDone ? 'nurse has done it' : 'waiting for the nurse'}`}
+                                ? `Sitting recorded${todaysTreatments ? ` — ${todaysTreatments}` : ''} · ${sp.sittingsUsed} of ${sp.totalSittings} used`
+                                : `${todaysTreatments || 'Sitting'} · ${nurseDone
+                                    ? 'nurse has done it'
+                                    : sittingOrders.length > 1 && nurseDoneCount > 0
+                                      ? `nurse done ${nurseDoneCount} of ${sittingOrders.length}`
+                                      : 'waiting for the nurse'}`}
                             </span>
                             {canRecordSitting && (
                               sittingRecorded ? (
@@ -475,7 +485,7 @@ export const QueueBoard: React.FC = () => {
                               ) : (
                                 <button
                                   onClick={() => {
-                                    if (!nurseDone && !window.confirm('The nurse has not marked the treatment done yet. Record the sitting anyway?')) return;
+                                    if (!nurseDone && !window.confirm('The nurse has not marked every treatment done yet. Record the sitting anyway?')) return;
                                     sittingAction(e, 'record-sitting');
                                   }}
                                   disabled={recordingFor === e.id}

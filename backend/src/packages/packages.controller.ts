@@ -107,14 +107,25 @@ export class PackagesController {
   /** Reception records a sitting once the nurse has done the treatment (doctor can too). */
   @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Post('purchases/:id/record-sitting')
-  recordSitting(@CurrentUser() user: any, @Param('id') id: string, @Body('queueId') queueId?: string) {
-    return this.packagesService.recordSitting(user, id, queueId);
+  recordSitting(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body('queueId') queueId?: string,
+    @Body('itemIds') itemIds?: string[],
+  ) {
+    return this.packagesService.recordSitting(user, id, queueId, Array.isArray(itemIds) ? itemIds : undefined);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
   @Post('purchases/:id/undo-sitting')
-  undoSitting(@CurrentUser() user: any, @Param('id') id: string, @Body('queueId') queueId?: string, @Body('note') note?: string) {
-    return this.packagesService.undoSitting(user, id, queueId, note);
+  undoSitting(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body('queueId') queueId?: string,
+    @Body('note') note?: string,
+    @Body('itemIds') itemIds?: string[],
+  ) {
+    return this.packagesService.undoSitting(user, id, queueId, note, Array.isArray(itemIds) ? itemIds : undefined);
   }
 
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')

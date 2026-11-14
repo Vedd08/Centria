@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { toLocalDateKey } from '../common/date.helper';
-import { computePlan } from '../packages/package-plan';
+import { computePurchasePlan } from '../packages/package-plan';
 
 export type FollowUpKind = 'DOCTOR_FOLLOW_UP' | 'PACKAGE_SITTING';
 export type CallOutcome = 'NO_ANSWER' | 'CALL_BACK' | 'DECLINED' | 'BOOKED';
@@ -205,7 +205,10 @@ export class FollowUpsService {
       include: {
         patient: { select: { id: true, name: true, phone: true, uhid: true } },
         packageType: { select: { sittingGapDays: true, treatmentId: true } },
-        visits: { select: { date: true }, orderBy: { date: 'asc' } },
+        items: {
+          orderBy: { sortOrder: 'asc' },
+          include: { sittings: { select: { date: true }, orderBy: { date: 'asc' } } },
+        },
         adjustments: { where: { kind: 'DOCTOR_DELAY' }, orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
@@ -231,8 +234,9 @@ export class FollowUpsService {
 
     const pkgItems: FollowUpItem[] = [];
     for (const p of purchases) {
-      const plan = computePlan(
-        { ...p, sittingGapDays: p.sittingGapDays ?? p.packageType?.sittingGapDays, visitDates: p.visits.map((v) => v.date) },
+      // Each treatment has its own next sitting; the package is due at the earliest one.
+      const plan = computePurchasePlan(
+        { ...p, items: p.items.map((i) => ({ ...i, sittingDates: i.sittings.map((s) => s.date) })) },
         holidays,
         today,
       );
@@ -270,7 +274,12 @@ export class FollowUpsService {
       const parts = p.purchaseDate.split('-');
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const boughtStr = parts.length === 3 ? `${parseInt(parts[2], 10)} ${months[parseInt(parts[1], 10) - 1]}` : p.purchaseDate;
-      const sittingLabel = `${p.packageName} (bought ${boughtStr}) — sitting ${p.sittingsUsed + 1} of ${p.totalSittings}`;
+      // Name the treatment(s) due on that date, e.g. "Q-Switch 2/5 · Carbon Peel 1/3".
+      const dueItems = plan.items.filter((i) => i.sittingsRemaining > 0 && (!dueDate || i.plan.nextSittingDate === dueDate));
+      const shown = dueItems.length ? dueItems : plan.items.filter((i) => i.sittingsRemaining > 0);
+      const sittingLabel = plan.items.length > 1
+        ? `${p.packageName} (bought ${boughtStr}) — ${shown.map((i) => `${i.name} sitting ${i.sittingsUsed + 1} of ${i.totalSittings}`).join(' · ')}`
+        : `${p.packageName} (bought ${boughtStr}) — sitting ${p.sittingsUsed + 1} of ${p.totalSittings}`;
       const expiryNote = plan.expiryDate
         ? plan.daysToExpiry! >= 0 ? ` · expires ${plan.expiryDate}${plan.daysToExpiry! <= 7 ? ` (${plan.daysToExpiry} day${plan.daysToExpiry === 1 ? '' : 's'} left)` : ''}` : ''
         : '';

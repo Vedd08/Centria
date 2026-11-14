@@ -4,6 +4,11 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Doctor/admin plans the next sitting date and/or corrects the expiry. Null clears. */
 export class UpdatePackagePlanDto {
+  /** Which treatment's next sitting (needed when the package has several). */
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
   @IsOptional()
   @Matches(DATE, { message: 'Next sitting must be a date (YYYY-MM-DD)' })
   plannedNextSitting?: string | null;

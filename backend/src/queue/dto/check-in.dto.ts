@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CheckInDto {
   @IsString()
@@ -40,4 +40,10 @@ export class CheckInDto {
   @IsOptional()
   @IsString()
   sittingPurchaseId?: string;
+
+  /** Which of the package's treatments are done today (default: those with sittings left). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sittingItemIds?: string[];
 }

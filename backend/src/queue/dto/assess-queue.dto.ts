@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 /**
  * The doctor's decision for a queued patient: what they found and whether the
@@ -55,6 +55,12 @@ export class AssessQueueDto {
   @IsOptional()
   @IsString()
   usePackagePurchaseId?: string | null;
+
+  /** Which of the package's treatments this visit counts for (default: worked out from the procedures). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  usePackageItemIds?: string[];
 
   /** If the doctor recommends a new package */
   @IsOptional()

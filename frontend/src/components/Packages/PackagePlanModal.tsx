@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { X, CalendarClock, AlertTriangle, CheckCircle2, Circle, History, RotateCcw } from 'lucide-react';
-import { PackagePlan, PackageAdjustment, STATE_STYLE, fmtDate, addDaysStr, todayStr, expiryText } from './packagePlan';
+import { PurchasePlan, ItemPlan, PackageAdjustment, STATE_STYLE, fmtDate, addDaysStr, todayStr, expiryText } from './packagePlan';
 
 interface Props {
   purchaseId: string | null;
@@ -37,12 +37,25 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [nextDate, setNextDate] = useState('');
+  /** Next-sitting date being edited, per treatment line. */
+  const [nextDates, setNextDates] = useState<Record<string, string>>({});
+  /** Treatments ticked for "Record today's sitting". */
+  const [recordItems, setRecordItems] = useState<string[]>([]);
   const [expiry, setExpiry] = useState('');
   const [delayDays, setDelayDays] = useState('7');
   const [delayNote, setDelayNote] = useState('');
   const [lapseNote, setLapseNote] = useState('');
   const [confirmLapse, setConfirmLapse] = useState(false);
+
+  const applyData = (d: any) => {
+    setData(d);
+    setExpiry(d.expiryDate || '');
+    const items = d.plan?.items || [];
+    setNextDates(Object.fromEntries(items.map((i: any) => [i.id, i.plan?.nextSittingDate || ''])));
+    // Pre-tick the treatments due today or overdue.
+    const t = todayStr();
+    setRecordItems(items.filter((i: any) => i.sittingsRemaining > 0 && i.plan?.nextSittingDate && i.plan.nextSittingDate <= t).map((i: any) => i.id));
+  };
 
   const load = async () => {
     if (!purchaseId) return;
@@ -51,9 +64,7 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
       const res = await apiFetch(`/api/packages/purchases/${purchaseId}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || 'Could not load the package');
-      setData(d);
-      setNextDate(d.plan?.nextSittingDate || '');
-      setExpiry(d.expiryDate || '');
+      applyData(d);
     } catch (err: any) {
       addToast('error', err.message || 'Could not load the package');
     } finally {
@@ -81,9 +92,7 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
       });
       const d = await res.json();
       if (!res.ok) throw new Error(Array.isArray(d.message) ? d.message.join(', ') : d.message || 'Could not update the package');
-      setData(d);
-      setNextDate(d.plan?.nextSittingDate || '');
-      setExpiry(d.expiryDate || '');
+      applyData(d);
       addToast('success', success);
       onChanged?.();
       return true;
@@ -95,7 +104,9 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
     }
   };
 
-  const plan: PackagePlan | undefined = data?.plan;
+  const plan: PurchasePlan | undefined = data?.plan;
+  const items: ItemPlan[] = plan?.items || [];
+  const openItems = items.filter((i) => i.sittingsRemaining > 0);
   const adjustments: PackageAdjustment[] = data?.adjustments || [];
   const lastDelay = adjustments.find((a) => a.kind === 'DOCTOR_DELAY');
   const style = plan ? STATE_STYLE[plan.state] : null;
@@ -193,7 +204,7 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
               <div className="p-3 rounded-lg bg-surface-page border border-border">
                 <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Sittings</p>
                 <p className="mt-1 font-semibold text-ink-primary">{data.sittingsUsed} of {data.totalSittings} done</p>
-                <p className="text-[11px] text-ink-secondary">{data.sittingsRemaining} left{data.sittingGapDays ? ` · every ${data.sittingGapDays} days` : ''}</p>
+                <p className="text-[11px] text-ink-secondary">{data.sittingsRemaining} left{items.length > 1 ? ` · ${items.length} treatments` : data.sittingGapDays ? ` · every ${data.sittingGapDays} days` : ''}</p>
               </div>
               <div className="p-3 rounded-lg bg-surface-page border border-border">
                 <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Validity</p>
@@ -213,19 +224,35 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
               </div>
             </div>
 
-            {canRecord && isOpenPackage && plan.state !== 'EXPIRED' && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-brand/30 bg-brand-soft/50">
+            {canRecord && isOpenPackage && plan.state !== 'EXPIRED' && openItems.length > 0 && (
+              <div className="p-3 rounded-lg border border-brand/30 bg-brand-soft/50 space-y-2">
                 <p className="text-xs text-brand-deep">
-                  <span className="font-semibold">Patient here for a sitting today?</span> Record it once the nurse has done the treatment — it counts against today's visit.
+                  <span className="font-semibold">Patient here for a sitting today?</span> Tick what the nurse did and record it — it counts against today's visit.
                 </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => act('/record-sitting', 'POST', {}, 'Sitting recorded')}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Record today's sitting
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  {openItems.map((i) => (
+                    <label key={i.id} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface-card border border-border text-xs cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={recordItems.includes(i.id)}
+                        onChange={(e) => setRecordItems((r) => (e.target.checked ? [...r, i.id] : r.filter((x) => x !== i.id)))}
+                        className="rounded border-border text-brand"
+                      />
+                      <span className="font-medium text-ink-primary">{i.name}</span>
+                      <span className="text-ink-secondary">sitting {i.sittingsUsed + 1} of {i.totalSittings}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={busy || !recordItems.length}
+                    onClick={() => act('/record-sitting', 'POST', { itemIds: recordItems }, 'Sitting recorded')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Record today's sitting
+                  </button>
+                </div>
               </div>
             )}
 
@@ -235,13 +262,29 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
               {data.skipHolidays === false ? 'clinic holidays are ignored' : 'clinic holidays are skipped'}
             </p>
 
-            {/* Schedule */}
-            <div>
-              <h3 className="text-xs font-bold text-ink-primary mb-2 flex items-center gap-1.5">
-                <CalendarClock className="w-3.5 h-3.5 text-brand" /> Sitting schedule
+            {/* Schedule — one block per treatment, each with its own sittings and gap */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-ink-primary flex items-center gap-1.5">
+                <CalendarClock className="w-3.5 h-3.5 text-brand" /> Sitting schedule{items.length > 1 ? ` — ${items.length} treatments` : ''}
               </h3>
-              <ol className="border border-border rounded-lg divide-y divide-border/60">
-                {plan.schedule.map((s) => (
+              {items.map((it) => {
+                const ip = it.plan;
+                const nd = nextDates[it.id] ?? '';
+                return (
+              <div key={it.id} className="border border-border rounded-lg overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-surface-page border-b border-border">
+                  <div>
+                    <p className="text-xs font-bold text-ink-primary">{it.name}</p>
+                    <p className="text-[11px] text-ink-secondary">
+                      {it.sittingsUsed} of {it.totalSittings} done{it.sittingGapDays ? ` · every ${it.sittingGapDays} days` : ''}
+                      {ip.nextSittingDate ? ` · next ${fmtDate(ip.nextSittingDate, true)}${ip.nextIsDoctorPlanned ? ' (planned by doctor)' : ''}` : ''}
+                      {ip.overdueDays > 0 ? ` · ${ip.overdueDays}d overdue` : ''}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${STATE_STYLE[ip.state].className}`}>{STATE_STYLE[ip.state].label}</span>
+                </div>
+              <ol className="divide-y divide-border/60">
+                {ip.schedule.map((s) => (
                   <li key={s.number} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                     <span className="flex items-center gap-2">
                       {s.status === 'DONE'
@@ -262,51 +305,60 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
                   </li>
                 ))}
               </ol>
+                {canManage && isOpenPackage && it.sittingsRemaining > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-border bg-surface-card">
+                    <span className="text-[11px] font-semibold text-ink-secondary">Plan next sitting</span>
+                    <input
+                      type="date"
+                      value={nd}
+                      min={today}
+                      onChange={(e) => setNextDates((m) => ({ ...m, [it.id]: e.target.value }))}
+                      className="px-2 py-1 rounded-md border border-border text-xs bg-surface-card"
+                      aria-label={`Next sitting for ${it.name}`}
+                    />
+                    {[7, 15, 20, 30].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setNextDates((m) => ({ ...m, [it.id]: addDaysStr(today, d) }))}
+                        className="px-1.5 py-0.5 text-[11px] rounded border border-border bg-surface-page hover:bg-border/40 cursor-pointer"
+                      >
+                        +{d}d
+                      </button>
+                    ))}
+                    <div className="ml-auto flex items-center gap-2">
+                      {ip.nextIsDoctorPlanned && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => act('/plan', 'PATCH', { itemId: it.id, plannedNextSitting: null }, `${it.name}: back to the regular gap`)}
+                          className="text-[11px] text-ink-secondary hover:text-ink-primary cursor-pointer disabled:opacity-50"
+                        >
+                          Reset
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy || !nd || nd === ip.nextSittingDate}
+                        onClick={() => act('/plan', 'PATCH', { itemId: it.id, plannedNextSitting: nd }, `${it.name}: next sitting ${fmtDate(nd)}`)}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
+                      >
+                        Save date
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+                );
+              })}
+              <p className="text-[10px] text-ink-secondary">
+                Later sittings follow each treatment's own gap. Reception and nurses get the dates in their follow-ups.
+              </p>
             </div>
 
             {/* Doctor / admin controls */}
             {canManage && isOpenPackage && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg border border-border space-y-2.5">
-                  <h4 className="text-xs font-bold text-ink-primary">Plan the next sitting</h4>
-                  <input type="date" value={nextDate} min={today} onChange={(e) => setNextDate(e.target.value)} className={inputClass} />
-                  <div className="flex flex-wrap gap-1.5">
-                    {[7, 15, 20, 30].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setNextDate(addDaysStr(today, d))}
-                        className="px-2 py-1 text-[11px] rounded border border-border bg-surface-page hover:bg-border/40 cursor-pointer"
-                      >
-                        +{d} days
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex justify-between gap-2 pt-1">
-                    {plan.nextIsDoctorPlanned ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => act('/plan', 'PATCH', { plannedNextSitting: null }, 'Back to the regular gap')}
-                        className="text-[11px] text-ink-secondary hover:text-ink-primary cursor-pointer disabled:opacity-50"
-                      >
-                        Reset to regular gap
-                      </button>
-                    ) : <span />}
-                    <button
-                      type="button"
-                      disabled={busy || !nextDate || nextDate === plan.nextSittingDate}
-                      onClick={() => act('/plan', 'PATCH', { plannedNextSitting: nextDate }, `Next sitting planned for ${fmtDate(nextDate)}`)}
-                      className="px-3 py-1.5 text-[11px] font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
-                    >
-                      Save date
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-ink-secondary">
-                    Later sittings follow every {data.sittingGapDays || '—'} days from this date. Reception and nurses get it in their follow-ups.
-                  </p>
-                </div>
-
                 <div className="p-4 rounded-lg border border-border space-y-2.5">
                   <h4 className="text-xs font-bold text-ink-primary">Package validity</h4>
                   <input type="date" value={expiry} min={data.purchaseDate} onChange={(e) => setExpiry(e.target.value)} className={inputClass} />

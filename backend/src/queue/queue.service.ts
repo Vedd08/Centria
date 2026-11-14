@@ -30,7 +30,7 @@ const QUEUE_INCLUDE = {
   doctor: { select: { id: true, name: true, role: true } },
   checkedInBy: { select: { id: true, name: true, role: true } },
   admissionRequestedBy: { select: { id: true, name: true, role: true } },
-  visit: { include: { treatment: true } },
+  visit: { include: { treatment: true, packageSittings: { select: { itemId: true, purchaseId: true } } } },
   admission: { include: { bed: { include: { ward: true } } } },
   careOrders: {
     include: {
@@ -46,6 +46,10 @@ const QUEUE_INCLUDE = {
     select: {
       id: true, packageName: true, totalSittings: true, sittingsUsed: true, sittingsRemaining: true,
       expiryDate: true, lapsedAt: true,
+      items: {
+        orderBy: { sortOrder: 'asc' as const },
+        select: { id: true, name: true, totalSittings: true, openingSittingsUsed: true, _count: { select: { sittings: true } } },
+      },
     },
   },
 } as const;
@@ -56,7 +60,7 @@ const today = () => toLocalDateKey(new Date());
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 import { PackagesService } from '../packages/packages.service';
-import { sittingBlockReason } from '../packages/package-plan';
+import { itemUsed, sittingBlockReason } from '../packages/package-plan';
 
 @Injectable()
 export class QueueService {
@@ -127,14 +131,19 @@ export class QueueService {
         select: { tokenNumber: true },
       });
 
-      const sittingNo = sitting ? sitting.sittingsUsed + 1 : 0;
+      // Treatments done today: as chosen, else every treatment with sittings left.
+      const usedOf = (i: any) => itemUsed(i, i._count.sittings);
+      const todays = sitting
+        ? sitting.items.filter((i) => (dto.sittingItemIds?.length ? dto.sittingItemIds.includes(i.id) : true) && usedOf(i) < i.totalSittings)
+        : [];
+      if (sitting && !todays.length) throw new BadRequestException('Choose at least one treatment with sittings left');
       const entry = await tx.patientQueue.create({
         data: {
           clinicId,
           patientId: patient.id,
           queueDate,
           tokenNumber: (last?.tokenNumber ?? 0) + 1,
-          complaint: dto.complaint || (sitting ? `Package sitting — ${sitting.packageName} (sitting ${sittingNo} of ${sitting.totalSittings})` : undefined),
+          complaint: dto.complaint || (sitting ? `Package sitting — ${sitting.packageName}: ${todays.map((i) => `${i.name} ${usedOf(i) + 1}/${i.totalSittings}`).join(', ')}` : undefined),
           departmentId: dto.departmentId || null,
           isRegular: priorVisits > 0,
           careType: sitting ? 'OPD' : dto.careType || null,
@@ -146,17 +155,18 @@ export class QueueService {
         },
       });
 
-      if (sitting) {
-        // The treatment the nurse carries out. Already paid for with the package.
+      // One nurse task per treatment done today. Already paid for with the package.
+      for (const item of todays) {
         await tx.careOrder.create({
           data: {
             clinicId,
             queueId: entry.id,
             patientId: patient.id,
             orderType: 'TREATMENT',
-            treatmentId: sitting.packageType?.treatmentId ?? null,
-            description: sitting.packageType?.treatment?.name ?? sitting.packageName,
-            instructions: `Package sitting ${sittingNo} of ${sitting.totalSittings} — ${sitting.packageName} (already paid)`,
+            treatmentId: item.treatmentId ?? null,
+            packageItemId: item.id,
+            description: item.name,
+            instructions: `Package sitting ${usedOf(item) + 1} of ${item.totalSittings} — ${sitting!.packageName} (already paid)`,
             quantity: 1,
             unitPrice: 0,
             totalPrice: 0,
@@ -174,7 +184,10 @@ export class QueueService {
   private async loadSittingPurchase(clinicId: string, purchaseId: string, patientId: string, date: string) {
     const purchase = await this.prisma.packagePurchase.findFirst({
       where: { id: purchaseId, clinicId },
-      include: { packageType: { include: { treatment: { select: { name: true } } } } },
+      include: {
+        packageType: { include: { treatment: { select: { name: true } } } },
+        items: { orderBy: { sortOrder: 'asc' }, include: { _count: { select: { sittings: true } } } },
+      },
     });
     if (!purchase) throw new NotFoundException('Package not found');
     if (purchase.patientId !== patientId) throw new BadRequestException('That package belongs to another patient');
@@ -283,9 +296,8 @@ export class QueueService {
         remarks: dto.doctorNotes || null,
         nextAppointmentDate: dto.nextAppointmentDate || null,
         status: entry.isRegular ? 'Follow Up' : 'New',
-        // Only an explicit null removes a counted sitting. Leaving it out keeps
-        // whatever is there — e.g. a sitting reception already recorded.
-        packagePurchaseId: dto.usePackagePurchaseId === null ? null : undefined,
+        // Sittings are counted separately (PackageSitting); the link is managed below.
+        packagePurchaseId: undefined,
         clinicId,
       };
 
@@ -325,13 +337,17 @@ export class QueueService {
         include: QUEUE_INCLUDE,
       });
 
-      if (dto.usePackagePurchaseId) {
-        await this.packagesService.linkVisitToPurchase(clinicId, visitId, dto.usePackagePurchaseId, entry.patientId, tx);
-      }
-      
+      // Only an explicit null (or a different package) removes a counted sitting;
+      // leaving it out keeps whatever is counted — e.g. a sitting reception recorded.
       const oldPackagePurchaseId = entry.visit?.packagePurchaseId;
       if (dto.usePackagePurchaseId !== undefined && oldPackagePurchaseId && oldPackagePurchaseId !== dto.usePackagePurchaseId) {
-        await this.packagesService.syncSittings(clinicId, oldPackagePurchaseId, tx);
+        await this.packagesService.unlinkVisitFromPurchase(clinicId, visitId, oldPackagePurchaseId, tx);
+      }
+      if (dto.usePackagePurchaseId) {
+        await this.packagesService.linkVisitToPurchase(clinicId, visitId, dto.usePackagePurchaseId, entry.patientId, tx, {
+          itemIds: dto.usePackageItemIds?.length ? dto.usePackageItemIds : undefined,
+          byName: requestingUser.name,
+        });
       }
 
       return updatedQueue;
