@@ -10,7 +10,7 @@ import { QueueDetail } from './QueueDetail';
 import { SellPackageModal } from '../Packages/SellPackageModal';
 import { BookedAppointments } from './BookedAppointments';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
-import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package, Tag } from 'lucide-react';
+import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package, Tag, CheckCircle2 } from 'lucide-react';
 
 /** Local calendar date. toISOString() is UTC, which in IST is still yesterday until 5:30 am. */
 const todayStr = () => {
@@ -52,6 +52,31 @@ export const QueueBoard: React.FC = () => {
   // recommendation too so they can mention it to the patient.
   const canSell = hasRole('RECEPTION', 'RM');
   const seesPitches = hasRole('RECEPTION', 'RM', 'NURSE', 'STAFF');
+  // Reception records package sittings once the nurse has done the treatment.
+  const canRecordSitting = hasRole('RECEPTION', 'RM', 'MASTER', 'SUPER_ADMIN');
+  const [recordingFor, setRecordingFor] = useState<string | null>(null);
+
+  const sittingAction = async (entry: QueueEntry, action: 'record-sitting' | 'undo-sitting') => {
+    if (!entry.sittingPurchaseId) return;
+    setRecordingFor(entry.id);
+    try {
+      const res = await apiFetch(`/api/packages/purchases/${entry.sittingPurchaseId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queueId: entry.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Could not update the sitting');
+      addToast('success', action === 'record-sitting'
+        ? `Sitting recorded — ${data.sittingsUsed} of ${data.totalSittings} used, ${data.sittingsRemaining} left`
+        : 'Sitting undone');
+      fetchBoard(undefined, { silent: true });
+    } catch (err: any) {
+      addToast('error', err.message || 'Could not update the sitting');
+    } finally {
+      setRecordingFor(null);
+    }
+  };
   const isDoctor = user?.role === 'DOCTOR' || hasRole('MASTER', 'SUPER_ADMIN');
   // Roles that can read appointments, so they see who is booked but not here yet.
   const seesBookings = hasRole('RECEPTION', 'RM', 'DOCTOR', 'MASTER', 'SUPER_ADMIN');
@@ -350,6 +375,11 @@ export const QueueBoard: React.FC = () => {
                   const pending = e.careOrders?.filter((o) => o.status === 'ORDERED').length ?? 0;
                   // Cleared by the backend once the package is sold, so this means "still to sell".
                   const hasPitch = seesPitches && !!e.recommendedPackageTypeId && !!e.recommendedPackageType;
+                  // Package-sitting visit: nurse does the treatment, reception records the sitting.
+                  const sp = e.sittingPurchase;
+                  const sittingOrder = sp ? e.careOrders?.find((o) => o.orderType === 'TREATMENT' && o.instructions?.startsWith('Package sitting')) : undefined;
+                  const nurseDone = sittingOrder?.status === 'DONE';
+                  const sittingRecorded = !!sp && e.visit?.packagePurchaseId === sp.id;
                   return (
                     <tr
                       key={e.id}
@@ -389,8 +419,17 @@ export const QueueBoard: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono text-ink-secondary">{e.patient?.phone}</td>
-                      <td className="py-3 px-4 text-ink-secondary max-w-[180px] truncate" title={e.complaint}>
-                        {e.complaint || '—'}
+                      <td className="py-3 px-4 text-ink-secondary max-w-[200px]" title={e.complaint}>
+                        {sp ? (
+                          <span className="inline-flex flex-col gap-0.5">
+                            <span className="inline-flex w-max px-1.5 py-0.5 rounded text-[10px] font-semibold bg-brand-soft text-brand-deep border border-brand/20">
+                              Package sitting
+                            </span>
+                            <span className="text-[11px] text-ink-primary truncate">{sp.packageName}</span>
+                          </span>
+                        ) : (
+                          <span className="block truncate">{e.complaint || '—'}</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-ink-secondary">{e.doctor?.name || 'Unassigned'}</td>
                       <td className="py-3 px-4">
@@ -417,6 +456,37 @@ export const QueueBoard: React.FC = () => {
                         <CareRail status={e.status} pendingDispense={pending > 0} className="mt-1.5 w-28" />
                       </td>
                       <td className="py-3 px-4 text-right">
+                        {sp && (
+                          <div className={`mb-2 text-left p-2 rounded border flex flex-col gap-1 w-max max-w-[320px] ml-auto ${sittingRecorded ? 'bg-status-success/10 border-status-success/30' : 'bg-brand-soft/60 border-brand/30'}`}>
+                            <span className="text-[10px] font-semibold text-ink-primary">
+                              {sittingRecorded
+                                ? `Sitting recorded — ${sp.sittingsUsed} of ${sp.totalSittings} used`
+                                : `Sitting ${sp.sittingsUsed + 1} of ${sp.totalSittings} · ${nurseDone ? 'nurse has done it' : 'waiting for the nurse'}`}
+                            </span>
+                            {canRecordSitting && (
+                              sittingRecorded ? (
+                                <button
+                                  onClick={() => sittingAction(e, 'undo-sitting')}
+                                  disabled={recordingFor === e.id}
+                                  className="self-end text-[11px] font-medium text-ink-secondary hover:text-status-danger cursor-pointer disabled:opacity-50"
+                                >
+                                  Undo
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    if (!nurseDone && !window.confirm('The nurse has not marked the treatment done yet. Record the sitting anyway?')) return;
+                                    sittingAction(e, 'record-sitting');
+                                  }}
+                                  disabled={recordingFor === e.id}
+                                  className="self-end inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> {recordingFor === e.id ? 'Recording…' : 'Record sitting'}
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )}
                         {hasPitch && (
                           <div className="mb-2 text-left bg-status-warning/10 border border-status-warning/40 p-2 rounded flex flex-col gap-1 w-max max-w-[320px] ml-auto">
                             <span className="text-[10px] font-semibold text-ink-primary">

@@ -191,6 +191,7 @@ model PackagePurchase {
   visits              Visit[]
   invoices            Invoice[]
   adjustments         PackageAdjustment[]
+  sittingQueues       PatientQueue[]      @relation("QueueSitting")
   clinicId            String?
   clinic              Clinic?     @relation(fields: [clinicId], references: [id])
 
@@ -791,6 +792,11 @@ model PatientQueue {
 
   recommendedPackageTypeId String?
   recommendedPackageType   PackageType? @relation(fields: [recommendedPackageTypeId], references: [id], onDelete: SetNull)
+
+  /// Checked in as a sitting of this package: skips the doctor, goes to the nurse,
+  /// and reception records the sitting once the treatment is done.
+  sittingPurchaseId String?
+  sittingPurchase   PackagePurchase? @relation("QueueSitting", fields: [sittingPurchaseId], references: [id], onDelete: SetNull)
 
   careOrders CareOrder[]
 

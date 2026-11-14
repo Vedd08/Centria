@@ -104,6 +104,19 @@ export class PackagesController {
     return this.packagesService.patientLapse(user, id, dto);
   }
 
+  /** Reception records a sitting once the nurse has done the treatment (doctor can too). */
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
+  @Post('purchases/:id/record-sitting')
+  recordSitting(@CurrentUser() user: any, @Param('id') id: string, @Body('queueId') queueId?: string) {
+    return this.packagesService.recordSitting(user, id, queueId);
+  }
+
+  @Roles('SUPER_ADMIN', 'MASTER', 'RECEPTION', 'RM', 'DOCTOR')
+  @Post('purchases/:id/undo-sitting')
+  undoSitting(@CurrentUser() user: any, @Param('id') id: string, @Body('queueId') queueId?: string, @Body('note') note?: string) {
+    return this.packagesService.undoSitting(user, id, queueId, note);
+  }
+
   @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR')
   @Post('purchases/:id/reinstate')
   reinstate(@CurrentUser() user: any, @Param('id') id: string, @Body('note') note?: string) {

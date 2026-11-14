@@ -49,6 +49,37 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  // Package-sitting visit: no consultation, straight to the nurse.
+  const [packages, setPackages] = useState<any[]>([]);
+  const [purpose, setPurpose] = useState<'consult' | 'sitting'>('consult');
+  const [sittingPurchaseId, setSittingPurchaseId] = useState('');
+
+  // The patient's packages: usable ones can be checked in as a sitting.
+  useEffect(() => {
+    setPackages([]);
+    setPurpose('consult');
+    setSittingPurchaseId('');
+    if (!patientId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/packages/purchases?patientId=${patientId}`);
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const list = (Array.isArray(data) ? data : data.data || []).filter((p: any) => p.sittingsRemaining > 0 && p.plan?.state !== 'COMPLETED');
+        setPackages(list);
+        const usable = list.filter((p: any) => !['EXPIRED', 'LAPSED'].includes(p.plan?.state));
+        if (usable.length) setSittingPurchaseId(usable[0].id);
+      } catch {
+        // Non-fatal — reception can still check in for a consultation.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [patientId, apiFetch]);
+
+  const usablePackages = packages.filter((p) => !['EXPIRED', 'LAPSED'].includes(p.plan?.state));
+  const blockedPackages = packages.filter((p) => ['EXPIRED', 'LAPSED'].includes(p.plan?.state));
+  const isSitting = purpose === 'sitting' && !!sittingPurchaseId;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -115,6 +146,8 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
     setCareType('OPD');
     setPriorVisits(null);
     setError('');
+    setPurpose('consult');
+    setSittingPurchaseId('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,14 +161,17 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
         body: JSON.stringify({
           patientId,
           departmentId: departmentId || undefined,
-          careType,
+          careType: isSitting ? 'OPD' : careType,
           complaint: complaint.trim() || undefined,
           doctorId: doctorId || undefined,
+          sittingPurchaseId: isSitting ? sittingPurchaseId : undefined,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to check in patient');
-      addToast('success', `Checked in — token ${data.tokenNumber}`);
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Failed to check in patient');
+      addToast('success', isSitting
+        ? `Checked in for a package sitting — token ${data.tokenNumber}, sent to the nurse`
+        : `Checked in — token ${data.tokenNumber}`);
       reset();
       onCheckedIn();
       onClose();
@@ -236,6 +272,52 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
             )}
           </div>
 
+          {patientId && packages.length > 0 && (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-ink-secondary">Here for</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPurpose('consult')}
+                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-md border cursor-pointer ${purpose === 'consult' ? 'bg-brand text-white border-brand shadow-xs' : 'bg-surface-card text-ink-primary border-border hover:bg-surface-page'}`}
+                >
+                  Doctor consultation
+                </button>
+                <button
+                  type="button"
+                  disabled={usablePackages.length === 0}
+                  onClick={() => setPurpose('sitting')}
+                  className={`flex-1 px-3 py-2 text-xs font-medium rounded-md border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${purpose === 'sitting' ? 'bg-brand text-white border-brand shadow-xs' : 'bg-surface-card text-ink-primary border-border hover:bg-surface-page'}`}
+                >
+                  Package sitting
+                </button>
+              </div>
+              {purpose === 'sitting' && usablePackages.length > 0 && (
+                <div className="p-3 rounded-md bg-brand-soft border border-brand/20 space-y-2">
+                  <select value={sittingPurchaseId} onChange={(e) => setSittingPurchaseId(e.target.value)} className={inputClass}>
+                    {usablePackages.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.packageName} — sitting {p.sittingsUsed + 1} of {p.totalSittings}
+                        {p.plan?.expiryDate ? ` · valid till ${p.plan.expiryDate}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-brand-deep">
+                    Goes straight to the nurse — no doctor consultation, no charge. Record the sitting from the queue once the nurse has done it.
+                  </p>
+                </div>
+              )}
+              {blockedPackages.map((p) => (
+                <p key={p.id} className="text-[11px] p-2 rounded-md bg-status-danger/10 border border-status-danger/20 text-status-danger">
+                  {p.plan?.state === 'LAPSED'
+                    ? `${p.packageName} lapsed (missed by the patient) — they need to buy it again.`
+                    : `${p.packageName} expired on ${p.plan?.expiryDate} — ask the doctor to extend it, or sell a new package.`}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {!isSitting && (
           <div>
             <label className="block text-xs font-semibold text-ink-secondary mb-1">
               Visit Type <span className="text-status-danger">*</span>
@@ -260,6 +342,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
               The doctor confirms or changes this during assessment.
             </p>
           </div>
+          )}
 
           {departments.length > 0 && (
             <div>
@@ -286,9 +369,11 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-ink-secondary mb-1">Send to Doctor (Optional)</label>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">
+              {isSitting ? 'Doctor in charge (Optional)' : 'Send to Doctor (Optional)'}
+            </label>
             <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className={inputClass}>
-              <option value="">Any available doctor</option>
+              <option value="">{isSitting ? "The package's doctor" : 'Any available doctor'}</option>
               {doctors
                 .filter((d) => !departmentId || !d.departmentId || d.departmentId === departmentId)
                 .map((d) => (

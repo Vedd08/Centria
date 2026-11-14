@@ -24,7 +24,7 @@ export interface PackagePlan {
 
 export interface PackageAdjustment {
   id: string;
-  kind: 'DOCTOR_DELAY' | 'PATIENT_LAPSE' | 'RESCHEDULE' | 'REINSTATE';
+  kind: 'DOCTOR_DELAY' | 'PATIENT_LAPSE' | 'RESCHEDULE' | 'REINSTATE' | 'SITTING_UNDONE';
   days: number;
   note?: string | null;
   byName: string;

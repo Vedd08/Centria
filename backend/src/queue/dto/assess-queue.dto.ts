@@ -48,10 +48,13 @@ export class AssessQueueDto {
   @IsString()
   treatmentId?: string;
 
-  /** If the patient is redeeming a package sitting */
+  /**
+   * Count this visit as a sitting of this package. Leave out to keep whatever is
+   * counted already; null removes a counted sitting.
+   */
   @IsOptional()
   @IsString()
-  usePackagePurchaseId?: string;
+  usePackagePurchaseId?: string | null;
 
   /** If the doctor recommends a new package */
   @IsOptional()

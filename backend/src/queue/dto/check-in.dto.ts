@@ -32,4 +32,12 @@ export class CheckInDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Queue date must be in YYYY-MM-DD format' })
   queueDate?: string;
+
+  /**
+   * The patient is here only for a sitting of this package: skip the doctor, send the
+   * treatment straight to the nurse, and let reception record the sitting.
+   */
+  @IsOptional()
+  @IsString()
+  sittingPurchaseId?: string;
 }

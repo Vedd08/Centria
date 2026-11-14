@@ -48,6 +48,17 @@ export interface QueueEntry {
   nextAppointmentDate?: string;
   recommendedPackageTypeId?: string;
   recommendedPackageType?: any;
+  /** Checked in only for a sitting of this package (no consultation). */
+  sittingPurchaseId?: string | null;
+  sittingPurchase?: {
+    id: string;
+    packageName: string;
+    totalSittings: number;
+    sittingsUsed: number;
+    sittingsRemaining: number;
+    expiryDate?: string | null;
+    lapsedAt?: string | null;
+  } | null;
   checkedInAt: string;
   seenAt?: string;
   patient: HistoryPatient;

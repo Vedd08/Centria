@@ -77,6 +77,9 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
 
   const [patientPurchases, setPatientPurchases] = useState<any[]>([]);
   const [usePackagePurchaseId, setUsePackagePurchaseId] = useState(entry.visit?.packagePurchaseId || '');
+  // The sitting counted when this screen opened. Saving sends null only if the
+  // doctor removed it — never wiping a sitting reception recorded meanwhile.
+  const initialSitting = useRef(entry.visit?.packagePurchaseId || '');
   
   const [packageTypes, setPackageTypes] = useState<any[]>([]);
   const [recommendedPackageTypeId, setRecommendedPackageTypeId] = useState(entry.recommendedPackageTypeId || '');
@@ -412,7 +415,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
           consultationFee: consultationFee ? Number(consultationFee) : undefined,
           nextAppointmentDate: nextAppointmentDate || undefined,
           treatmentId: treatmentId || undefined,
-          usePackagePurchaseId: usePackagePurchaseId || undefined,
+          usePackagePurchaseId: usePackagePurchaseId || (initialSitting.current ? null : undefined),
           recommendedPackageTypeId: recommendedPackageTypeId || null,
         }),
       });
@@ -420,6 +423,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
       if (!res.ok) throw new Error(data.message || 'Failed to save assessment');
       addToast('success', `Patient routed to ${careType} — recorded in the day book`);
       setSavedSnapshot(takeSnapshot());
+      initialSitting.current = usePackagePurchaseId;
       onChanged();
       return true;
     } catch (err: any) {

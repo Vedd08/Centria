@@ -19,6 +19,7 @@ const ADJ_LABEL: Record<PackageAdjustment['kind'], string> = {
   PATIENT_LAPSE: 'Missed by patient — lapsed',
   RESCHEDULE: 'Plan changed',
   REINSTATE: 'Reinstated',
+  SITTING_UNDONE: 'Sitting undone',
 };
 
 /**
@@ -30,6 +31,8 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
   const { apiFetch, hasRole } = useAuth();
   const { addToast } = useToast();
   const canManage = hasRole('DOCTOR', 'MASTER', 'SUPER_ADMIN');
+  // Reception records sittings (after the nurse has done the treatment); doctor/admin can too.
+  const canRecord = hasRole('RECEPTION', 'RM', 'DOCTOR', 'MASTER', 'SUPER_ADMIN');
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -209,6 +212,22 @@ export const PackagePlanModal: React.FC<Props> = ({ purchaseId, onClose, onChang
                 </p>
               </div>
             </div>
+
+            {canRecord && isOpenPackage && plan.state !== 'EXPIRED' && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border border-brand/30 bg-brand-soft/50">
+                <p className="text-xs text-brand-deep">
+                  <span className="font-semibold">Patient here for a sitting today?</span> Record it once the nurse has done the treatment — it counts against today's visit.
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => act('/record-sitting', 'POST', {}, 'Sitting recorded')}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Record today's sitting
+                </button>
+              </div>
+            )}
 
             <p className="text-[11px] text-ink-secondary">
               Bought {fmtDate(data.purchaseDate)} ·{' '}

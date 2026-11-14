@@ -42,6 +42,12 @@ const QUEUE_INCLUDE = {
     orderBy: { createdAt: 'asc' },
   },
   recommendedPackageType: true,
+  sittingPurchase: {
+    select: {
+      id: true, packageName: true, totalSittings: true, sittingsUsed: true, sittingsRemaining: true,
+      expiryDate: true, lapsedAt: true,
+    },
+  },
 } as const;
 
 const today = () => toLocalDateKey(new Date());
@@ -50,6 +56,7 @@ const today = () => toLocalDateKey(new Date());
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 import { PackagesService } from '../packages/packages.service';
+import { sittingBlockReason } from '../packages/package-plan';
 
 @Injectable()
 export class QueueService {
@@ -87,6 +94,17 @@ export class QueueService {
 
     const queueDate = dto.queueDate || today();
 
+    // A package-sitting visit: the package must be the patient's and still usable.
+    const sitting = dto.sittingPurchaseId
+      ? await this.loadSittingPurchase(clinicId, dto.sittingPurchaseId, patient.id, queueDate)
+      : null;
+    // The package's doctor owns the visit unless reception picked one.
+    let doctorId = dto.doctorId || null;
+    if (!doctorId && sitting?.packageType?.doctorId) {
+      const pkgDoctor = await this.prisma.user.findFirst({ where: { id: sitting.packageType.doctorId, clinicId } });
+      if (pkgDoctor && DOCTOR_ROLES.includes(pkgDoctor.role)) doctorId = pkgDoctor.id;
+    }
+
     // A patient already waiting today shouldn't be queued twice.
     const active = await this.prisma.patientQueue.findFirst({
       where: {
@@ -109,23 +127,60 @@ export class QueueService {
         select: { tokenNumber: true },
       });
 
-      return tx.patientQueue.create({
+      const sittingNo = sitting ? sitting.sittingsUsed + 1 : 0;
+      const entry = await tx.patientQueue.create({
         data: {
           clinicId,
           patientId: patient.id,
           queueDate,
           tokenNumber: (last?.tokenNumber ?? 0) + 1,
-          complaint: dto.complaint,
+          complaint: dto.complaint || (sitting ? `Package sitting — ${sitting.packageName} (sitting ${sittingNo} of ${sitting.totalSittings})` : undefined),
           departmentId: dto.departmentId || null,
           isRegular: priorVisits > 0,
-          careType: dto.careType || null,
-          doctorId: dto.doctorId || null,
+          careType: sitting ? 'OPD' : dto.careType || null,
+          doctorId,
           checkedInById: requestingUser.id,
-          status: 'WAITING',
+          // A sitting needs no consultation: straight to the nurse / service desk.
+          status: sitting ? 'AWAITING_SERVICE' : 'WAITING',
+          sittingPurchaseId: sitting?.id ?? null,
         },
-        include: QUEUE_INCLUDE,
       });
+
+      if (sitting) {
+        // The treatment the nurse carries out. Already paid for with the package.
+        await tx.careOrder.create({
+          data: {
+            clinicId,
+            queueId: entry.id,
+            patientId: patient.id,
+            orderType: 'TREATMENT',
+            treatmentId: sitting.packageType?.treatmentId ?? null,
+            description: sitting.packageType?.treatment?.name ?? sitting.packageName,
+            instructions: `Package sitting ${sittingNo} of ${sitting.totalSittings} — ${sitting.packageName} (already paid)`,
+            quantity: 1,
+            unitPrice: 0,
+            totalPrice: 0,
+            status: 'ORDERED',
+            orderedById: requestingUser.id,
+          },
+        });
+      }
+
+      return tx.patientQueue.findUniqueOrThrow({ where: { id: entry.id }, include: QUEUE_INCLUDE });
     }, TRANSACTION_OPTIONS);
+  }
+
+  /** A package the patient owns that can take a sitting on `date`, or a clear error. */
+  private async loadSittingPurchase(clinicId: string, purchaseId: string, patientId: string, date: string) {
+    const purchase = await this.prisma.packagePurchase.findFirst({
+      where: { id: purchaseId, clinicId },
+      include: { packageType: { include: { treatment: { select: { name: true } } } } },
+    });
+    if (!purchase) throw new NotFoundException('Package not found');
+    if (purchase.patientId !== patientId) throw new BadRequestException('That package belongs to another patient');
+    const blocked = sittingBlockReason(purchase, date);
+    if (blocked) throw new BadRequestException(blocked);
+    return purchase;
   }
 
   async findAll(
@@ -228,7 +283,9 @@ export class QueueService {
         remarks: dto.doctorNotes || null,
         nextAppointmentDate: dto.nextAppointmentDate || null,
         status: entry.isRegular ? 'Follow Up' : 'New',
-        packagePurchaseId: dto.usePackagePurchaseId ? undefined : null,
+        // Only an explicit null removes a counted sitting. Leaving it out keeps
+        // whatever is there — e.g. a sitting reception already recorded.
+        packagePurchaseId: dto.usePackagePurchaseId === null ? null : undefined,
         clinicId,
       };
 
@@ -273,7 +330,7 @@ export class QueueService {
       }
       
       const oldPackagePurchaseId = entry.visit?.packagePurchaseId;
-      if (oldPackagePurchaseId && oldPackagePurchaseId !== dto.usePackagePurchaseId) {
+      if (dto.usePackagePurchaseId !== undefined && oldPackagePurchaseId && oldPackagePurchaseId !== dto.usePackagePurchaseId) {
         await this.packagesService.syncSittings(clinicId, oldPackagePurchaseId, tx);
       }
 

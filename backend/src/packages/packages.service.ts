@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePackageTypeDto } from './dto/create-package-type.dto';
 import { PurchasePackageDto } from './dto/purchase-package.dto';
 import { InvoicesService } from '../invoices/invoices.service';
+import { TRANSACTION_OPTIONS } from '../prisma/transaction-options';
 import { UpdatePackagePlanDto, DoctorDelayDto, PatientLapseDto, CreateHolidayDto } from './dto/package-plan.dto';
 import { addDays, computePlan, isValidDate, sittingBlockReason } from './package-plan';
 
@@ -387,6 +388,98 @@ export class PackagesService {
       }),
     ]);
     return this.findOnePurchase(user.clinicId, id);
+  }
+
+  /** Today's (or the given) queue entry for this package's patient. */
+  private async sittingQueueEntry(clinicId: string, patientId: string, queueId?: string) {
+    const entry = queueId
+      ? await this.prisma.patientQueue.findFirst({ where: { id: queueId, clinicId } })
+      : await this.prisma.patientQueue.findFirst({
+          where: { clinicId, patientId, queueDate: toLocalDateKey(new Date()), status: { not: 'CANCELLED' } },
+          orderBy: { createdAt: 'desc' },
+        });
+    if (!entry) throw new BadRequestException('Check the patient in first — a sitting is recorded against today\'s visit');
+    if (entry.patientId !== patientId) throw new BadRequestException('That visit belongs to another patient');
+    if (entry.status === 'CANCELLED') throw new BadRequestException('That visit was cancelled');
+    return entry;
+  }
+
+  /**
+   * Reception records that a sitting was done (the nurse carried out the treatment).
+   * Counted on the visit, so a sitting the doctor already counted can't be counted
+   * twice. Creates the day-book visit if the patient didn't see the doctor.
+   */
+  async recordSitting(user: any, purchaseId: string, queueId?: string) {
+    const clinicId = user.clinicId;
+    const purchase = await this.prisma.packagePurchase.findFirst({
+      where: { id: purchaseId, clinicId },
+      include: { packageType: { include: { treatment: { select: { name: true } } } } },
+    });
+    if (!purchase) throw new NotFoundException('Package not found');
+    const entry = await this.sittingQueueEntry(clinicId, purchase.patientId, queueId);
+
+    await this.prisma.$transaction(async (tx) => {
+      let visitId = entry.visitId;
+      if (visitId) {
+        const visit = await tx.visit.findFirst({ where: { id: visitId }, select: { packagePurchaseId: true } });
+        if (visit?.packagePurchaseId === purchaseId) throw new BadRequestException('This sitting is already recorded for today\'s visit');
+        if (visit?.packagePurchaseId) {
+          const other = await tx.packagePurchase.findFirst({ where: { id: visit.packagePurchaseId }, select: { packageName: true } });
+          throw new BadRequestException(`Today's visit is already counted as a sitting of ${other?.packageName ?? 'another package'}`);
+        }
+      } else {
+        // No consultation happened: the visit goes in the day book under the
+        // patient's doctor, at no charge (the package was paid when sold).
+        const doctorId = entry.doctorId ?? purchase.packageType?.doctorId ?? (user.role === 'DOCTOR' ? user.id : null);
+        if (!doctorId) throw new BadRequestException('Assign a doctor to this patient first (needed for the day book)');
+        const visit = await tx.visit.create({
+          data: {
+            clinicId,
+            date: entry.queueDate,
+            visitType: entry.careType || 'OPD',
+            patientId: entry.patientId,
+            doctorId,
+            operator: user.name || 'Reception',
+            treatmentId: purchase.packageType?.treatmentId ?? null,
+            treatmentName: purchase.packageType?.treatment?.name ?? purchase.packageName,
+            treatmentPrice: 0,
+            isGstTaxable: false,
+            status: 'Follow Up',
+            remarks: `Package sitting — ${purchase.packageName}`,
+          },
+        });
+        visitId = visit.id;
+        await tx.patientQueue.update({ where: { id: entry.id }, data: { visitId, doctorId } });
+      }
+      await this.linkVisitToPurchase(clinicId, visitId, purchaseId, purchase.patientId, tx);
+    }, TRANSACTION_OPTIONS);
+
+    return this.findOnePurchase(clinicId, purchaseId);
+  }
+
+  /** Undo a sitting recorded by mistake (today's visit stops counting). */
+  async undoSitting(user: any, purchaseId: string, queueId?: string, note?: string) {
+    const clinicId = user.clinicId;
+    const purchase = await this.purchaseOrThrow(clinicId, purchaseId);
+    const entry = await this.sittingQueueEntry(clinicId, purchase.patientId, queueId);
+    const visit = entry.visitId ? await this.prisma.visit.findFirst({ where: { id: entry.visitId } }) : null;
+    if (!visit || visit.packagePurchaseId !== purchaseId) throw new BadRequestException('No sitting of this package is recorded for that visit');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.visit.update({ where: { id: visit.id }, data: { packagePurchaseId: null } });
+      await this.syncSittings(clinicId, purchaseId, tx);
+      await tx.packageAdjustment.create({
+        data: {
+          purchaseId,
+          kind: 'SITTING_UNDONE',
+          days: 0,
+          note: note?.trim() || `Sitting of ${visit.date} undone`,
+          byName: user.name || 'Reception',
+          byId: user.id,
+        },
+      });
+    }, TRANSACTION_OPTIONS);
+    return this.findOnePurchase(clinicId, purchaseId);
   }
 
   async listHolidays(clinicId: string) {
