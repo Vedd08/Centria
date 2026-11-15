@@ -376,6 +376,14 @@ export const AddCareOrderForm: React.FC<AddCareOrderFormProps> = ({
                 )}
                 {onPackageCreated && <option value={NEW_PROCEDURE}>+ Create a new package…</option>}
               </select>
+              {!packageId && !addingPackage && packagesForProcedure.length > 0 && (
+                <p className="mt-1.5 text-[11px] text-status-warning">
+                  {packagesForProcedure.length === 1
+                    ? `${packagesForProcedure[0].name} includes this procedure`
+                    : `${packagesForProcedure.length} packages include this procedure`}
+                  {' '}— reception will be prompted to offer {packagesForProcedure.length === 1 ? 'it' : 'one'}. Pick one above to recommend it directly.
+                </p>
+              )}
               {addingPackage && (
                 <QuickAddPackage
                   treatmentId={treatmentId}

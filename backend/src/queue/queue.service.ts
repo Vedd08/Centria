@@ -232,10 +232,67 @@ export class QueueService {
       ];
     }
 
-    return this.prisma.patientQueue.findMany({
+    const rows = await this.prisma.patientQueue.findMany({
       where,
       include: QUEUE_INCLUDE,
       orderBy: [{ queueDate: 'desc' }, { tokenNumber: 'asc' }],
+    });
+    return this.withPackageOffers(clinicId, rows);
+  }
+
+  /**
+   * The doctor recommended a procedure but didn't pick a package. If packages in the
+   * catalogue include that procedure, reception should still be prompted to offer
+   * one, so each entry gets `packageOffers` (procedure → packages that cover it).
+   * Empty once a package was recommended, the visit is a package sitting, the
+   * procedure is covered by a package, or the patient bought a package that day.
+   */
+  private async withPackageOffers<T extends { id: string; patientId: string; queueDate: string; status: string; recommendedPackageTypeId: string | null; sittingPurchaseId: string | null; careOrders: any[]; visit?: { packageSittings?: any[] } | null }>(
+    clinicId: string,
+    rows: T[],
+  ): Promise<(T & { packageOffers: { treatmentId: string; procedure: string; packages: { id: string; name: string; price: number; totalSittings: number }[] }[] })[]> {
+    // Price can't tell a covered sitting apart (many procedures are ₹0 in the
+    // catalogue), so: no sitting counted on this visit, and the order isn't one.
+    const procsOf = (r: T) =>
+      r.recommendedPackageTypeId || r.sittingPurchaseId || r.status === 'CANCELLED' || r.visit?.packageSittings?.length
+        ? []
+        : r.careOrders.filter(
+            (o) =>
+              o.orderType === 'TREATMENT' && o.treatmentId && o.status !== 'CANCELLED' && !o.packageItemId &&
+              !String(o.instructions ?? '').startsWith('Package sitting'),
+          );
+    const candidates = rows.filter((r) => procsOf(r).length > 0);
+    if (!candidates.length) return rows.map((r) => ({ ...r, packageOffers: [] }));
+
+    const [types, bought] = await Promise.all([
+      this.prisma.packageType.findMany({
+        where: { clinicId, isActive: true },
+        select: { id: true, name: true, price: true, totalSittings: true, treatmentId: true, items: { select: { treatmentId: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.packagePurchase.findMany({
+        where: {
+          clinicId,
+          patientId: { in: [...new Set(candidates.map((r) => r.patientId))] },
+          purchaseDate: { in: [...new Set(candidates.map((r) => r.queueDate))] },
+        },
+        select: { patientId: true, purchaseDate: true },
+      }),
+    ]);
+    const boughtThatDay = new Set(bought.map((b) => `${b.patientId}|${b.purchaseDate}`));
+
+    return rows.map((r) => {
+      if (boughtThatDay.has(`${r.patientId}|${r.queueDate}`)) return { ...r, packageOffers: [] };
+      const seen = new Set<string>();
+      const packageOffers = procsOf(r).flatMap((o) => {
+        if (seen.has(o.treatmentId)) return [];
+        seen.add(o.treatmentId);
+        const packages = types
+          .filter((t) => t.treatmentId === o.treatmentId || t.items.some((i) => i.treatmentId === o.treatmentId))
+          .map((t) => ({ id: t.id, name: t.name, price: Number(t.price), totalSittings: t.totalSittings }));
+        return packages.length ? [{ treatmentId: o.treatmentId as string, procedure: o.treatment?.name ?? o.description, packages }] : [];
+      });
+      return { ...r, packageOffers };
     });
   }
 

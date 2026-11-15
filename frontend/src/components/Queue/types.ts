@@ -50,6 +50,8 @@ export interface QueueEntry {
   nextAppointmentDate?: string;
   recommendedPackageTypeId?: string;
   recommendedPackageType?: any;
+  /** Doctor recommended a procedure (no package picked) that these packages cover — reception can offer one. */
+  packageOffers?: { treatmentId: string; procedure: string; packages: { id: string; name: string; price: number; totalSittings: number }[] }[];
   /** Checked in only for a sitting of this package (no consultation). */
   sittingPurchaseId?: string | null;
   sittingPurchase?: {

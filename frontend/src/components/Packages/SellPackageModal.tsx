@@ -13,6 +13,8 @@ interface SellPackageModalProps {
   initialPatientId?: string;
   initialPackageTypeId?: string;
   linkToQueueId?: string; // If selling from Reception for a specific queue entry
+  /** Packages covering what the doctor recommended — listed first. */
+  suggestedPackageTypeIds?: string[];
 }
 
 export const SellPackageModal: React.FC<SellPackageModalProps> = ({
@@ -22,6 +24,7 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
   initialPatientId = '',
   initialPackageTypeId = '',
   linkToQueueId = '',
+  suggestedPackageTypeIds = [],
 }) => {
   const { apiFetch, user } = useAuth();
   const { addToast } = useToast();
@@ -219,11 +222,21 @@ export const SellPackageModal: React.FC<SellPackageModalProps> = ({
               className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card font-semibold text-ink-primary"
             >
               <option value="" disabled>Select a package type...</option>
-              {packageTypes.map((pkg) => (
-                <option key={pkg.id} value={pkg.id}>
-                  {pkg.name} ({pkg.totalSittings} Sittings — ₹{pkg.price})
-                </option>
-              ))}
+              {(() => {
+                const opt = (pkg: PackageTypeItem) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.name} ({pkg.totalSittings} Sittings — ₹{pkg.price})
+                  </option>
+                );
+                const suggested = packageTypes.filter((p) => suggestedPackageTypeIds.includes(p.id));
+                if (!suggested.length) return packageTypes.map(opt);
+                return (
+                  <>
+                    <optgroup label="Recommended by the doctor">{suggested.map(opt)}</optgroup>
+                    <optgroup label="Other packages">{packageTypes.filter((p) => !suggestedPackageTypeIds.includes(p.id)).map(opt)}</optgroup>
+                  </>
+                );
+              })()}
             </select>
           </div>
 

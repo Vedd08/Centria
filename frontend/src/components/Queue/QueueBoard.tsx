@@ -18,6 +18,36 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+type PitchPackage = { id: string; name: string; price: number };
+interface Pitch {
+  /** 'package': the doctor picked a package. 'procedure': only a procedure, but packages cover it. */
+  kind: 'package' | 'procedure';
+  /** Changes when the recommendation changes, so a new one is announced once. */
+  key: string;
+  headline: string;
+  /** Pre-selected in the Sell Package form. */
+  packageTypeId: string;
+  packages: PitchPackage[];
+}
+
+/** What reception should offer this patient, if anything (null once sold). */
+const pitchOf = (e: QueueEntry): Pitch | null => {
+  if (e.recommendedPackageTypeId && e.recommendedPackageType) {
+    const p = e.recommendedPackageType;
+    return { kind: 'package', key: e.recommendedPackageTypeId, headline: p.name, packageTypeId: p.id, packages: [{ id: p.id, name: p.name, price: Number(p.price) }] };
+  }
+  const offers = e.packageOffers ?? [];
+  if (!offers.length) return null;
+  const packages = [...new Map(offers.flatMap((o) => o.packages).map((p) => [p.id, p])).values()];
+  return {
+    kind: 'procedure',
+    key: `proc:${offers.map((o) => o.treatmentId).join(',')}`,
+    headline: offers.map((o) => o.procedure).join(', '),
+    packageTypeId: packages[0].id,
+    packages,
+  };
+};
+
 interface Stats {
   waiting: number;
   withDoctor: number;
@@ -127,16 +157,16 @@ export const QueueBoard: React.FC = () => {
         // The first load only records the baseline, so opening the page doesn't announce old ones.
         if (lastRecRef.current) {
           for (const entry of nextEntries) {
-            const rec = entry.recommendedPackageTypeId || null;
-            if (rec && lastRecRef.current[entry.id] !== rec && entry.recommendedPackageType) {
+            const p = pitchOf(entry);
+            if (p && lastRecRef.current[entry.id] !== p.key) {
               addToast(
                 'info',
-                `${entry.doctor?.name || 'The doctor'} recommended ${entry.recommendedPackageType.name} for ${entry.patient?.name} — offer it before they leave.`,
+                `${entry.doctor?.name || 'The doctor'} recommended ${p.headline} for ${entry.patient?.name} — offer ${p.kind === 'procedure' ? 'a package' : 'it'} before they leave.`,
               );
             }
           }
         }
-        lastRecRef.current = Object.fromEntries(nextEntries.map((e) => [e.id, e.recommendedPackageTypeId || null]));
+        lastRecRef.current = Object.fromEntries(nextEntries.map((e) => [e.id, pitchOf(e)?.key ?? null]));
       }
 
       setEntries(nextEntries);
@@ -300,7 +330,7 @@ export const QueueBoard: React.FC = () => {
       )}
 
       {seesPitches && !loading && (() => {
-        const pitches = entries.filter((e) => e.recommendedPackageTypeId && e.recommendedPackageType);
+        const pitches = entries.filter((e) => !!pitchOf(e));
         if (pitches.length === 0) return null;
         return (
           <div className="px-4 py-3 rounded-[10px] border border-status-warning/40 bg-status-warning/10 text-xs space-y-2.5">
@@ -312,7 +342,7 @@ export const QueueBoard: React.FC = () => {
               <Package className="w-4 h-4 text-status-warning shrink-0" />
               <p className="text-ink-primary">
                 <span className="font-semibold">
-                  {pitches.length} patient{pitches.length === 1 ? '' : 's'} with a package recommended by the doctor
+                  {pitches.length} patient{pitches.length === 1 ? '' : 's'} with a package or procedure recommended by the doctor
                 </span>
                 {' — '}
                 {canSell ? 'offer it before they leave.' : 'mention it to the patient and let reception know.'}
@@ -325,15 +355,15 @@ export const QueueBoard: React.FC = () => {
                     key={e.id}
                     onClick={() => setSellingPackageFor(e)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand hover:bg-brand-deep text-white font-semibold shadow-xs cursor-pointer"
-                    title={`Sell ${e.recommendedPackageType?.name} to ${e.patient?.name}`}
+                    title={`Sell ${pitchOf(e)!.headline} to ${e.patient?.name}`}
                   >
                     <Tag className="w-3.5 h-3.5" />
                     Sell to {e.patient?.name}
-                    <span className="font-normal text-white/80">· {e.recommendedPackageType?.name}</span>
+                    <span className="font-normal text-white/80">· {pitchOf(e)!.headline}</span>
                   </button>
                 ) : (
                   <span key={e.id} className="px-2.5 py-1 rounded-md bg-surface-card border border-border text-ink-primary">
-                    {e.patient?.name} · {e.recommendedPackageType?.name}
+                    {e.patient?.name} · {pitchOf(e)!.headline}
                   </span>
                 ),
               )}
@@ -374,7 +404,8 @@ export const QueueBoard: React.FC = () => {
                 {entries.map((e) => {
                   const pending = e.careOrders?.filter((o) => o.status === 'ORDERED').length ?? 0;
                   // Cleared by the backend once the package is sold, so this means "still to sell".
-                  const hasPitch = seesPitches && !!e.recommendedPackageTypeId && !!e.recommendedPackageType;
+                  const pitch = seesPitches ? pitchOf(e) : null;
+                  const hasPitch = !!pitch;
                   // Package-sitting visit: nurse does the treatment, reception records the sitting.
                   const sp = e.sittingPurchase;
                   // One nurse task per treatment done today.
@@ -497,11 +528,23 @@ export const QueueBoard: React.FC = () => {
                             )}
                           </div>
                         )}
-                        {hasPitch && (
+                        {pitch && (
                           <div className="mb-2 text-left bg-status-warning/10 border border-status-warning/40 p-2 rounded flex flex-col gap-1 w-max max-w-[320px] ml-auto">
-                            <span className="text-[10px] font-semibold text-ink-primary">
-                              Doctor recommended: {e.recommendedPackageType!.name} — ₹{e.recommendedPackageType!.price}
-                            </span>
+                            {pitch.kind === 'package' ? (
+                              <span className="text-[10px] font-semibold text-ink-primary">
+                                Doctor recommended: {e.recommendedPackageType!.name} — ₹{e.recommendedPackageType!.price}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-[10px] font-semibold text-ink-primary">
+                                  Doctor recommended procedure: {pitch.headline}
+                                </span>
+                                <span className="text-[10px] text-ink-secondary">
+                                  Package{pitch.packages.length === 1 ? '' : 's'} available:{' '}
+                                  {pitch.packages.map((p) => `${p.name} (₹${Number(p.price).toLocaleString('en-IN')})`).join(', ')}
+                                </span>
+                              </>
+                            )}
                             {canSell ? (
                               <button
                                 onClick={() => setSellingPackageFor(e)}
@@ -549,7 +592,8 @@ export const QueueBoard: React.FC = () => {
           onClose={() => setSellingPackageFor(null)}
           onSuccess={fetchBoard}
           initialPatientId={sellingPackageFor.patientId}
-          initialPackageTypeId={sellingPackageFor.recommendedPackageTypeId!}
+          initialPackageTypeId={pitchOf(sellingPackageFor)?.packageTypeId ?? ''}
+          suggestedPackageTypeIds={pitchOf(sellingPackageFor)?.packages.map((p) => p.id)}
           linkToQueueId={sellingPackageFor.id}
         />
       )}

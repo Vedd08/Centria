@@ -38,7 +38,7 @@ export const ReceptionDesk: React.FC = () => {
       apiFetch(`/api/queue?date=${today}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((rows) => {
-          if (Array.isArray(rows)) setPitchCount(rows.filter((q: any) => q.recommendedPackageTypeId).length);
+          if (Array.isArray(rows)) setPitchCount(rows.filter((q: any) => q.recommendedPackageTypeId || q.packageOffers?.length).length);
         })
         .catch(() => {});
     };
