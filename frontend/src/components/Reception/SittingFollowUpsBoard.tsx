@@ -68,7 +68,7 @@ const FILTERS: { key: Filter; label: string; hint: string }[] = [
   { key: 'all', label: 'All packages', hint: 'Every package with sittings left — track each patient.' },
 ];
 
-const OUTCOME: Record<string, string> = { NO_ANSWER: 'No answer', CALL_BACK: 'Call back', DECLINED: 'Declined', BOOKED: 'Booked' };
+const OUTCOME: Record<string, string> = { NO_ANSWER: 'No answer', CALL_BACK: 'Call back', DECLINED: 'Declined', BOOKED: 'Booked', NO_SHOW: 'Did not come (booked sitting)' };
 
 const STATUS_BADGE: Record<Status, (r: Row) => { text: string; cls: string }> = {
   OVERDUE: (r) => ({ text: `Missed · ${r.overdueDays} day${r.overdueDays === 1 ? '' : 's'} overdue`, cls: 'bg-status-danger/10 text-status-danger border-status-danger/30' }),

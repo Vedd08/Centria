@@ -4,6 +4,7 @@ import {
 import { FollowUpsService, FollowUpKind, CallOutcome } from './follow-ups.service';
 import { LogCallDto } from './dto/log-call.dto';
 import { SittingFollowUpsService } from './sitting-follow-ups.service';
+import { toLocalDateKey } from '../common/date.helper';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -42,6 +43,14 @@ export class FollowUpsController {
   @Get('sittings')
   getSittings(@CurrentUser() user: any) {
     return this.sittingFollowUps.board(user.clinicId);
+  }
+
+  /** Sittings booked for a day whose patient hasn't arrived yet. */
+  @Roles(...READ_ROLES)
+  @Get('sittings/booked')
+  getBookedSittings(@CurrentUser() user: any, @Query('date') date?: string) {
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : toLocalDateKey(new Date());
+    return this.sittingFollowUps.booked(user.clinicId, day);
   }
 
   @Roles(...READ_ROLES)

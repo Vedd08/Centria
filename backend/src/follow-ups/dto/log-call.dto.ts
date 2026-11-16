@@ -19,8 +19,8 @@ export class LogCallDto {
   dueDate: string;
 
   @IsNotEmpty()
-  @IsIn(['BOOKED', 'NO_ANSWER', 'DECLINED', 'CALL_BACK'], {
-    message: 'outcome must be one of: BOOKED, NO_ANSWER, DECLINED, CALL_BACK',
+  @IsIn(['BOOKED', 'NO_ANSWER', 'DECLINED', 'CALL_BACK', 'NO_SHOW'], {
+    message: 'outcome must be one of: BOOKED, NO_ANSWER, DECLINED, CALL_BACK, NO_SHOW',
   })
   outcome: CallOutcome;
 

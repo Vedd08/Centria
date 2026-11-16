@@ -4,7 +4,8 @@ import { toLocalDateKey } from '../common/date.helper';
 import { computePurchasePlan } from '../packages/package-plan';
 
 export type FollowUpKind = 'DOCTOR_FOLLOW_UP' | 'PACKAGE_SITTING';
-export type CallOutcome = 'NO_ANSWER' | 'CALL_BACK' | 'DECLINED' | 'BOOKED';
+/** NO_SHOW: the patient didn't come for a booked package sitting. */
+export type CallOutcome = 'NO_ANSWER' | 'CALL_BACK' | 'DECLINED' | 'BOOKED' | 'NO_SHOW';
 
 export interface FollowUpReason {
   kind: FollowUpKind;

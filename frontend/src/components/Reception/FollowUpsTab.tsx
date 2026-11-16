@@ -41,6 +41,7 @@ const OUTCOME_LABELS: Record<string, string> = {
   CALL_BACK: 'Call back',
   DECLINED: 'Declined',
   BOOKED: 'Booked',
+  NO_SHOW: 'Did not come (booked sitting)',
 };
 
 export const FollowUpsTab: React.FC = () => {

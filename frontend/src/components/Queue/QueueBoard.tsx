@@ -9,6 +9,7 @@ import { AssignDoctorModal } from './AssignDoctorModal';
 import { QueueDetail } from './QueueDetail';
 import { SellPackageModal } from '../Packages/SellPackageModal';
 import { BookedAppointments } from './BookedAppointments';
+import { BookedSittings } from './BookedSittings';
 import { QueueEntry, QUEUE_STATUS_LABEL, queueStatusVariant } from './types';
 import { UserPlus, Search, Repeat, RefreshCw, ClipboardList, Package, Tag, CheckCircle2 } from 'lucide-react';
 
@@ -323,6 +324,15 @@ export const QueueBoard: React.FC = () => {
         <BookedAppointments
           date={date}
           doctorId={mineOnly && user?.id ? user.id : undefined}
+          canCheckIn={canCheckIn}
+          onArrived={() => fetchBoard()}
+          refreshKey={refreshKey}
+        />
+      )}
+
+      {seesPitches && (
+        <BookedSittings
+          date={date}
           canCheckIn={canCheckIn}
           onArrived={() => fetchBoard()}
           refreshKey={refreshKey}

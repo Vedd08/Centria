@@ -18,6 +18,18 @@ export interface BoardRow {
   [field: string]: unknown;
 }
 
+export interface BookedSitting {
+  bookingId: string;
+  purchaseId: string;
+  packageName: string;
+  patient: { id: string; name: string; phone: string; uhid: string };
+  time: string | null;
+  note: string | null;
+  bookedBy: string | null;
+  bookedAt: Date;
+  treatments: { id: string; name: string; sittingNumber: number; totalSittings: number }[];
+}
+
 const UPCOMING_DAYS = 7;
 const EXPIRING_DAYS = 7;
 /** Lapsed packages stay on the board this long, to offer the package again. */
@@ -209,6 +221,83 @@ export class SittingFollowUpsService {
       },
       rows,
     };
+  }
+
+  /**
+   * Package sittings booked for `date` (no doctor slot) whose patient isn't in that
+   * day's queue yet — the "booked, not arrived" list on the queue and nurse screens.
+   * A booking counts only while it is the latest call on that package.
+   */
+  async booked(clinicId: string, date: string) {
+    const bookings = await this.prisma.followUpCall.findMany({
+      where: { clinicId, kind: 'PACKAGE_SITTING', outcome: 'BOOKED', callBackOn: date },
+      select: { id: true, refId: true, patientId: true, bookedTime: true, note: true, createdAt: true, calledBy: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!bookings.length) return [];
+
+    const purchaseIds = [...new Set(bookings.map((b) => b.refId))];
+    const [latestCalls, queued, purchases] = await Promise.all([
+      this.prisma.followUpCall.findMany({
+        where: { clinicId, kind: 'PACKAGE_SITTING', refId: { in: purchaseIds } },
+        select: { id: true, refId: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.patientQueue.findMany({
+        where: { clinicId, queueDate: date, patientId: { in: bookings.map((b) => b.patientId) }, status: { not: 'CANCELLED' } },
+        select: { patientId: true },
+      }),
+      this.prisma.packagePurchase.findMany({
+        where: { id: { in: purchaseIds }, clinicId },
+        include: {
+          patient: { select: { id: true, name: true, phone: true, uhid: true } },
+          items: { orderBy: { sortOrder: 'asc' }, include: { sittings: { select: { date: true } } } },
+        },
+      }),
+    ]);
+
+    const latestByPurchase = new Map<string, string>();
+    for (const c of latestCalls) if (!latestByPurchase.has(c.refId)) latestByPurchase.set(c.refId, c.id);
+    const inQueue = new Set(queued.map((q) => q.patientId));
+    const purchaseById = new Map(purchases.map((p) => [p.id, p]));
+    const holidays = new Set(
+      (await this.prisma.clinicHoliday.findMany({ where: { clinicId }, select: { date: true } })).map((h) => h.date),
+    );
+
+    const rows: BookedSitting[] = [];
+    const seen = new Set<string>();
+    for (const b of bookings) {
+      if (seen.has(b.refId) || latestByPurchase.get(b.refId) !== b.id) continue;
+      seen.add(b.refId);
+      const p = purchaseById.get(b.refId);
+      if (!p || p.lapsedAt || p.sittingsRemaining <= 0 || inQueue.has(p.patientId)) continue;
+
+      const plan = computePurchasePlan(
+        { ...p, items: p.items.map((i) => ({ ...i, sittingDates: i.sittings.map((s) => s.date) })) },
+        holidays,
+        date,
+      );
+      const open = plan.items.filter((i) => i.sittingsRemaining > 0);
+      // Treatments due by the booked day; if none has a date yet, all that are left.
+      const due = open.filter((i) => i.plan.nextSittingDate && i.plan.nextSittingDate <= date);
+      const treatments = (due.length ? due : open).map((i) => ({
+        id: i.id, name: i.name, sittingNumber: i.sittingsUsed + 1, totalSittings: i.totalSittings,
+      }));
+
+      rows.push({
+        bookingId: b.id,
+        purchaseId: p.id,
+        packageName: p.packageName,
+        patient: p.patient,
+        time: b.bookedTime,
+        note: b.note,
+        bookedBy: b.calledBy?.name ?? null,
+        bookedAt: b.createdAt,
+        treatments,
+      });
+    }
+    rows.sort((a, b) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99') || a.patient.name.localeCompare(b.patient.name));
+    return rows;
   }
 
   async summary(clinicId: string) {
