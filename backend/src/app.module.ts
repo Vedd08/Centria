@@ -21,6 +21,7 @@ import { WardsModule } from './wards/wards.module';
 import { AdmissionsModule } from './admissions/admissions.module';
 import { MedicationOrdersModule } from './medication-orders/medication-orders.module';
 import { PatientDocumentsModule } from './patient-documents/patient-documents.module';
+import { PatientDiaryModule } from './patient-diary/patient-diary.module';
 import { QueueModule } from './queue/queue.module';
 import { CareOrdersModule } from './care-orders/care-orders.module';
 import { PrescriptionTemplatesModule } from './prescription-templates/prescription-templates.module';
@@ -57,6 +58,7 @@ import { ReferringDoctorsModule } from './referring-doctors/referring-doctors.mo
     AdmissionsModule,
     MedicationOrdersModule,
     PatientDocumentsModule,
+    PatientDiaryModule,
     QueueModule,
     CareOrdersModule,
     PrescriptionTemplatesModule,

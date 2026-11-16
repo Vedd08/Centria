@@ -4,7 +4,8 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { StatusBadge } from '../common/StatusBadge';
 import { DocumentsTab } from './DocumentsTab';
-import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet, Activity, ArrowUp, ArrowDown, ArrowRight, Receipt } from 'lucide-react';
+import { PatientDiary } from './PatientDiary';
+import { AlertTriangle, Clock, Pill, BedDouble, FileText, User, Stethoscope, Wallet, Activity, ArrowUp, ArrowDown, ArrowRight, Receipt, NotebookPen } from 'lucide-react';
 import { money } from '../../utils/money';
 import { fmtDate, fmtDateTime } from '../../utils/date';
 
@@ -78,7 +79,7 @@ interface AdmissionSummary {
   bed?: { bedNumber: string; ward?: { name: string } };
 }
 
-type TabKey = 'overview' | 'opd' | 'ipd' | 'bills' | 'progress' | 'prescriptions' | 'documents' | 'admissions';
+type TabKey = 'overview' | 'opd' | 'ipd' | 'bills' | 'progress' | 'diary' | 'prescriptions' | 'documents' | 'admissions';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'overview', label: 'Overview', icon: User },
@@ -86,6 +87,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'ipd', label: 'IPD History', icon: Clock },
   { key: 'bills', label: 'Bills & Receipts', icon: Receipt },
   { key: 'progress', label: 'Progress', icon: Activity },
+  { key: 'diary', label: 'Patient Diary', icon: NotebookPen },
   { key: 'prescriptions', label: 'Prescriptions', icon: Pill },
   { key: 'documents', label: 'Documents & Images', icon: FileText },
   { key: 'admissions', label: 'Ward Admissions', icon: BedDouble },
@@ -96,10 +98,14 @@ interface PatientHistoryPanelProps {
   defaultTab?: TabKey;
   /** When opened from an admission's chart, new document uploads auto-link to it. */
   admissionId?: string;
+  /** The screen already shows the diary in its own tab. */
+  hideDiary?: boolean;
 }
 
-export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patient, defaultTab, admissionId }) => {
-  const { apiFetch } = useAuth();
+export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patient, defaultTab, admissionId, hideDiary }) => {
+  const { apiFetch, hasRole } = useAuth();
+  // Diary photos are clinical: only doctors, nurses/staff and the owner see them.
+  const visibleTabs = TABS.filter((t) => t.key !== 'diary' || (!hideDiary && hasRole('DOCTOR', 'NURSE', 'STAFF')));
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab || 'overview');
   const [loadedTabs, setLoadedTabs] = useState<Set<TabKey>>(new Set());
@@ -240,7 +246,7 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
       )}
 
       <div className="flex items-center gap-1 border-b border-border overflow-x-auto">
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -400,6 +406,8 @@ export const PatientHistoryPanel: React.FC<PatientHistoryPanelProps> = ({ patien
         ))}
 
       {activeTab === 'documents' && <DocumentsTab patientId={patient.id} admissionId={admissionId} />}
+
+      {activeTab === 'diary' && <PatientDiary patientId={patient.id} />}
 
       {activeTab === 'admissions' &&
         (admissionsLoading ? (

@@ -10,12 +10,16 @@ const QUALITY = 0.85;
  * images are returned untouched; if the browser can't decode the image (e.g. HEIC
  * on some desktops), the original file is sent and the server decides.
  */
-export async function compressImage(file: File): Promise<File> {
-  if (!file.type.startsWith('image/') || file.size < 1.5 * 1024 * 1024) return file;
+export async function compressImage(
+  file: File,
+  opts: { maxEdge?: number; quality?: number; minBytes?: number } = {},
+): Promise<File> {
+  const { maxEdge = MAX_EDGE, quality = QUALITY, minBytes = 1.5 * 1024 * 1024 } = opts;
+  if (!file.type.startsWith('image/') || file.size < minBytes) return file;
 
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
     const width = Math.round(bitmap.width * scale);
     const height = Math.round(bitmap.height * scale);
 
@@ -27,7 +31,7 @@ export async function compressImage(file: File): Promise<File> {
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close?.();
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
     if (!blob || blob.size >= file.size) return file;
 
     const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';

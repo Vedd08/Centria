@@ -36,6 +36,7 @@ model User {
   medicationAdministrations  MedicationAdministration[] @relation("AdministeredByMedicationAdministrations")
   progressNotes              ProgressNote[]             @relation("AuthoredProgressNotes")
   uploadedDocuments          PatientDocument[]          @relation("UploadedPatientDocuments")
+  diaryEntries               PatientDiaryEntry[]        @relation("PatientDiaryEntries")
 
   /// Which department this person works in. Drives who reception can send a
   /// patient to, so a 50-doctor hospital never shows one flat list.
@@ -89,6 +90,7 @@ model Patient {
   queueEntries     PatientQueue[]
   careOrders       CareOrder[]
   FollowUpCall     FollowUpCall[]
+  diaryEntries     PatientDiaryEntry[]
 
   @@unique([clinicId, uhid])
   @@index([phone])
@@ -594,6 +596,7 @@ model Clinic {
   FollowUpCall              FollowUpCall[]
   referringDoctors          ReferringDoctor[]
   holidays                  ClinicHoliday[]
+  patientDiaryEntries       PatientDiaryEntry[]
 }
 
 /// An outside doctor who sends patients to the clinic. Reception picks from this
@@ -1134,4 +1137,49 @@ model FollowUpCall {
 
   @@index([clinicId, dueDate])
   @@index([patientId])
+}
+
+/// Patient diary: what the nurse/doctor saw at a visit — recovery notes and photos —
+/// usually tied to one sitting of one treatment of a package, so the doctor can follow
+/// how a course of treatment is going.
+model PatientDiaryEntry {
+  id             String              @id @default(uuid())
+  clinicId       String
+  clinic         Clinic              @relation(fields: [clinicId], references: [id])
+  patientId      String
+  patient        Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  queueId        String?
+  visitDate      String // YYYY-MM-DD
+  /// Package treatment line this entry is about (snapshot fields keep it readable later).
+  purchaseId     String?
+  purchaseItemId String?
+  packageName    String?
+  treatmentName  String?
+  sittingNumber  Int?
+  totalSittings  Int?
+  progress       String? // BETTER | SAME | WORSE
+  notes          String
+  reaction       String?
+  createdById    String
+  createdBy      User                @relation("PatientDiaryEntries", fields: [createdById], references: [id])
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  photos         PatientDiaryPhoto[]
+
+  @@index([patientId, visitDate])
+  @@index([purchaseId])
+}
+
+/// Stored in the database (compressed in the browser first): the API host's disk is
+/// wiped on every restart, so files there would not survive.
+model PatientDiaryPhoto {
+  id        String            @id @default(uuid())
+  entryId   String
+  entry     PatientDiaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  mimeType  String
+  data      Bytes
+  sizeBytes Int
+  createdAt DateTime          @default(now())
+
+  @@index([entryId])
 }

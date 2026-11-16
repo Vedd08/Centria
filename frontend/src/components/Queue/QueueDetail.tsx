@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { PrintablePrescription, PrescriptionData } from './PrintablePrescription';
 import { StatusBadge } from '../common/StatusBadge';
 import { PatientHistoryPanel } from '../PatientHistory/PatientHistoryPanel';
+import { PatientDiary } from '../PatientHistory/PatientDiary';
 import { CollapsibleStep } from './assessment/CollapsibleStep';
 import { Step1Diagnosis } from './assessment/Step1Diagnosis';
 import { Step3Orders } from './assessment/Step3Orders';
@@ -35,6 +36,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowRight,
+  NotebookPen,
 } from 'lucide-react';
 
 interface QueueDetailProps {
@@ -43,7 +45,7 @@ interface QueueDetailProps {
   onChanged: () => void;
 }
 
-type Tab = 'orders' | 'history';
+type Tab = 'orders' | 'diary' | 'history';
 
 const inputClass =
   'w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand';
@@ -54,6 +56,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const { apiFetch, hasRole, user } = useAuth();
   const { addToast } = useToast();
   const canAssess = hasRole('DOCTOR');
+  // Clinical roles keep the patient diary (recovery notes + photos per sitting).
+  const seesDiary = hasRole('DOCTOR', 'NURSE', 'STAFF');
   const [tab, setTab] = useState<Tab>(canAssess ? 'history' : 'orders');
   // No longer picked on this screen: OPD by default, IPD via "Recommend for Admission".
   const [careType] = useState<'OPD' | 'IPD'>((entry.careType as 'OPD' | 'IPD') || 'OPD');
@@ -788,6 +792,7 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
         <div className="flex items-center gap-1 border-b border-border">
           {[
             ...(!canAssess ? [{ key: 'orders' as Tab, label: 'Care Orders', icon: ClipboardList }] : []),
+            ...(seesDiary ? [{ key: 'diary' as Tab, label: 'Patient Diary', icon: NotebookPen }] : []),
             { key: 'history' as Tab, label: 'Patient History', icon: FileText },
           ].map((t) => {
             const Icon = t.icon;
@@ -807,9 +812,32 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
         </div>
 
         {tab === 'orders' ? (
-          <CareOrdersList {...careOrdersProps} />
+          <>
+            {seesDiary && (entry.sittingPurchaseId || entry.careOrders?.some((o) => o.orderType === 'TREATMENT' && o.status !== 'CANCELLED')) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg border border-brand/30 bg-brand-soft/50">
+                <p className="text-xs text-brand-deep">
+                  <span className="font-semibold">After the procedure,</span> add photos and how the patient is recovering to the Patient Diary — the doctor follows it sitting by sitting.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab('diary')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer shrink-0"
+                >
+                  <NotebookPen className="w-3.5 h-3.5" /> Add diary entry
+                </button>
+              </div>
+            )}
+            <CareOrdersList {...careOrdersProps} />
+          </>
+        ) : tab === 'diary' ? (
+          <PatientDiary
+            patientId={entry.patientId || entry.patient?.id}
+            queueId={entry.id}
+            // A nurse seeing a sitting patient lands on a ready-to-fill entry.
+            startWriting={!canAssess}
+          />
         ) : (
-          <PatientHistoryPanel patient={entry.patient} />
+          <PatientHistoryPanel patient={entry.patient} hideDiary />
         )}
       </div>
 
