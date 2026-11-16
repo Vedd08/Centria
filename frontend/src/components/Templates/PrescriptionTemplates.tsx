@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { FileStack, Plus, X, Trash2, Edit3, Pill, Stethoscope } from 'lucide-react';
 import { BulletListEditor } from '../common/BulletListEditor';
 import { QuickAddProcedure } from '../Treatments/QuickAddProcedure';
+import { searchTemplates } from '../../utils/templateMatch';
 
 interface TemplateItem {
   orderType: string;
@@ -24,6 +25,7 @@ interface Template {
   id: string;
   name: string;
   condition?: string;
+  keywords?: string;
   diagnosis?: string;
   patientNotes?: string;
   staffNotes?: string;
@@ -87,6 +89,7 @@ export const PrescriptionTemplates: React.FC = () => {
   const [name, setName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [condition, setCondition] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [patientNotes, setPatientNotes] = useState('');
   const [staffNotes, setStaffNotes] = useState('');
@@ -121,6 +124,7 @@ export const PrescriptionTemplates: React.FC = () => {
     setEditing(null);
     setName('');
     setCondition('');
+    setKeywords('');
     setDiagnosis('');
     setPatientNotes('');
     setStaffNotes('');
@@ -132,6 +136,7 @@ export const PrescriptionTemplates: React.FC = () => {
     setEditing(t);
     setName(t.name);
     setCondition(t.condition || '');
+    setKeywords(t.keywords || '');
     setDiagnosis(t.diagnosis || '');
     setPatientNotes(t.patientNotes || '');
     setStaffNotes(t.staffNotes || '');
@@ -178,6 +183,7 @@ export const PrescriptionTemplates: React.FC = () => {
       const body = {
         name: name.trim(),
         condition: condition.trim() || undefined,
+        keywords: keywords.trim(),
         diagnosis: diagnosis.trim() || undefined,
         patientNotes: patientNotes.trim() || undefined,
         staffNotes: staffNotes.trim() || undefined,
@@ -298,6 +304,21 @@ export const PrescriptionTemplates: React.FC = () => {
                 className={inputClass}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">Other words patients use (keywords)</label>
+            <input
+              type="text"
+              value={keywords}
+              onChange={(e) => setKeywords(e.target.value)}
+              maxLength={300}
+              placeholder="e.g. pimples, breakout, blackheads — separate with commas"
+              className={inputClass}
+            />
+            <p className="text-[10px] text-ink-secondary mt-1">
+              When reception writes any of these at check-in, this template is suggested on the patient. Common words (pimples → acne, hair loss → alopecia) already work.
+            </p>
           </div>
 
           <div>
@@ -555,8 +576,7 @@ export const PrescriptionTemplates: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {templates
-            .filter(t => !searchTerm || t.name.toLowerCase().includes(searchTerm.toLowerCase()) || (t.condition && t.condition.toLowerCase().includes(searchTerm.toLowerCase())))
+          {searchTemplates(templates, searchTerm)
             .map((t) => (
             <div key={t.id} className="bg-surface-card p-4 rounded-[10px] border border-border shadow-xs space-y-2">
               <div className="flex items-start justify-between gap-3">

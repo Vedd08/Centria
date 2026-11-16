@@ -955,6 +955,9 @@ model PrescriptionTemplate {
   id           String  @id @default(uuid())
   name         String // e.g. "Acne Vulgaris — Grade II"
   condition    String? // The health issue this template covers
+  /// Other words patients / reception use for it, comma-separated
+  /// ("pimples, breakout"). Used to suggest the template from the complaint.
+  keywords     String?
   diagnosis    String?
   patientNotes String?
   staffNotes   String?

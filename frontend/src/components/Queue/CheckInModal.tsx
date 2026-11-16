@@ -33,6 +33,12 @@ interface CheckInModalProps {
 const inputClass =
   'w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand';
 
+/** Common reasons to visit for dermatology, paediatrics and plastic surgery. */
+const COMMON_PROBLEMS = [
+  'Acne', 'Hair fall', 'Pigmentation', 'Dandruff', 'Fungal infection', 'Itching', 'Rash', 'Eczema',
+  'Warts', 'Acne scars', 'Fever', 'Cough & cold', 'Loose motions', 'Vaccination', 'Wound / dressing', 'Follow-up',
+];
+
 export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onCheckedIn }) => {
   const { apiFetch } = useAuth();
   const { addToast } = useToast();
@@ -93,6 +99,40 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
     setSittingItemIds((due.length ? due : openItems).map((i) => i.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sittingPurchaseId, packages]);
+
+  // Problems reception can tap instead of typing: what the doctors keep templates
+  // for (the chosen doctor's first), then common ones for the clinic's specialties.
+  const [problems, setProblems] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    apiFetch(`/api/prescription-templates/problems${doctorId ? `?doctorId=${doctorId}` : ''}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: string[]) => {
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const tidy = (p: string) => p.trim().replace(/^./, (c) => c.toUpperCase());
+        const merged = [...(Array.isArray(list) ? list : []).map(tidy), ...COMMON_PROBLEMS].filter((p) => {
+          // "Hairfall" and "Hair fall" are the same chip.
+          const k = p.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        setProblems(merged.slice(0, 18));
+      })
+      .catch(() => !cancelled && setProblems(COMMON_PROBLEMS));
+    return () => { cancelled = true; };
+  }, [isOpen, doctorId, apiFetch]);
+
+  const complaintParts = complaint.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  const hasProblem = (p: string) => complaintParts.some((c) => c.toLowerCase() === p.toLowerCase());
+  const toggleProblem = (p: string) =>
+    setComplaint(
+      hasProblem(p)
+        ? complaintParts.filter((c) => c.toLowerCase() !== p.toLowerCase()).join(', ')
+        : [...complaintParts, p].join(', '),
+    );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -426,14 +466,36 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({ isOpen, onClose, onC
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink-secondary mb-1">Reason for Visit / Complaint</label>
+            <label className="block text-xs font-semibold text-ink-secondary mb-1">Reason for Visit / Problems</label>
+            {!isSitting && problems.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {problems.map((p) => {
+                  const on = hasProblem(p);
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => toggleProblem(p)}
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium border cursor-pointer transition-colors ${
+                        on ? 'bg-brand text-white border-brand' : 'bg-surface-card text-ink-secondary border-border hover:text-ink-primary hover:border-brand/40'
+                      }`}
+                    >
+                      {on ? '✓ ' : '+ '}{p}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <textarea
               value={complaint}
               onChange={(e) => setComplaint(e.target.value)}
               rows={3}
-              placeholder="What the patient has come in for"
+              placeholder="Tap the problems above, or type in the patient's own words (e.g. pimples on face for 2 months)"
               className={inputClass}
             />
+            {!isSitting && (
+              <p className="text-[10px] text-ink-secondary mt-1">The doctor gets matching prescription templates suggested from this.</p>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-1">

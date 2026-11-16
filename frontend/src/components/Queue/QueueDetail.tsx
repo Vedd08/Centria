@@ -109,6 +109,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
   const [showManageTemplates, setShowManageTemplates] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateCondition, setNewTemplateCondition] = useState('');
+  const [newTemplateKeywords, setNewTemplateKeywords] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [appliedTemplates, setAppliedTemplates] = useState<{
     id: string;
@@ -351,6 +353,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
 
       const body = {
         name: newTemplateName.trim(),
+        condition: newTemplateCondition.trim() || undefined,
+        keywords: newTemplateKeywords.trim() || undefined,
         diagnosis: diagnosis.trim() || undefined,
         patientNotes: patientNotes.trim() || undefined,
         staffNotes: staffNotes.trim() || undefined,
@@ -366,6 +370,8 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
       addToast('success', 'Saved as new template');
       setShowSaveTemplate(false);
       setNewTemplateName('');
+      setNewTemplateCondition('');
+      setNewTemplateKeywords('');
       // Reload templates
       const tRes = await apiFetch('/api/prescription-templates');
       const tData = await tRes.json();
@@ -853,7 +859,13 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
                templates={templates} templateSearch={templateSearch} setTemplateSearch={setTemplateSearch}
                applyingTemplate={applyingTemplate} applyTemplate={applyTemplate}
                activeTemplateNames={activeTemplateNames} removeAppliedTemplate={removeAppliedTemplate}
-               setShowSaveTemplate={setShowSaveTemplate} setShowManageTemplates={setShowManageTemplates}
+               setShowSaveTemplate={(show: boolean) => {
+                 // Start the condition from what reception noted, so the template is
+                 // suggested next time the same problem comes in.
+                 if (show && !newTemplateCondition && entry.complaint) setNewTemplateCondition(entry.complaint.trim().slice(0, 60));
+                 setShowSaveTemplate(show);
+               }}
+               setShowManageTemplates={setShowManageTemplates}
              />
           </CollapsibleStep>
           
@@ -1047,6 +1059,28 @@ export const QueueDetail: React.FC<QueueDetailProps> = ({ entry, onBack, onChang
                   placeholder="e.g. Standard Viral Fever"
                   className={inputClass}
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-secondary mb-1">Health issue / condition</label>
+                <input
+                  type="text"
+                  value={newTemplateCondition}
+                  onChange={(e) => setNewTemplateCondition(e.target.value)}
+                  placeholder="e.g. Acne"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-secondary mb-1">Other words patients use</label>
+                <input
+                  type="text"
+                  value={newTemplateKeywords}
+                  onChange={(e) => setNewTemplateKeywords(e.target.value)}
+                  maxLength={300}
+                  placeholder="e.g. pimples, breakout"
+                  className={inputClass}
+                />
+                <p className="text-[10px] text-ink-secondary mt-1">Used to suggest this template when reception notes the problem at check-in.</p>
               </div>
               <p className="text-[10px] text-ink-secondary">
                 This will save your current diagnosis, notes, and the {entry.careOrders?.length || 0} care orders below as a reusable template.

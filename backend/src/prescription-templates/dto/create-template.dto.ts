@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export const TEMPLATE_ITEM_TYPES = ['MEDICINE', 'INJECTION', 'TREATMENT', 'OTHER'] as const;
 
@@ -55,6 +55,12 @@ export class CreateTemplateDto {
   @IsOptional()
   @IsString()
   condition?: string;
+
+  /** Other words for the condition, comma-separated — drives auto-suggestion. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  keywords?: string;
 
   @IsOptional()
   @IsString()

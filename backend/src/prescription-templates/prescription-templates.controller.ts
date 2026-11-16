@@ -23,6 +23,13 @@ export class PrescriptionTemplatesController {
     return this.templatesService.findAll(user.clinicId, user);
   }
 
+  /** Problem labels for reception's check-in chips — names only, before ':id'. */
+  @Roles('SUPER_ADMIN', 'MASTER', 'DOCTOR', 'RECEPTION', 'RM', 'NURSE', 'STAFF')
+  @Get('problems')
+  problems(@CurrentUser() user: any, @Query('doctorId') doctorId?: string) {
+    return this.templatesService.problems(user.clinicId, doctorId);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.templatesService.findOne(user.clinicId, id, user);

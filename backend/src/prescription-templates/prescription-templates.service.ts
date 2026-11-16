@@ -10,6 +10,13 @@ const TEMPLATE_INCLUDE = {
 
 const STOCK_BACKED = ['MEDICINE', 'INJECTION'];
 
+/** "Pimples,  breakout ,," -> "pimples, breakout"; empty -> null. */
+const cleanKeywords = (s?: string) => {
+  if (s === undefined) return undefined;
+  const words = [...new Set(s.split(/[,;\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
+  return words.length ? words.join(', ') : null;
+};
+
 @Injectable()
 export class PrescriptionTemplatesService {
   constructor(private prisma: PrismaService) {}
@@ -80,6 +87,7 @@ export class PrescriptionTemplatesService {
         doctorId: user.id,
         name: dto.name.trim(),
         condition: dto.condition,
+        keywords: cleanKeywords(dto.keywords),
         diagnosis: dto.diagnosis,
         patientNotes: dto.patientNotes,
         staffNotes: dto.staffNotes,
@@ -87,6 +95,31 @@ export class PrescriptionTemplatesService {
       },
       include: TEMPLATE_INCLUDE,
     });
+  }
+
+  /**
+   * The problems reception can pick at check-in: the conditions the clinic's
+   * doctors keep templates for (just the labels — no prescription content), most
+   * used first. With `doctorId`, that doctor's come first.
+   */
+  async problems(clinicId: string, doctorId?: string) {
+    const rows = await this.prisma.prescriptionTemplate.findMany({
+      where: { clinicId, isActive: true },
+      select: { condition: true, doctorId: true },
+    });
+    const byLabel = new Map<string, { label: string; count: number; mine: boolean }>();
+    for (const r of rows) {
+      const label = r.condition?.trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      const cur = byLabel.get(key) ?? { label, count: 0, mine: false };
+      cur.count++;
+      if (doctorId && r.doctorId === doctorId) cur.mine = true;
+      byLabel.set(key, cur);
+    }
+    return [...byLabel.values()]
+      .sort((a, b) => Number(b.mine) - Number(a.mine) || b.count - a.count || a.label.localeCompare(b.label))
+      .map((p) => p.label);
   }
 
   async findAll(clinicId: string, user: any) {
@@ -115,6 +148,7 @@ export class PrescriptionTemplatesService {
         data: {
           name: dto.name.trim(),
           condition: dto.condition,
+          keywords: cleanKeywords(dto.keywords),
           diagnosis: dto.diagnosis,
           patientNotes: dto.patientNotes,
           staffNotes: dto.staffNotes,
