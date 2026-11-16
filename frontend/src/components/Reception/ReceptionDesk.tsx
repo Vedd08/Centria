@@ -4,12 +4,13 @@ import { QueueBoard } from '../Queue/QueueBoard';
 import { AppointmentsPanel } from './AppointmentsPanel';
 import { PaymentsPanel } from './PaymentsPanel';
 import { FollowUpsTab } from './FollowUpsTab';
+import { SittingFollowUpsBoard } from './SittingFollowUpsBoard';
 import { PatientRegistrationModal } from '../Patients/PatientRegistrationModal';
 import { AdmitPatientModal } from '../IPD/AdmitPatientModal';
 import { useToast } from '../../context/ToastContext';
-import { ClipboardList, CalendarClock, Receipt, UserPlus, BedDouble, PhoneCall } from 'lucide-react';
+import { ClipboardList, CalendarClock, Receipt, UserPlus, BedDouble, PhoneCall, Repeat } from 'lucide-react';
 
-type Tab = 'queue' | 'appointments' | 'payments' | 'followups';
+type Tab = 'queue' | 'appointments' | 'payments' | 'sittings' | 'followups';
 
 /** The front desk console: check patients in, book appointments, take payments. */
 export const ReceptionDesk: React.FC = () => {
@@ -19,6 +20,7 @@ export const ReceptionDesk: React.FC = () => {
   const [queueKey, setQueueKey] = useState(0);
   const [followUpCount, setFollowUpCount] = useState(0);
   const [pitchCount, setPitchCount] = useState(0);
+  const [sittingCount, setSittingCount] = useState(0);
   const { addToast } = useToast();
   const { apiFetch } = useAuth();
 
@@ -26,6 +28,10 @@ export const ReceptionDesk: React.FC = () => {
     apiFetch('/api/follow-ups/summary')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setFollowUpCount(d.total ?? 0); })
+      .catch(() => {});
+    apiFetch('/api/follow-ups/sittings/summary')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setSittingCount(d.needsCall ?? 0); })
       .catch(() => {});
   }, [apiFetch]);
 
@@ -51,6 +57,7 @@ export const ReceptionDesk: React.FC = () => {
     { key: 'queue', label: "Today's Queue", icon: ClipboardList, badge: pitchCount },
     { key: 'appointments', label: 'Appointments', icon: CalendarClock },
     { key: 'payments', label: 'Payments', icon: Receipt },
+    { key: 'sittings', label: 'Package Sittings', icon: Repeat, badge: sittingCount },
     { key: 'followups', label: 'Follow-ups', icon: PhoneCall, badge: followUpCount },
   ];
 
@@ -118,6 +125,12 @@ export const ReceptionDesk: React.FC = () => {
       {tab === 'payments' && (
         <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs">
           <PaymentsPanel />
+        </div>
+      )}
+
+      {tab === 'sittings' && (
+        <div className="bg-surface-card p-4 sm:p-5 rounded-[10px] border border-border shadow-xs">
+          <SittingFollowUpsBoard onCounts={setSittingCount} />
         </div>
       )}
 

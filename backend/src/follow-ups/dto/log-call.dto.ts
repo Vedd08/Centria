@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { FollowUpKind, CallOutcome } from '../follow-ups.service';
 
 export class LogCallDto {
@@ -26,6 +26,7 @@ export class LogCallDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   note?: string;
 
   @ValidateIf((o) => o.outcome === 'CALL_BACK')

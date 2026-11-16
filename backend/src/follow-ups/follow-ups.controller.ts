@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { FollowUpsService, FollowUpKind, CallOutcome } from './follow-ups.service';
 import { LogCallDto } from './dto/log-call.dto';
+import { SittingFollowUpsService } from './sitting-follow-ups.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -15,7 +16,10 @@ const CALL_ROLES = ['RECEPTION', 'RM', 'NURSE', 'STAFF', 'MASTER', 'SUPER_ADMIN'
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('follow-ups')
 export class FollowUpsController {
-  constructor(private readonly followUpsService: FollowUpsService) {}
+  constructor(
+    private readonly followUpsService: FollowUpsService,
+    private readonly sittingFollowUps: SittingFollowUpsService,
+  ) {}
 
   @Roles(...READ_ROLES)
   @Get()
@@ -31,6 +35,19 @@ export class FollowUpsController {
   @Get('summary')
   getSummary(@CurrentUser() user: any) {
     return this.followUpsService.getSummary(user.clinicId);
+  }
+
+  /** Package-sittings board: missed, due and upcoming sittings with the calls made. */
+  @Roles(...READ_ROLES)
+  @Get('sittings')
+  getSittings(@CurrentUser() user: any) {
+    return this.sittingFollowUps.board(user.clinicId);
+  }
+
+  @Roles(...READ_ROLES)
+  @Get('sittings/summary')
+  getSittingsSummary(@CurrentUser() user: any) {
+    return this.sittingFollowUps.summary(user.clinicId);
   }
 
   @Roles(...CALL_ROLES)
