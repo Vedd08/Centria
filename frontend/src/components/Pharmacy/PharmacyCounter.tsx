@@ -4,7 +4,8 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { MedicineList } from '../Medicines/MedicineList';
 import { CareOrder, ORDER_TYPE_LABEL, money } from '../Queue/types';
-import { Package, RefreshCw, Pill, AlertTriangle, Boxes, Receipt, CheckCircle2, Printer, PackageCheck } from 'lucide-react';
+import { Package, RefreshCw, Pill, AlertTriangle, Boxes, Receipt, CheckCircle2, Printer, PackageCheck, Minus, Plus, Ban } from 'lucide-react';
+import { describeQty, hasPack, packText, validQty } from '../../utils/pack';
 import { RetailPOS } from './RetailPOS';
 import { StockRefill } from './StockRefill';
 import { ExpiryDashboard } from './ExpiryDashboard';
@@ -41,6 +42,18 @@ const STAGE_LABEL: Record<Stage, string> = {
   paid: 'Paid',
 };
 
+const QuickBtn: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`px-2 py-0.5 rounded-full text-[10px] font-medium border cursor-pointer ${
+      active ? 'bg-brand text-white border-brand' : 'bg-surface-card text-ink-secondary border-border hover:text-ink-primary'
+    }`}
+  >
+    {children}
+  </button>
+);
+
 /** Turns the API's bill into what the printable bill shows. */
 const toBillData = (b: any, title = 'Pharmacy Bill'): PharmacyBillData => ({
   title,
@@ -76,6 +89,12 @@ export const PharmacyCounter: React.FC = () => {
   const [bill, setBill] = useState<PharmacyBillData | null>(null);
   /** Set while the bill on screen is an unpaid preview for this visit. */
   const [collectFor, setCollectFor] = useState<string | null>(null);
+  /** Quantity the pharmacist will hand over, per order, when it differs from the prescription. */
+  const [give, setGive] = useState<Record<string, number>>({});
+  const [giveNote, setGiveNote] = useState<Record<string, string>>({});
+  const qtyFor = (o: PharmacyOrder) => give[o.id] ?? o.quantity;
+  const setQty = (o: PharmacyOrder, n: number) =>
+    setGive((prev) => ({ ...prev, [o.id]: Math.max(0, Math.min(10000, Math.round(n) || 0)) }));
 
   const fetchOrders = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -90,7 +109,8 @@ export const PharmacyCounter: React.FC = () => {
       const rows: PharmacyOrder[] = Array.isArray(data) ? data : data.data || [];
       // Only what the pharmacy hands over from stock. "Buy outside" lines have no
       // medicine link and never come to the counter.
-      setOrders(rows.filter((o) => ['MEDICINE', 'INJECTION'].includes(o.orderType) && o.medicineId && o.status !== 'CANCELLED'));
+      // Items the pharmacy marked "not needed" stay visible, struck through.
+      setOrders(rows.filter((o) => ['MEDICINE', 'INJECTION'].includes(o.orderType) && o.medicineId && (o.status !== 'CANCELLED' || !!o.dispenseNote)));
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       addToast('error', err.message || 'Failed to load pharmacy queue');
@@ -108,9 +128,15 @@ export const PharmacyCounter: React.FC = () => {
   }, [date, tab]);
 
   const dispenseOne = async (order: PharmacyOrder): Promise<boolean> => {
-    const res = await apiFetch(`/api/care-orders/${order.id}/dispense`, { method: 'PATCH' });
+    const qty = qtyFor(order);
+    const changed = qty !== order.quantity;
+    const res = await apiFetch(`/api/care-orders/${order.id}/dispense`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changed ? { quantity: qty, note: giveNote[order.id]?.trim() || undefined } : {}),
+    });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || `Could not dispense ${order.description}`);
+    if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || `Could not dispense ${order.description}`);
     return true;
   };
 
@@ -118,7 +144,10 @@ export const PharmacyCounter: React.FC = () => {
     setBusyId(order.id);
     try {
       await dispenseOne(order);
-      addToast('success', `${order.description} dispensed — stock updated`);
+      const qty = qtyFor(order);
+      addToast('success', qty === 0
+        ? `${order.description} marked not needed — removed from the bill`
+        : `${order.description}: ${describeQty(qty, order.medicine)} dispensed — stock updated`);
       await fetchOrders();
     } catch (err: any) {
       addToast('error', err.message || 'Failed to dispense');
@@ -214,7 +243,9 @@ export const PharmacyCounter: React.FC = () => {
       }
       const g = acc[key];
       g.orders.push(o);
-      g.total += Number(o.totalPrice);
+      if (o.status === 'CANCELLED') return acc; // marked not needed — not billed
+      // Not handed over yet: price what the pharmacist is about to give.
+      g.total += o.dispensedAt ? Number(o.totalPrice) : Number(o.unitPrice) * qtyFor(o);
       if (!o.dispensedAt) g.pending.push(o);
       if (o.billedInvoiceId && !g.invoiceIds.includes(o.billedInvoiceId)) g.invoiceIds.push(o.billedInvoiceId);
       return acc;
@@ -266,43 +297,135 @@ export const PharmacyCounter: React.FC = () => {
 
       <div className="p-4 space-y-2">
         {g.orders.map((o) => {
-          const stock = o.medicine?.stockQty ?? 0;
-          const short = !o.dispensedAt && stock < o.quantity;
+          const m = o.medicine;
+          const stock = m?.stockQty ?? 0;
+          const notNeeded = o.status === 'CANCELLED';
+          const pending = !o.dispensedAt && !notNeeded;
+          const qty = qtyFor(o);
+          const changed = pending && qty !== o.quantity;
+          const short = pending && stock < qty;
+          const badQty = pending && !validQty(qty, m);
+          // Unsplittable packs move a whole pack at a time.
+          const step = hasPack(m) && m.sellLoose === false ? m.packSize : 1;
+          const prescribed = o.prescribedQty ?? o.quantity;
           return (
-            <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 bg-surface-page p-3 rounded-lg border border-border">
-              <div className="min-w-[180px]">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-ink-primary">{o.description}</span>
-                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-card border border-border text-ink-secondary">
-                    {ORDER_TYPE_LABEL[o.orderType] || o.orderType}
-                  </span>
-                </div>
-                <p className="text-[11px] text-ink-secondary mt-0.5">
-                  Qty {o.quantity} × {money(o.unitPrice)} = {money(o.totalPrice)}
-                  {!o.dispensedAt && o.medicine && ` · ${stock} ${o.medicine.unit} in stock`}
-                  {o.dosage && ` · ${o.dosage}`}
-                  {o.frequency && ` · ${o.frequency}`}
-                </p>
-                {short && (
-                  <p className="text-[11px] text-status-danger flex items-center gap-1 mt-0.5">
-                    <AlertTriangle className="w-3 h-3" /> Not enough stock — refill before dispensing
+            <div key={o.id} className={`bg-surface-page p-3 rounded-lg border space-y-2 ${changed ? 'border-brand/40' : 'border-border'} ${notNeeded ? 'opacity-60' : ''}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-[180px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs font-semibold text-ink-primary ${notNeeded ? 'line-through' : ''}`}>{o.description}</span>
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-card border border-border text-ink-secondary">
+                      {ORDER_TYPE_LABEL[o.orderType] || o.orderType}
+                    </span>
+                    {hasPack(m) && (
+                      <span className="text-[10px] text-ink-faint">
+                        {packText(m)} = {money(Number(o.unitPrice) * m.packSize)}{m.sellLoose === false ? ' · whole packs only' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-ink-secondary mt-0.5">
+                    Prescribed: <span className="font-medium text-ink-primary">{describeQty(prescribed, m)}</span>
+                    {' · '}{money(o.unitPrice)} per {m?.unit || 'unit'}
+                    {pending && m && ` · ${stock} ${m.unit} in stock`}
+                    {o.dosage && ` · ${o.dosage}`}
+                    {o.frequency && ` · ${o.frequency}`}
                   </p>
+                </div>
+
+                {o.dispensedAt ? (
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-status-success">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Gave {describeQty(o.quantity, m)}
+                    </span>
+                    <p className="text-[11px] text-ink-secondary">{money(o.totalPrice)}</p>
+                  </div>
+                ) : notNeeded ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-secondary">
+                    <Ban className="w-3.5 h-3.5" /> Not given
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Give</p>
+                      <div className="inline-flex items-center rounded-md border border-border bg-surface-card overflow-hidden">
+                        <button onClick={() => setQty(o, qty - step)} disabled={qty <= 0} className="px-1.5 py-1 text-ink-secondary hover:bg-surface-page disabled:opacity-30 cursor-pointer" title={`One ${step > 1 ? m?.packLabel || 'pack' : m?.unit || 'unit'} less`}>
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <input
+                          type="number"
+                          min={0}
+                          step={step}
+                          value={qty}
+                          onChange={(e) => setQty(o, Number(e.target.value))}
+                          className="w-12 text-center text-xs font-mono font-semibold bg-transparent outline-none py-1"
+                        />
+                        <button onClick={() => setQty(o, qty + step)} className="px-1.5 py-1 text-ink-secondary hover:bg-surface-page cursor-pointer" title={`One ${step > 1 ? m?.packLabel || 'pack' : m?.unit || 'unit'} more`}>
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[70px]">
+                      <p className="text-[10px] uppercase tracking-wider text-ink-secondary font-semibold">Amount</p>
+                      <p className="text-xs font-semibold text-brand-deep">{money(Number(o.unitPrice) * qty)}</p>
+                    </div>
+                    <button
+                      onClick={() => dispense(o)}
+                      disabled={busyId === o.id || busyId === g.queueId || short || badQty}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={short ? 'Insufficient stock to dispense' : badQty ? 'Give whole packs' : qty === 0 ? 'Mark as not needed' : 'Dispense and deduct stock'}
+                    >
+                      {qty === 0 ? <Ban className="w-3.5 h-3.5" /> : <Package className="w-3.5 h-3.5" />}
+                      {busyId === o.id ? 'Saving...' : qty === 0 ? 'Not needed' : 'Dispense'}
+                    </button>
+                  </div>
                 )}
               </div>
-              {o.dispensedAt ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-status-success">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Dispensed
-                </span>
-              ) : (
-                <button
-                  onClick={() => dispense(o)}
-                  disabled={busyId === o.id || busyId === g.queueId || short}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-primary bg-surface-card hover:bg-surface-page border border-border rounded-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={short ? 'Insufficient stock to dispense' : 'Dispense and deduct stock'}
-                >
-                  <Package className="w-3.5 h-3.5" />
-                  {busyId === o.id ? 'Dispensing...' : 'Dispense'}
-                </button>
+
+              {pending && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-ink-faint mr-0.5">Quick:</span>
+                  <QuickBtn active={qty === o.quantity} onClick={() => setQty(o, o.quantity)}>As prescribed ({o.quantity})</QuickBtn>
+                  {hasPack(m) && m.packSize !== o.quantity && (
+                    <QuickBtn active={qty === m.packSize} onClick={() => setQty(o, m.packSize)}>1 {m.packLabel || 'pack'} ({m.packSize})</QuickBtn>
+                  )}
+                  {hasPack(m) && o.quantity % m.packSize !== 0 && Math.ceil(o.quantity / m.packSize) * m.packSize !== m.packSize && (
+                    <QuickBtn active={qty === Math.ceil(o.quantity / m.packSize) * m.packSize} onClick={() => setQty(o, Math.ceil(o.quantity / m.packSize) * m.packSize)}>
+                      Round up to full {m.packLabel || 'pack'}s ({Math.ceil(o.quantity / m.packSize) * m.packSize})
+                    </QuickBtn>
+                  )}
+                  {o.quantity > 1 && (m?.sellLoose !== false || !hasPack(m)) && o.quantity % 2 === 0 && (
+                    <QuickBtn active={qty === o.quantity / 2} onClick={() => setQty(o, o.quantity / 2)}>Half ({o.quantity / 2})</QuickBtn>
+                  )}
+                  <QuickBtn active={qty === 0} onClick={() => setQty(o, 0)}>None — has it at home</QuickBtn>
+                </div>
+              )}
+
+              {changed && (
+                <input
+                  type="text"
+                  value={giveNote[o.id] ?? ''}
+                  onChange={(e) => setGiveNote((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                  maxLength={200}
+                  placeholder={qty < o.quantity ? `Reason, e.g. patient has ${o.quantity - qty} at home` : 'Reason, e.g. rounded up to a full strip'}
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border text-[11px] bg-surface-card focus:outline-none focus:ring-1 focus:ring-brand"
+                />
+              )}
+
+              {short && (
+                <p className="text-[11px] text-status-danger flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Not enough stock for {qty} — give fewer or refill first
+                </p>
+              )}
+              {badQty && !short && (
+                <p className="text-[11px] text-status-danger flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {m?.name} can't be split — give whole {m?.packLabel || 'pack'}s ({m?.packSize} {m?.unit}s each)
+                </p>
+              )}
+              {(o.dispensedAt || notNeeded) && o.prescribedQty != null && (o.prescribedQty !== o.quantity || notNeeded) && (
+                <p className="text-[11px] text-ink-secondary">
+                  {notNeeded ? 'None given' : `Gave ${o.quantity} of ${o.prescribedQty} prescribed`}
+                  {o.dispenseNote && ` — ${o.dispenseNote}`}
+                </p>
               )}
             </div>
           );
@@ -313,7 +436,7 @@ export const PharmacyCounter: React.FC = () => {
         {g.stage === 'dispense' && (
           <button
             onClick={() => dispenseAll(g)}
-            disabled={busyId === g.queueId || g.pending.every((o) => (o.medicine?.stockQty ?? 0) < o.quantity)}
+            disabled={busyId === g.queueId || g.pending.some((o) => (o.medicine?.stockQty ?? 0) < qtyFor(o) || !validQty(qtyFor(o), o.medicine))}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md shadow-xs cursor-pointer disabled:opacity-50"
           >
             <PackageCheck className="w-4 h-4" />

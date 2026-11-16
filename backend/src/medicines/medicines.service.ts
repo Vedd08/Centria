@@ -10,6 +10,13 @@ import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { RefillStockDto } from './dto/refill-stock.dto';
 import { textContains } from '../common/text-search';
 
+/** Pack fields as given; a pack of 1 or none means "sold as single units only". */
+const packFields = (dto: { packSize?: number | null; packLabel?: string; sellLoose?: boolean }) => ({
+  ...(dto.packSize !== undefined ? { packSize: dto.packSize && dto.packSize > 1 ? dto.packSize : null } : {}),
+  ...(dto.packLabel !== undefined ? { packLabel: dto.packLabel.trim() || null } : {}),
+  ...(dto.sellLoose !== undefined ? { sellLoose: dto.sellLoose } : {}),
+});
+
 @Injectable()
 export class MedicinesService {
   constructor(private prisma: PrismaService) {}
@@ -32,6 +39,7 @@ export class MedicinesService {
           ...(dto.shelf !== undefined ? { shelf: dto.shelf.trim() } : {}),
           ...(dto.hsnCode !== undefined ? { hsnCode: dto.hsnCode.trim() } : {}),
           ...(dto.taxRate !== undefined ? { taxRate: dto.taxRate } : {}),
+          ...packFields(dto),
         },
       });
 
@@ -97,6 +105,7 @@ export class MedicinesService {
         ...(dto.shelf !== undefined ? { shelf: dto.shelf.trim() } : {}),
         ...(dto.hsnCode !== undefined ? { hsnCode: dto.hsnCode.trim() } : {}),
         ...(dto.taxRate !== undefined ? { taxRate: dto.taxRate } : {}),
+        ...packFields(dto),
       },
     });
   }

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { CareOrdersService } from './care-orders.service';
 import { CreateCareOrderDto } from './dto/create-care-order.dto';
 import { PerformCareOrderDto } from './dto/perform-care-order.dto';
+import { DispenseCareOrderDto } from './dto/dispense-care-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -88,7 +89,7 @@ export class CareOrdersController {
 
   @Roles('SUPER_ADMIN', 'MASTER', 'PHARMACY')
   @Patch(':id/dispense')
-  dispense(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.careOrdersService.dispense(user.clinicId, id, user);
+  dispense(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: DispenseCareOrderDto) {
+    return this.careOrdersService.dispense(user.clinicId, id, user, dto ?? {});
   }
 }

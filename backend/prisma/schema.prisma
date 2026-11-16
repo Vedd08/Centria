@@ -416,7 +416,14 @@ model Medicine {
   isGstTaxable      Boolean            @default(false)
   stockQty          Int                @default(0)
   reorderPoint      Int                @default(10)
+  /// Price of ONE unit (one tablet, one tube). Stock is also counted in units.
   unitPrice         Decimal            @default(0.0)
+  /// Units in one pack, e.g. 10 tablets in a strip. Null = sold only as single units.
+  packSize          Int?
+  /// What a pack is called: "strip", "box", "bottle".
+  packLabel         String?
+  /// Whether a pack can be split (loose tablets). Off for tubes, bottles, vials.
+  sellLoose         Boolean            @default(true)
   shelf             String?
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
@@ -897,6 +904,11 @@ model CareOrder {
   frequency    String?
   instructions String?
   quantity     Int     @default(1)
+  /// What the doctor prescribed, kept when the pharmacy gives a different quantity
+  /// (e.g. the patient already has 5 at home). Null = given as prescribed.
+  prescribedQty Int?
+  /// Why the pharmacy changed the quantity.
+  dispenseNote  String?
 
   unitPrice  Decimal @default(0.0)
   totalPrice Decimal @default(0.0)

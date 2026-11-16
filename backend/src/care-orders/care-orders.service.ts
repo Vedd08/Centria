@@ -11,6 +11,9 @@ import { PerformCareOrderDto } from './dto/perform-care-order.dto';
 const STOCK_BACKED = ['MEDICINE', 'INJECTION'];
 
 
+/** "box" -> "boxes", "strip" -> "strips", "ml" stays. */
+const plural = (w: string) => (/(s|x|ch|sh)$/i.test(w) ? `${w}es` : /ml$/i.test(w) ? w : `${w}s`);
+
 const ORDER_INCLUDE = {
   medicine: true,
   treatment: true,
@@ -250,11 +253,19 @@ export class CareOrdersService {
   }
 
   /**
-   * Pharmacy hand-over. Deducts the ordered quantity from stock and records the
+   * Pharmacy hand-over. Deducts the quantity given from stock and records the
    * movement, in one transaction so stock can never drift from the ledger.
+   *
+   * The pharmacy may give a different quantity from the prescription — fewer when
+   * the patient already has some at home, or 0 when they need none. The patient
+   * pays for what is handed over (unit price × quantity); the doctor's figure is
+   * kept in `prescribedQty`. A medicine that can't be split (a tube, a bottle)
+   * must be given in whole packs.
    */
-  async dispense(clinicId: string, id: string, requestingUser: any) {
+  async dispense(clinicId: string, id: string, requestingUser: any, dto: { quantity?: number; note?: string } = {}) {
     const order = await this.findOneOrThrow(clinicId, id);
+    const note = dto.note?.trim() || null;
+    const changed = dto.quantity !== undefined && dto.quantity !== order.quantity;
 
     if (!STOCK_BACKED.includes(order.orderType) || !order.medicineId) {
       throw new BadRequestException('Only medicine and injection orders from the pharmacy catalogue can be dispensed');
@@ -265,6 +276,23 @@ export class CareOrdersService {
     if (order.dispensedAt) {
       throw new ConflictException('This order has already been dispensed');
     }
+    if (order.billedInvoiceId) {
+      throw new ConflictException('This order is already billed');
+    }
+
+    // Patient needs none of it: drop it from the bill, nothing leaves the shelf.
+    if (dto.quantity === 0) {
+      return this.prisma.careOrder.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          prescribedQty: order.prescribedQty ?? order.quantity,
+          dispenseNote: note ?? 'Not needed — patient has it at home',
+          dispensedById: requestingUser.id,
+        },
+        include: ORDER_INCLUDE,
+      });
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const medicine = await tx.medicine.findFirst({ where: { id: order.medicineId!, clinicId } });
@@ -272,17 +300,24 @@ export class CareOrdersService {
         throw new NotFoundException('Medicine no longer exists');
       }
 
+      const qty = dto.quantity ?? order.quantity;
+      if (changed && !medicine.sellLoose && medicine.packSize && qty % medicine.packSize !== 0) {
+        throw new BadRequestException(
+          `${medicine.name} can't be split — give whole ${plural(medicine.packLabel || 'pack')} of ${medicine.packSize} ${plural(medicine.unit)}`,
+        );
+      }
+
       // Claim the stock with a conditional decrement rather than reading the balance
       // and writing back what we computed: two counters dispensing the same medicine
       // at once would both read the old figure and one deduction would vanish.
-      const { newQty, batchDeductions } = await decrementStock(tx, clinicId, medicine, order.quantity);
+      const { newQty, batchDeductions } = await decrementStock(tx, clinicId, medicine, qty);
 
       await tx.stockMovement.create({
         data: {
           clinicId,
           medicineId: medicine.id,
-          delta: -order.quantity,
-          reason: `Care order dispense (${order.description})`,
+          delta: -qty,
+          reason: `Care order dispense (${order.description})${changed ? ` — gave ${qty} of ${order.quantity} prescribed` : ''}`,
           newQty,
           performedById: requestingUser.id,
         },
@@ -300,7 +335,18 @@ export class CareOrdersService {
 
       return tx.careOrder.update({
         where: { id },
-        data: { dispensedAt: new Date(), dispensedById: requestingUser.id },
+        data: {
+          dispensedAt: new Date(),
+          dispensedById: requestingUser.id,
+          ...(changed
+            ? {
+                quantity: qty,
+                prescribedQty: order.prescribedQty ?? order.quantity,
+                totalPrice: Number(order.unitPrice) * qty,
+              }
+            : {}),
+          ...(note ? { dispenseNote: note } : {}),
+        },
         include: ORDER_INCLUDE,
       });
     }, TRANSACTION_OPTIONS);
@@ -435,6 +481,8 @@ export class CareOrdersService {
         unit: o.medicine?.unit ?? '',
         hsnCode: o.medicine?.hsnCode ?? null,
         quantity: o.quantity,
+        /** Set when the pharmacy gave a different quantity from the prescription. */
+        prescribedQty: o.prescribedQty ?? null,
         unitPrice: Number(o.unitPrice),
         amount,
         gstRate,

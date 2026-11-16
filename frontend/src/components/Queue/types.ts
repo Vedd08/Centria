@@ -13,13 +13,20 @@ export interface CareOrder {
   frequency?: string;
   instructions?: string;
   quantity: number;
+  /** Doctor's quantity, set when the pharmacy gave a different amount. */
+  prescribedQty?: number | null;
+  /** Why the pharmacy changed the quantity. */
+  dispenseNote?: string | null;
   unitPrice: number;
   totalPrice: number;
   status: string;
   performedAt?: string;
   performNotes?: string;
   dispensedAt?: string;
-  medicine?: { id: string; name: string; unit: string; stockQty: number };
+  medicine?: {
+    id: string; name: string; unit: string; stockQty: number;
+    packSize?: number | null; packLabel?: string | null; sellLoose?: boolean;
+  };
   patient?: HistoryPatient;
   queue?: { id: string; tokenNumber: number; queueDate: string; careType?: string; status: string };
   orderedBy?: { id: string; name: string };

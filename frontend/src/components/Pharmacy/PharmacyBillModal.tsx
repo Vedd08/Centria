@@ -11,6 +11,8 @@ export interface PharmacyBillLine {
   unit?: string;
   hsnCode?: string | null;
   quantity: number;
+  /** Doctor's quantity, when fewer/more were handed over. */
+  prescribedQty?: number | null;
   unitPrice: number;
   amount: number;
   gstRate: number;
@@ -157,7 +159,7 @@ export const PharmacyBillModal: React.FC<Props> = ({ bill, onClose, onCollect })
                   <th className="py-1.5 pr-2 w-6">#</th>
                   <th className="py-1.5 pr-2">Medicine</th>
                   <th className="py-1.5 px-2 text-right">Qty</th>
-                  <th className="py-1.5 px-2 text-right">Rate</th>
+                  <th className="py-1.5 px-2 text-right">Rate / unit</th>
                   {hasGst && <th className="py-1.5 px-2 text-right">GST</th>}
                   <th className="py-1.5 pl-2 text-right">Amount</th>
                 </tr>
@@ -172,6 +174,9 @@ export const PharmacyBillModal: React.FC<Props> = ({ bill, onClose, onCollect })
                     </td>
                     <td className="py-1.5 px-2 text-right font-mono whitespace-nowrap">
                       {l.quantity} {l.unit}
+                      {l.prescribedQty != null && l.prescribedQty !== l.quantity && (
+                        <span className="block text-[10px] text-ink-secondary font-sans">of {l.prescribedQty} prescribed</span>
+                      )}
                     </td>
                     <td className="py-1.5 px-2 text-right font-mono">{money(l.unitPrice)}</td>
                     {hasGst && <td className="py-1.5 px-2 text-right font-mono text-ink-secondary">{l.gstRate ? `${l.gstRate}%` : '—'}</td>}

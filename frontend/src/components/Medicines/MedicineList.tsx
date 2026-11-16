@@ -5,6 +5,8 @@ import { StatusBadge } from '../common/StatusBadge';
 import { LoadingSkeleton } from '../common/LoadingSkeleton';
 import { Pill, Plus, Search, RefreshCw, AlertTriangle, Minus, X, History, Clock, User, LayoutGrid, List } from 'lucide-react';
 import { ShelfView } from './ShelfView';
+import { PackPriceFields, PackPriceValue } from './PackPriceFields';
+import { Pencil } from 'lucide-react';
 
 export interface MedicineItem {
   id: string;
@@ -13,9 +15,23 @@ export interface MedicineItem {
   stockQty: number;
   reorderPoint: number;
   unitPrice: number;
+  packSize?: number | null;
+  packLabel?: string | null;
+  sellLoose?: boolean;
   shelf?: string;
   isActive: boolean;
 }
+
+/** Price per unit kept to 4 decimals so a strip of 3 at ₹50 doesn't store 16.6666… */
+const toUnitPrice = (n: number) => Math.round(n * 10000) / 10000;
+
+const packPayload = (p: PackPriceValue) => ({
+  unit: p.unit,
+  unitPrice: toUnitPrice(p.unitPrice),
+  packSize: typeof p.packSize === 'number' && p.packSize > 1 ? p.packSize : null,
+  packLabel: p.packLabel,
+  sellLoose: p.sellLoose,
+});
 
 const inputClass =
   'w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand';
@@ -36,6 +52,44 @@ export const MedicineList: React.FC = () => {
   const [newStockQty, setNewStockQty] = useState(0);
   const [newReorderPoint, setNewReorderPoint] = useState(10);
   const [newUnitPrice, setNewUnitPrice] = useState(0);
+  const [newPack, setNewPack] = useState<Omit<PackPriceValue, 'unit' | 'unitPrice'>>({ packSize: '', packLabel: 'strip', sellLoose: true });
+
+  // Editing pack size / price of an existing medicine.
+  const [editing, setEditing] = useState<MedicineItem | null>(null);
+  const [editPack, setEditPack] = useState<PackPriceValue | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (m: MedicineItem) => {
+    setEditing(m);
+    setEditPack({
+      unit: m.unit,
+      unitPrice: Number(m.unitPrice),
+      packSize: m.packSize ?? '',
+      packLabel: m.packLabel || (['tube', 'bottle', 'vial', 'sachet'].includes(m.unit) ? m.unit : 'strip'),
+      sellLoose: m.sellLoose ?? true,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !editPack) return;
+    setSavingEdit(true);
+    try {
+      const res = await apiFetch(`/api/medicines/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(packPayload(editPack)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Could not save');
+      addToast('success', `${editing.name} updated`);
+      setEditing(null);
+      fetchMedicines();
+    } catch (err: any) {
+      addToast('error', err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
   const [newShelf, setNewShelf] = useState('');
   const [newGstTaxable, setNewGstTaxable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -94,10 +148,9 @@ export const MedicineList: React.FC = () => {
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newName.trim(),
-          unit: newUnit.trim(),
+          ...packPayload({ unit: newUnit.trim(), unitPrice: Number(newUnitPrice), ...newPack }),
           stockQty: Number(newStockQty),
           reorderPoint: Number(newReorderPoint),
-          unitPrice: Number(newUnitPrice),
           shelf: newShelf.trim() || undefined,
           isGstTaxable: newGstTaxable,
         }),
@@ -112,6 +165,7 @@ export const MedicineList: React.FC = () => {
       setNewReorderPoint(10);
       setNewGstTaxable(false);
       setNewUnitPrice(0);
+      setNewPack({ packSize: '', packLabel: 'strip', sellLoose: true });
       setNewShelf('');
       fetchMedicines();
     } catch (err: any) {
@@ -280,7 +334,8 @@ export const MedicineList: React.FC = () => {
                 <tr className="bg-surface-page border-b border-border text-ink-secondary font-semibold uppercase tracking-wider text-[11px]">
                   <th className="py-3.5 px-4">Medicine</th>
                   <th className="py-3.5 px-4">Unit</th>
-                  <th className="py-3.5 px-4 text-right">Unit Price</th>
+                  <th className="py-3.5 px-4 text-right">Price</th>
+                  <th className="py-3.5 px-4">Pack</th>
                   <th className="py-3.5 px-4">Shelf</th>
                   <th className="py-3.5 px-4 text-right">In Stock</th>
                   <th className="py-3.5 px-4 text-right">Reorder At</th>
@@ -295,8 +350,25 @@ export const MedicineList: React.FC = () => {
                     <tr key={m.id} className="hover:bg-surface-page/60 transition-colors">
                       <td className="py-3.5 px-4 font-medium text-ink-primary">{m.name}</td>
                       <td className="py-3.5 px-4 text-ink-secondary">{m.unit}</td>
-                      <td className="py-3.5 px-4 text-right font-mono">
-                        ₹{m.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      <td className="py-3.5 px-4 text-right font-mono whitespace-nowrap">
+                        ₹{Number(m.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="text-[10px] text-ink-faint font-sans"> /{m.unit}</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-ink-secondary whitespace-nowrap">
+                        {m.packSize && m.packSize > 1 ? (
+                          <>
+                            {m.packLabel || 'pack'} of {m.packSize}
+                            <span className="text-ink-faint"> · ₹{(Number(m.unitPrice) * m.packSize).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            {m.sellLoose === false && <span className="block text-[10px] text-status-warning">whole only</span>}
+                          </>
+                        ) : (
+                          <span className="text-ink-faint">single</span>
+                        )}
+                        {canManageStock && (
+                          <button onClick={() => openEdit(m)} className="ml-1.5 inline-flex p-0.5 rounded text-ink-faint hover:text-brand cursor-pointer align-middle" title="Edit pack & price">
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-ink-secondary">
                         {m.shelf || '-'}
@@ -466,19 +538,6 @@ export const MedicineList: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-ink-secondary mb-1">
-                    Unit Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={newUnitPrice}
-                    onChange={(e) => setNewUnitPrice(Number(e.target.value))}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-ink-secondary mb-1">
                     Shelf Location
                   </label>
                   <input
@@ -502,10 +561,18 @@ export const MedicineList: React.FC = () => {
                 </div>
               </div>
 
+              <PackPriceFields
+                value={{ unit: newUnit, unitPrice: newUnitPrice, ...newPack }}
+                onChange={(v) => {
+                  setNewUnitPrice(v.unitPrice);
+                  setNewPack({ packSize: v.packSize, packLabel: v.packLabel, sellLoose: v.sellLoose });
+                }}
+              />
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-ink-secondary mb-1">
-                    Opening Stock
+                    Opening Stock ({newUnit}s)
                   </label>
                   <input
                     type="number"
@@ -554,6 +621,36 @@ export const MedicineList: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit pack & price */}
+      {editing && editPack && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-card rounded-[10px] border border-border p-6 max-w-md w-full space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Pill className="w-4 h-4 text-brand" /> {editing.name}
+              </h3>
+              <button onClick={() => setEditing(null)} className="p-1 rounded text-ink-secondary hover:bg-surface-page cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[11px] text-ink-secondary">
+              Stock is counted in single {editing.unit}s ({editing.stockQty} in stock). The bill charges the price per {editing.unit} × the quantity given.
+            </p>
+            <PackPriceFields value={editPack} onChange={setEditPack} />
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <button onClick={() => setEditing(null)} className="px-4 py-2 text-xs font-medium text-ink-secondary hover:text-ink-primary cursor-pointer">Cancel</button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="px-4 py-2 bg-brand text-white text-xs font-medium rounded-md shadow-xs hover:bg-brand-deep disabled:opacity-50 cursor-pointer"
+              >
+                {savingEdit ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+﻿import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Min, MaxLength, ValidateIf } from 'class-validator';
 
 export class UpdateMedicineDto {
   @IsOptional()
@@ -43,4 +43,21 @@ export class UpdateMedicineDto {
   @IsOptional()
   @IsString()
   shelf?: string;
+
+  /** Units in one pack (e.g. 10 tablets per strip). null clears it. */
+  @IsOptional()
+  @ValidateIf((o) => o.packSize !== null)
+  @IsInt()
+  @Min(1, { message: 'Pack size must be at least 1' })
+  packSize?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  packLabel?: string;
+
+  /** Whether a pack can be split into single units. */
+  @IsOptional()
+  @IsBoolean()
+  sellLoose?: boolean;
 }
