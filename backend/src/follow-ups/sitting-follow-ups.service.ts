@@ -76,7 +76,7 @@ export class SittingFollowUpsService {
           this.prisma.followUpCall.findMany({
             where: { clinicId, kind: 'PACKAGE_SITTING', refId: { in: purchaseIds } },
             select: {
-              id: true, refId: true, dueDate: true, outcome: true, note: true, callBackOn: true, createdAt: true,
+              id: true, refId: true, dueDate: true, outcome: true, note: true, callBackOn: true, bookedTime: true, createdAt: true,
               calledBy: { select: { name: true } },
             },
             orderBy: { createdAt: 'desc' },
@@ -123,9 +123,14 @@ export class SittingFollowUpsService {
       const appt = status === 'LAPSED' ? null : nextAppointment.get(p.patientId) ?? null;
       const inClinic = todaysQueue.find((q) => q.sittingPurchaseId === p.id) ?? todaysQueue.find((q) => q.patientId === p.patientId);
 
+      // A sitting booked with the nurse/staff — no doctor slot. If the booked day
+      // passes without the patient coming, it drops back to "needs a call".
+      const sittingBooking =
+        status !== 'LAPSED' && latest?.outcome === 'BOOKED' && latest.callBackOn && latest.callBackOn >= today ? latest : null;
+
       let followUp: SittingFollowUp;
       if (inClinic && status !== 'LAPSED') followUp = 'IN_CLINIC';
-      else if (appt) followUp = 'BOOKED';
+      else if (sittingBooking || appt) followUp = 'BOOKED';
       else if (latest?.outcome === 'DECLINED') followUp = 'DECLINED';
       else if (latest?.outcome === 'CALL_BACK' && latest.callBackOn && latest.callBackOn > today) followUp = 'CALL_BACK';
       else followUp = 'TO_CALL';
@@ -164,12 +169,15 @@ export class SittingFollowUpsService {
           overdueDays: i.plan.overdueDays,
           schedule: i.plan.schedule,
         })),
+        booking: sittingBooking
+          ? { date: sittingBooking.callBackOn, time: sittingBooking.bookedTime, by: sittingBooking.calledBy?.name ?? null, note: sittingBooking.note }
+          : null,
         appointment: appt ? { startTime: appt.startTime, doctorName: appt.doctor?.name ?? null, reason: appt.reasonForVisit } : null,
         inClinicStatus: inClinic?.status ?? null,
         attempts: currentCalls.filter((c) => c.outcome === 'NO_ANSWER').length,
         lastCall: latest ? { outcome: latest.outcome, callBackOn: latest.callBackOn, at: latest.createdAt, by: latest.calledBy?.name ?? null, note: latest.note } : null,
         calls: allCalls.slice(0, 30).map((c) => ({
-          id: c.id, outcome: c.outcome, note: c.note, callBackOn: c.callBackOn, dueDate: c.dueDate, at: c.createdAt, by: c.calledBy?.name ?? null,
+          id: c.id, outcome: c.outcome, note: c.note, callBackOn: c.callBackOn, bookedTime: c.bookedTime, dueDate: c.dueDate, at: c.createdAt, by: c.calledBy?.name ?? null,
         })),
       });
     }

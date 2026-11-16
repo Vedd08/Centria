@@ -5,13 +5,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { AppointmentModal } from '../Appointments/AppointmentModal';
 import { fmtDate, fmtDateTime } from '../../utils/date';
 
 type Status = 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING' | 'LATER' | 'NO_DATE' | 'EXPIRED' | 'LAPSED';
 type FollowUp = 'IN_CLINIC' | 'BOOKED' | 'DECLINED' | 'CALL_BACK' | 'TO_CALL';
 
-interface Call { id: string; outcome: string; note: string | null; callBackOn: string | null; dueDate: string; at: string; by: string | null }
+interface Call { id: string; outcome: string; note: string | null; callBackOn: string | null; bookedTime: string | null; dueDate: string; at: string; by: string | null }
 interface Treatment {
   id: string; name: string; sittingsUsed: number; totalSittings: number; gapDays: number | null;
   nextDate: string | null; overdueDays: number;
@@ -26,6 +25,8 @@ interface Row {
   nextTreatment: string | null; nextIsDoctorPlanned: boolean;
   sittingsUsed: number; totalSittings: number; lastSittingDate: string | null; lapsedAt: string | null;
   treatments: Treatment[];
+  /** Sitting booked with the nurse/staff — no doctor. */
+  booking: { date: string; time: string | null; by: string | null; note: string | null } | null;
   appointment: { startTime: string; doctorName: string | null; reason: string | null } | null;
   inClinicStatus: string | null;
   attempts: number;
@@ -108,6 +109,24 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
   const [modalDate, setModalDate] = useState('');
   const [modalNote, setModalNote] = useState('');
   const [booking, setBooking] = useState<Row | null>(null);
+  const [bookDate, setBookDate] = useState('');
+  const [bookTime, setBookTime] = useState('');
+  const [bookNote, setBookNote] = useState('');
+
+  const openBooking = (row: Row, today: string) => {
+    setBooking(row);
+    // Suggest the due date when it's still ahead; otherwise today.
+    setBookDate(row.booking?.date ?? (row.dueDate && row.dueDate >= today ? row.dueDate : today));
+    setBookTime(row.booking?.time ?? '');
+    setBookNote('');
+  };
+
+  const saveBooking = async () => {
+    if (!booking || !bookDate) return;
+    const r = booking;
+    await logCall(r, 'BOOKED', { callBackOn: bookDate, bookedTime: bookTime || undefined, note: bookNote });
+    setBooking(null);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -124,7 +143,7 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
 
   useEffect(() => { load(); }, [load]);
 
-  const logCall = async (row: Row, outcome: string, extra: { note?: string; callBackOn?: string } = {}) => {
+  const logCall = async (row: Row, outcome: string, extra: { note?: string; callBackOn?: string; bookedTime?: string } = {}) => {
     setActing(row.purchaseId);
     try {
       const res = await apiFetch('/api/follow-ups/calls', {
@@ -138,6 +157,7 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
           outcome,
           ...(extra.note?.trim() ? { note: extra.note.trim() } : {}),
           ...(extra.callBackOn ? { callBackOn: extra.callBackOn } : {}),
+          ...(extra.bookedTime ? { bookedTime: extra.bookedTime } : {}),
         }),
       });
       if (!res.ok) {
@@ -335,8 +355,8 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
                   ) : (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {r.status !== 'LAPSED' && r.followUp !== 'IN_CLINIC' && (
-                        <button onClick={() => setBooking(r)} disabled={!!acting} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50">
-                          <CalendarClock className="w-3 h-3" /> {r.followUp === 'BOOKED' ? 'Book another' : 'Book sitting'}
+                        <button onClick={() => openBooking(r, board.today)} disabled={!!acting} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50">
+                          <CalendarClock className="w-3 h-3" /> {r.booking ? 'Change booking' : 'Book sitting'}
                         </button>
                       )}
                       {wa && (
@@ -409,21 +429,68 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
       )}
 
       {booking && (
-        <AppointmentModal
-          isOpen
-          onClose={() => setBooking(null)}
-          onSaved={async () => {
-            const r = booking;
-            setBooking(null);
-            await logCall(r, 'BOOKED');
-          }}
-          appointment={null}
-          initialSlot={null}
-          prefill={{
-            patientId: booking.patient.id,
-            reason: `${booking.packageName} — ${booking.nextTreatment ?? 'next'} sitting`,
-          }}
-        />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-surface-card rounded-[10px] border border-border shadow-xl p-5 max-w-sm w-full space-y-3">
+            <h3 className="text-sm font-bold text-ink-primary flex items-center gap-1.5">
+              <CalendarClock className="w-4 h-4 text-brand" /> Book sitting
+            </h3>
+            <div className="text-xs text-ink-secondary space-y-0.5">
+              <p><strong className="text-ink-primary">{booking.patient.name}</strong> · {booking.packageName}</p>
+              <p>
+                {booking.treatments
+                  .filter((t) => t.sittingsUsed < t.totalSittings)
+                  .map((t) => `${t.name} sitting ${t.sittingsUsed + 1} of ${t.totalSittings}`)
+                  .join(' · ')}
+              </p>
+              <p className="text-[11px] text-ink-faint">Done by the nurse / staff — no doctor slot needed.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium text-ink-secondary">Date <span className="text-status-danger">*</span></span>
+                <input
+                  type="date"
+                  value={bookDate}
+                  min={board.today}
+                  onChange={(e) => setBookDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium text-ink-secondary">Time (optional)</span>
+                <input
+                  type="time"
+                  value={bookTime}
+                  onChange={(e) => setBookTime(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card"
+                />
+              </label>
+            </div>
+            {bookDate && new Date(`${bookDate}T00:00:00`).getDay() === 0 && (
+              <p className="text-[11px] text-status-warning">That's a Sunday — check the clinic is open.</p>
+            )}
+            {booking.expiryDate && bookDate > booking.expiryDate && (
+              <p className="text-[11px] text-status-danger">The package expires on {fmtDate(booking.expiryDate)}, before this date.</p>
+            )}
+            <textarea
+              value={bookNote}
+              onChange={(e) => setBookNote(e.target.value)}
+              placeholder="Note (optional)"
+              rows={2}
+              maxLength={500}
+              className="w-full px-3 py-2 rounded-md border border-border text-xs focus:ring-1 focus:ring-brand bg-surface-card resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBooking(null)} className="px-4 py-1.5 text-xs text-ink-secondary hover:text-ink-primary rounded-md cursor-pointer">Cancel</button>
+              <button
+                onClick={saveBooking}
+                disabled={!bookDate || bookDate < board.today || !!acting}
+                className="px-4 py-1.5 text-xs font-semibold text-white bg-brand hover:bg-brand-deep rounded-md cursor-pointer disabled:opacity-50"
+              >
+                Book
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -432,6 +499,13 @@ export const SittingFollowUpsBoard: React.FC<{ onCounts?: (needsCall: number) =>
 const FollowUpBadge: React.FC<{ r: Row }> = ({ r }) => {
   if (r.followUp === 'IN_CLINIC') {
     return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-semibold bg-status-success/10 text-status-success border-status-success/30"><UserCheck className="w-3 h-3" /> In clinic today</span>;
+  }
+  if (r.followUp === 'BOOKED' && r.booking) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-semibold bg-status-success/10 text-status-success border-status-success/30 whitespace-nowrap">
+        <CalendarCheck className="w-3 h-3" /> Booked {fmtDate(r.booking.date)}{r.booking.time ? ` ${r.booking.time}` : ''}
+      </span>
+    );
   }
   if (r.followUp === 'BOOKED' && r.appointment) {
     return (
@@ -493,7 +567,11 @@ const TrackPanel: React.FC<{ r: Row }> = ({ r }) => (
           {r.calls.map((c) => (
             <li key={c.id} className="text-[11px] leading-snug border-l-2 border-border pl-2">
               <span className="font-semibold text-ink-primary">{OUTCOME[c.outcome] ?? c.outcome}</span>
-              {c.callBackOn && <span className="text-ink-secondary"> → call {fmtDate(c.callBackOn)}</span>}
+              {c.callBackOn && (
+                <span className="text-ink-secondary">
+                  {c.outcome === 'BOOKED' ? ` for ${fmtDate(c.callBackOn)}${c.bookedTime ? ` ${c.bookedTime}` : ''}` : ` → call ${fmtDate(c.callBackOn)}`}
+                </span>
+              )}
               <span className="text-ink-faint"> · {fmtDateTime(c.at)} · {c.by ?? '—'}</span>
               {c.dueDate !== r.dueDate && c.dueDate !== 'unknown' && <span className="text-ink-faint"> (for sitting due {fmtDate(c.dueDate)})</span>}
               {c.note && <p className="text-ink-secondary italic">“{c.note}”</p>}

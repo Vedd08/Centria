@@ -1130,7 +1130,9 @@ model FollowUpCall {
   dueDate    String // YYYY-MM-DD
   outcome    String // "BOOKED" | "NO_ANSWER" | "DECLINED" | "CALL_BACK"
   note       String?
-  callBackOn String? // YYYY-MM-DD
+  callBackOn String? // YYYY-MM-DD — call-back date, or the booked date for a BOOKED package sitting
+  /// HH:MM for a package sitting booked without a doctor (nurse/staff do the procedure).
+  bookedTime String?
   calledById String
   calledBy   User     @relation(fields: [calledById], references: [id])
   createdAt  DateTime @default(now())

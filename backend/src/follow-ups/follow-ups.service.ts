@@ -265,6 +265,8 @@ export class FollowUpsService {
       const latestCall = calls[0] ?? null;
       if (latestCall?.outcome === 'DECLINED') continue;
       if (latestCall?.outcome === 'CALL_BACK' && latestCall.callBackOn && latestCall.callBackOn > today) continue;
+      // Sitting booked with the nurse/staff (no doctor appointment) for today or later.
+      if (latestCall?.outcome === 'BOOKED' && latestCall.callBackOn && latestCall.callBackOn >= today) continue;
 
       const noAnswerCount = calls.filter(c => c.outcome === 'NO_ANSWER').length;
       const overdueDays = dueDate && dueDate < today
@@ -388,17 +390,24 @@ export class FollowUpsService {
       outcome: CallOutcome;
       note?: string;
       callBackOn?: string;
+      bookedTime?: string;
     },
   ) {
     // Validate outcome-specific requirements
+    const today = toLocalDateKey(new Date());
     if (dto.outcome === 'CALL_BACK') {
       if (!dto.callBackOn) {
         throw new BadRequestException('callBackOn is required for CALL_BACK outcome');
       }
-      const today = new Date().toISOString().split('T')[0];
       if (dto.callBackOn < today) {
         throw new BadRequestException('callBackOn cannot be in the past');
       }
+    }
+    if (dto.outcome === 'BOOKED' && dto.callBackOn && dto.callBackOn < today) {
+      throw new BadRequestException('The sitting cannot be booked for a past date');
+    }
+    if (dto.bookedTime && (dto.outcome !== 'BOOKED' || !dto.callBackOn)) {
+      throw new BadRequestException('A time can only be given with a booked date');
     }
 
     // Validate refId belongs to this clinic and matches kind
@@ -426,6 +435,7 @@ export class FollowUpsService {
         outcome: dto.outcome,
         note: dto.note,
         callBackOn: dto.callBackOn,
+        bookedTime: dto.bookedTime ?? null,
         calledById,
       },
     });

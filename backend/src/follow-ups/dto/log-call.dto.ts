@@ -29,8 +29,14 @@ export class LogCallDto {
   @MaxLength(500)
   note?: string;
 
-  @ValidateIf((o) => o.outcome === 'CALL_BACK')
+  /** CALL_BACK: when to call again (required). BOOKED: the date the sitting is booked for. */
+  @ValidateIf((o) => o.outcome === 'CALL_BACK' || o.callBackOn != null)
   @IsNotEmpty({ message: 'callBackOn is required when outcome is CALL_BACK' })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'callBackOn must be in YYYY-MM-DD format' })
   callBackOn?: string;
+
+  /** BOOKED package sitting: time of the slot, HH:MM. */
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'bookedTime must be HH:MM' })
+  bookedTime?: string;
 }
