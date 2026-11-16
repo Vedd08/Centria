@@ -1,51 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { X, ArrowUp, ArrowDown, ArrowRight, ChevronDown, ChevronRight, Search, Sparkles, Check } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { X, ArrowUp, ArrowDown, ArrowRight, Search, Sparkles, Check } from 'lucide-react';
 import { searchTemplates, suggestTemplates } from '../../../utils/templateMatch';
 
 const inputClass = 'w-full px-3 py-2 rounded-md border border-border text-xs bg-surface-card text-ink-primary focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand';
-
-interface TemplateGroupProps {
-  name: string;
-  templates: any[];
-  templateSearch: string;
-  applyingTemplate: string;
-  applyTemplate: (id: string) => void;
-}
-
-const TemplateGroup: React.FC<TemplateGroupProps> = ({ name, templates, templateSearch, applyingTemplate, applyTemplate }) => {
-  const hasSearch = !!templateSearch;
-  const [expanded, setExpanded] = useState(false);
-  
-  const isExpanded = hasSearch || expanded;
-  
-  return (
-    <div className="mb-2 border border-border rounded-md overflow-hidden bg-surface-page">
-       <div 
-         className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
-         onClick={() => !hasSearch && setExpanded(!expanded)}
-       >
-         <span className="text-xs font-semibold text-ink-primary">{name} <span className="text-[10px] text-ink-secondary">({templates.length})</span></span>
-         {!hasSearch && (isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-ink-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-ink-secondary" />)}
-       </div>
-       {isExpanded && (
-         <div className="px-3 pb-3 pt-1 flex flex-wrap gap-2">
-           {templates.map(t => (
-             <button
-                key={t.id}
-                type="button"
-                disabled={!!applyingTemplate}
-                onClick={() => applyTemplate(t.id)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-brand/20 hover:border-brand/40 text-brand-deep text-[11px] font-medium rounded-md shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-                title={t.condition ? `For ${t.condition}` : ''}
-              >
-                {applyingTemplate === t.id ? 'Applying...' : t.name}
-              </button>
-           ))}
-         </div>
-       )}
-    </div>
-  )
-}
 
 export interface Step1DiagnosisProps {
   diagnosis: string;
@@ -80,30 +37,8 @@ export const Step1Diagnosis: React.FC<Step1DiagnosisProps> = ({
     () => suggestTemplates(templates, `${complaint} ${diagnosis || ''}`),
     [templates, complaint, diagnosis],
   );
+  // Templates only appear through a suggestion or a search — no full list.
   const searchResults = useMemo(() => searchTemplates(templates, templateSearch), [templates, templateSearch]);
-
-  const groupedTemplates = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    templates.forEach(t => {
-      const key = (t.condition || '').trim() || 'Other';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(t);
-    });
-    
-    Object.values(groups).forEach(arr => {
-      arr.sort((a, b) => a.name.localeCompare(b.name));
-    });
-    
-    return groups;
-  }, [templates]);
-
-  const groupKeys = useMemo(() => {
-    return Object.keys(groupedTemplates).sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
-      return a.localeCompare(b);
-    });
-  }, [groupedTemplates]);
 
   return (
     <div className="space-y-4">
@@ -182,8 +117,8 @@ export const Step1Diagnosis: React.FC<Step1DiagnosisProps> = ({
               ) : (
                 <p className="text-[11px] text-ink-secondary bg-white/70 border border-brand/10 rounded-md px-2.5 py-1.5">
                   {complaint
-                    ? <>No template matches “{complaint.length > 60 ? `${complaint.slice(0, 60)}…` : complaint}” — search above or pick from the list.</>
-                    : 'Reception did not note the problem — search above or pick from the list below.'}
+                    ? <>No template matches “{complaint.length > 60 ? `${complaint.slice(0, 60)}…` : complaint}” — search above by problem, template or medicine.</>
+                    : 'Reception did not note the problem — search above by problem, template or medicine.'}
                 </p>
               )
             )}
@@ -213,13 +148,7 @@ export const Step1Diagnosis: React.FC<Step1DiagnosisProps> = ({
                   <p className="text-[11px] text-ink-secondary italic py-1">No templates found matching "{templateSearch}"</p>
                 )}
               </div>
-            ) : (
-            <div className="flex flex-col gap-1">
-              {groupKeys.map(key => (
-                <TemplateGroup key={key} name={key} templates={groupedTemplates[key]} templateSearch="" applyingTemplate={applyingTemplate} applyTemplate={applyTemplate} />
-              ))}
-            </div>
-            )}
+            ) : null}
             {activeTemplateNames.length > 0 && (
               <div className="mt-2 space-y-1.5">
                 <p className="text-[10px] font-medium text-ink-secondary">Currently applied:</p>
